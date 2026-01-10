@@ -66,7 +66,7 @@ export default function Screen1() {
 
   const sortRowsByDateDesc = (rowsToSort) => {
     return [...rowsToSort].sort((a,b)=>{
-      const dateA = a.datum.split('.').reverse().join('-'); // yyyy-mm-dd
+      const dateA = a.datum.split('.').reverse().join('-');
       const dateB = b.datum.split('.').reverse().join('-');
       return dateB.localeCompare(dateA);
     });
@@ -103,7 +103,6 @@ export default function Screen1() {
 
   const addNewRow = () => {
     const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'' };
-    // Novi red ide uvek na vrh, ostali sortirani po datumu
     const sortedExisting = sortRowsByDateDesc(rows);
     const newRows = [newRow, ...sortedExisting];
     newRows.forEach((r,i)=>r.rb=i+1);
@@ -163,6 +162,25 @@ export default function Screen1() {
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
+
+        <button
+          onClick={() => {
+            const data = localStorage.getItem("rows");
+            if (!data || data === "[]") {
+              alert("Nema mečeva za export");
+              return;
+            }
+            const blob = new Blob([data], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "matches.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          📤 Export JSON (za ML)
+        </button>
       </div>
 
       <div

@@ -2,11 +2,11 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-    namespace "com.dzidici.app"
+    namespace "com.dzidiciml.app"
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.dzidici.app"
+        applicationId "com.dzidiciml.app"
         minSdk 24
         targetSdk 34
         versionCode 1
@@ -40,10 +40,6 @@ android {
 }
 
 dependencies {
-
-    // ❌ NE DODAVATI kotlin-stdlib RUČNO
-    // Capacitor i Kotlin plugin ga već obezbeđuju
-
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.11.0'
