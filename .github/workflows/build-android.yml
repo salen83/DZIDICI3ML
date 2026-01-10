@@ -26,13 +26,11 @@ jobs:
           java-version: 21
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Capacitor packages
         run: |
-          npm install @capacitor/core
-          npm install @capacitor/cli
-          npm install @capacitor/android
+          npm install @capacitor/core @capacitor/cli @capacitor/android
 
       - name: Build React app
         run: |
@@ -43,19 +41,13 @@ jobs:
           rm -rf android
           npx cap add android
 
-      # ✅ OVO JE KLJUČNI KORAK
+      - name: Copy web build to Android
+        run: npx cap copy android
+
       - name: Force change Android package name
         run: |
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
-
-      - name: Verify package name
-        run: |
-          grep applicationId android/app/build.gradle
-          grep namespace android/app/build.gradle
-
-      - name: Sync Capacitor
-        run: npx cap sync android
 
       - name: Fix Kotlin version in Android build
         run: |
@@ -69,6 +61,9 @@ jobs:
             "    }" \
             "}" >> android/app/build.gradle
           fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
 
       - name: Build APK
         run: |
