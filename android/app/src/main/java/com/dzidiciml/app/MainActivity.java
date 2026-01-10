@@ -1,14 +1,13 @@
 package com.dzidiciml.app;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+import android.content.Context;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
-
-import java.io.FileOutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 public class MainActivity extends BridgeActivity {
 
@@ -16,25 +15,32 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Hvatanje crash-eva i zapis u log fajl
+
+        // Probamo odmah da zabeležimo u log i fajl
+        Log.i(TAG, "MainActivity onCreate START");
+
+        try {
+            String testLog = "App started, onCreate executed\n";
+            FileOutputStream fos = openFileOutput("app_start_test.log", Context.MODE_PRIVATE);
+            fos.write(testLog.getBytes());
+            fos.close();
+            Log.i(TAG, "Test log written to app_start_test.log");
+        } catch (IOException e) {
+            Log.e(TAG, "Error writing test log", e);
+        }
+
+        // Globalni handler za crash-eve
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             Log.e(TAG, "Uncaught exception in thread " + thread.getName(), throwable);
 
             try {
-                StringWriter sw = new StringWriter();
-                PrintWriter pw = new PrintWriter(sw);
-                throwable.printStackTrace(pw);
-                String stackTrace = sw.toString();
-
-                FileOutputStream fos = openFileOutput("app_errors.log", Context.MODE_APPEND);
-                fos.write((stackTrace + "\n\n").getBytes());
+                String crashLog = Log.getStackTraceString(throwable);
+                FileOutputStream fos = openFileOutput("app_errors.log", Context.MODE_PRIVATE);
+                fos.write(crashLog.getBytes());
                 fos.close();
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException ioException) {
+                Log.e(TAG, "Error writing crash log", ioException);
             }
-
-            // Završi proces
-            System.exit(1);
         });
 
         super.onCreate(savedInstanceState);
