@@ -19,6 +19,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Install npm dependencies
         run: npm install
 
@@ -29,7 +35,8 @@ jobs:
           npm install @capacitor/android
 
       - name: Build React app
-        run: CI=false npm run build
+        run: |
+          CI=false npm run build
 
       - name: Recreate Android platform
         run: |
@@ -61,10 +68,6 @@ jobs:
             "    }" \
             "}" >> android/app/build.gradle
           fi
-
-      - name: Copy web build into Android
-        run: |
-          npx cap copy android
 
       - name: Build APK
         run: |
