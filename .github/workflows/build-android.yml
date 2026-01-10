@@ -33,13 +33,27 @@ jobs:
           npm install @capacitor/core
           npm install @capacitor/cli
           npm install @capacitor/android
+
       - name: Build React app
         run: |
           CI=false npm run build
+
       - name: Recreate Android platform
         run: |
           rm -rf android
           npx cap add android
+
+      # ✅ OVO JE KLJUČNI KORAK
+      - name: Force change Android package name
+        run: |
+          sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
+          sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
+
+      - name: Verify package name
+        run: |
+          grep applicationId android/app/build.gradle
+          grep namespace android/app/build.gradle
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -55,10 +69,12 @@ jobs:
             "    }" \
             "}" >> android/app/build.gradle
           fi
+
       - name: Build APK
         run: |
           cd android
           ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
