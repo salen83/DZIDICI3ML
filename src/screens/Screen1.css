@@ -1,0 +1,93 @@
+/* TOP BAR */
+.screen1-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;  /* manja visina za mobilni vertikalni prikaz */
+  font-size: 14px;
+  background-color: #87ceeb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* TABELA WRAPPER */
+.screen1-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 5px auto;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+/* TABELA */
+.screen1-table {
+  width: 90%;
+  border-collapse: collapse;
+  margin: 0 auto;
+  font-size: 12px;
+}
+
+/* HEADER */
+.screen1-table th {
+  background-color: #d3d3d3;
+  padding: 4px 6px;
+  text-align: center;
+  font-weight: bold;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* CELIJE */
+.screen1-table td {
+  padding: 3px 5px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* MINIMALNE KOLONE (RB, FT, HT, SH, dugme) */
+.screen1-table .col-min {
+  width: 40px;
+  font-weight: bold;
+}
+
+/* INPUT POLJA U TABELI */
+.screen1-table input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  text-align: center;
+  padding: 2px 3px;
+}
+
+/* DUGME U TABELI */
+.screen1-table button {
+  padding: 2px 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* BOJA LIGE/HOME/AWAY */
+.screen1-table td[style] {
+  font-weight: bold;
+}
+
+/* PRILAGOĐAVANJE VELIČINE ZA MOBILE */
+@media (max-width: 768px) {
+  .screen1-table {
+    font-size: 10px;
+  }
+  .screen1-table th, .screen1-table td {
+    padding: 2px 4px;
+  }
+  .screen1-topbar {
+    font-size: 12px;
+    padding: 3px 5px;
+  }
+  .screen1-table .col-min {
+    width: 30px;
+  }
+}
