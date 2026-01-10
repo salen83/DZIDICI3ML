@@ -76,13 +76,15 @@ export default function Screen1() {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const wb = XLSX.read(e.target.result, { type: 'binary' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
-      const newRows = data.map((r, i) => ({
-        rb: rows.length + i + 1,
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result); // <-- promenjeno
+      const wb = XLSX.read(data, { type: 'array' }); // <-- promenjeno
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+      const newRows = dataRows.map((r, i) => ({
+        rb: (rows?.length || 0) + i + 1,
         datum: normalizeDate(getExcelDate(r)),
         vreme: String(r['Time'] ?? ''),
         liga: r['Liga'] ?? '',
@@ -93,12 +95,13 @@ export default function Screen1() {
         sh: r['SH'] ?? '',
       }));
 
-      const allRows = sortRowsByDateDesc([...rows, ...newRows]);
+      const allRows = sortRowsByDateDesc([...(rows || []), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
     };
-    reader.readAsBinaryString(file);
+
+    reader.readAsArrayBuffer(file); // <-- promenjeno
   };
 
   const addNewRow = () => {
