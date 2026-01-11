@@ -38,10 +38,11 @@ jobs:
         run: |
           CI=false npm run build
 
-      - name: Recreate Android platform
-        run: |
-          rm -rf android
-          npx cap add android
+      # ❌ NE BRISATI android folder
+      # - name: Recreate Android platform
+      #   run: |
+      #     rm -rf android
+      #     npx cap add android
 
       - name: Force change Android package name
         run: |
@@ -60,13 +61,13 @@ jobs:
         run: |
           sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.8.22'/" android/build.gradle
           if ! grep -q "resolutionStrategy.eachDependency" android/app/build.gradle; then
-            printf '%s\n' "configurations.all {" \
-            "    resolutionStrategy.eachDependency { DependencyResolveDetails details ->" \
-            "        if (details.requested.group == 'org.jetbrains.kotlin') {" \
-            "            details.useVersion '1.8.22'" \
-            "        }" \
-            "    }" \
-            "}" >> android/app/build.gradle
+            printf '%s\n' "configurations.all {"             "    resolutionStrategy.eachDependency { DependencyResolveDetails details ->"             "        if (details.requested.group == 'org.jetbrains.kotlin') {"             "            details.useVersion '1.8.22'"             "        }"             "    }"             "}" >> android/app/build.gradle
+          fi
+
+      - name: Ensure MainActivity.java exists
+        run: |
+          if [ ! -f android/app/src/main/java/com/dzidici/app/ml/MainActivity.java ]; then
+            echo "MainActivity.java not found! Build will fail." && exit 1
           fi
 
       - name: Build APK
