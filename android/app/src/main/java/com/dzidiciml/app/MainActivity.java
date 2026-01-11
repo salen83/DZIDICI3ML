@@ -3,51 +3,71 @@ package com.dzidiciml.app;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
-import com.getcapacitor.BridgeActivity;
-import com.getcapacitor.Plugin;
+import android.app.AlertDialog;
 
-import org.json.JSONObject;
+import com.getcapacitor.BridgeActivity;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 public class MainActivity extends BridgeActivity {
 
     private static final String TAG = "DZIDICIML";
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
 
-        // Globalni handler za sve crash-eve
+        // 1. Test da li uopšte možemo da pišemo fajl
+        try {
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File file = new File(dir, "DZIDICIML_TEST.txt");
+
+            FileWriter fw = new FileWriter(file, true);
+            fw.write("APP START TEST OK\n");
+            fw.close();
+        } catch (Exception e) {
+            showErrorDialog("FILE WRITE TEST FAILED:\n" + e.toString());
+        }
+
+        // 2. Globalni crash catcher
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             try {
-                JSONObject json = new JSONObject();
-                json.put("thread", thread.getName());
-                json.put("message", throwable.getMessage());
-                json.put("stacktrace", Log.getStackTraceString(throwable));
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                throwable.printStackTrace(pw);
 
-                File folder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DZIDICIML");
-                if (!folder.exists()) folder.mkdirs();
-                File file = new File(folder, "crash_log.json");
+                String stack = sw.toString();
 
-                FileWriter writer = new FileWriter(file, true); // dodaj na kraj fajla
-                writer.write(json.toString() + "\n");
-                writer.close();
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File file = new File(dir, "DZIDICIML_CRASH.txt");
+
+                FileWriter fw = new FileWriter(file, true);
+                fw.write("==== CRASH ====\n");
+                fw.write(stack + "\n");
+                fw.close();
+
+                showErrorDialog(stack);
+
             } catch (Exception e) {
-                Log.e(TAG, "Failed to write crash log", e);
+                e.printStackTrace();
             }
-
-            Log.e(TAG, "Uncaught exception in thread " + thread.getName(), throwable);
-
-            // Ovu liniju obavezno pozvati da sistem završi crash
-            System.exit(1);
         });
 
         super.onCreate(savedInstanceState);
 
-        // Opcionalno: log plugin-ova
-        for (Plugin plugin : getBridge().getPluginManager().getPlugins()) {
-            Log.i(TAG, "Registered plugin: " + plugin.getId());
-        }
+        // 3. Popup da znamo da je bar dovde stiglo
+        showErrorDialog("MainActivity.onCreate reached successfully!");
+    }
+
+    private void showErrorDialog(String message) {
+        runOnUiThread(() -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("DZIDICIML DEBUG")
+                    .setMessage(message)
+                    .setPositiveButton("OK", null)
+                    .show();
+        });
     }
 }
