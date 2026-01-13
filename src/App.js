@@ -19,15 +19,15 @@ import "./App.css";
 
 const screens = [
   { key: "screen1", title: "Rezultati" },
+  { key: "screen9", title: "Tiketi" },
+  { key: "screen3", title: "Ponuda" },
   { key: "screen2", title: "Statistika timova" },
   { key: "screen2Liga", title: "Statistika lige" },
-  { key: "screen3", title: "Ponuda" },
   { key: "screen4", title: "Predikcija" },
   { key: "screen5", title: "Rang GG" },
   { key: "screen6", title: "Rang NG" },
   { key: "screen7", title: "Rang 2+" },
   { key: "screen8", title: "Rang 7+" },
-  { key: "screen9", title: "Tiketi" },
   { key: "screen10", title: "Poisson Stats" },
   { key: "screen11", title: "Hybrid+Poisson" },
   { key: "screen12", title: "Final Mixer" }

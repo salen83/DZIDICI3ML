@@ -8,27 +8,44 @@ export default function Screen9() {
   const [selectedTicket, setSelectedTicket] = useState(null);
 
   // ===============================
+  // ONLINE / OFFLINE STATUS
+  // ===============================
+  const [online, setOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setOnline(navigator.onLine);
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    return () => {
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+    };
+  }, []);
+
+  // ===============================
   // AUTOMATSKO AŽURIRANJE TIKETA
   // ===============================
   useEffect(() => {
     if (!rows.length || !tickets.otvoreni.length) return;
 
-    setTickets(prev => {
+    setTickets((prev) => {
       const opened = [];
       const won = [...prev.dobitni];
       const lost = [...prev.gubitni];
 
-      prev.otvoreni.forEach(ticket => {
+      prev.otvoreni.forEach((ticket) => {
         let allChecked = true;
         let lostFlag = false;
 
-        const updatedMatches = ticket.matches.map(m => {
-          const r = rows.find(row =>
-            row.home === m.home &&
-            row.away === m.away &&
-            row.datum === m.datum &&
-            row.vreme === m.vreme &&
-            row.ft && row.ft.includes(":")
+        const updatedMatches = ticket.matches.map((m) => {
+          const r = rows.find(
+            (row) =>
+              row.home === m.home &&
+              row.away === m.away &&
+              row.datum === m.datum &&
+              row.vreme === m.vreme &&
+              row.ft &&
+              row.ft.includes(":")
           );
 
           if (!r) {
@@ -69,7 +86,7 @@ export default function Screen9() {
   const getTabTickets = (tab) => {
     if (tab === "otvoreni") {
       let list = [...tickets.otvoreni];
-      if (activeTicket && !list.find(t => t.id === activeTicket.id)) list.unshift(activeTicket);
+      if (activeTicket && !list.find((t) => t.id === activeTicket.id)) list.unshift(activeTicket);
       return list;
     }
     return tickets[tab] || [];
@@ -77,71 +94,95 @@ export default function Screen9() {
 
   const tabTickets = getTabTickets(activeTab);
 
-  const ticketBg = (t) => t.status === "win" ? "#c8facc" : t.status === "lose" ? "#f8c8c8" : "#f2f2f2";
-  const tipBg = (m) => m.status === "win" ? "#c8facc" : m.status === "lose" ? "#f8c8c8" : "#e0f0ff";
+  const ticketBg = (t) => (t.status === "win" ? "#c8facc" : t.status === "lose" ? "#f8c8c8" : "#f2f2f2");
+  const tipBg = (m) => (m.status === "win" ? "#c8facc" : m.status === "lose" ? "#f8c8c8" : "#e0f0ff");
 
   // ===============================
   // BRISANJE TIKETA
   // ===============================
   const deleteTicket = (ticketId, tab) => {
-    setTickets(prev => {
-      const newState = { ...prev, [tab]: prev[tab].filter(t => t.id !== ticketId) };
+    setTickets((prev) => {
+      const newState = { ...prev, [tab]: prev[tab].filter((t) => t.id !== ticketId) };
       return newState;
     });
   };
 
   return (
     <div className="screen9-container">
+      {/* ================== INTERNET STATUS ================== */}
+      <div style={{ marginBottom: 10, fontWeight: "bold" }}>
+        Status interneta:{" "}
+        {online ? <span style={{ color: "green" }}>ONLINE 🌐</span> : <span style={{ color: "red" }}>OFFLINE 🚫</span>}
+      </div>
+
       <h2>Tiketi</h2>
       <div className="tabs">
-        {["otvoreni","dobitni","gubitni"].map(tab => (
-          <button key={tab} className={activeTab===tab?"active":""} onClick={()=>setActiveTab(tab)}>
+        {["otvoreni", "dobitni", "gubitni"].map((tab) => (
+          <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
         ))}
       </div>
       <div className="tab-content">
-        {tabTickets.map(ticket => (
-          <div key={ticket.id} className="ticket-row" style={{display:"flex", alignItems:"center", justifyContent:"space-between", backgroundColor:ticketBg(ticket)}}>
-            <span style={{flexGrow:1, cursor:"pointer"}} onClick={()=>setSelectedTicket(ticket)}>
+        {tabTickets.map((ticket) => (
+          <div
+            key={ticket.id}
+            className="ticket-row"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: ticketBg(ticket) }}
+          >
+            <span style={{ flexGrow: 1, cursor: "pointer" }} onClick={() => setSelectedTicket(ticket)}>
               {ticket.name}
             </span>
-            <button style={{marginLeft:5, padding:"2px 6px"}} onClick={()=>deleteTicket(ticket.id, activeTab)}>Obriši</button>
+            <button style={{ marginLeft: 5, padding: "2px 6px" }} onClick={() => deleteTicket(ticket.id, activeTab)}>
+              Obriši
+            </button>
           </div>
         ))}
-        {tabTickets.length===0 && <div style={{padding:10}}>Nema tiketa</div>}
+        {tabTickets.length === 0 && <div style={{ padding: 10 }}>Nema tiketa</div>}
       </div>
 
       {selectedTicket && (
-        <div className="ticket-modal-overlay" onClick={()=>setSelectedTicket(null)}>
-          <div className="ticket-modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{backgroundColor:ticketBg(selectedTicket), padding:"6px", borderRadius:"4px"}}>
+        <div className="ticket-modal-overlay" onClick={() => setSelectedTicket(null)}>
+          <div className="ticket-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ backgroundColor: ticketBg(selectedTicket), padding: "6px", borderRadius: "4px" }}>
               {selectedTicket.name}
             </h3>
-            {selectedTicket.matches.map((p,i)=>(
+            {selectedTicket.matches.map((p, i) => (
               <div className="ticket-match" key={i}>
                 <div className="match-left">
-                  <div className="match-meta">{p.datum} | {p.vreme} | {p.liga}</div>
-                  <div className="match-teams">{p.home} – {p.away}</div>
+                  <div className="match-meta">
+                    {p.datum} | {p.vreme} | {p.liga}
+                  </div>
+                  <div className="match-teams">
+                    {p.home} – {p.away}
+                  </div>
                   <div className="match-desc">
-                    {p.tip==="GG" && "Oba tima daju gol"}
-                    {p.tip==="NG" && "Bar jedan tim bez gola"}
-                    {p.tip==="2+" && "Najmanje 2 gola"}
-                    {p.tip==="7+" && "Najmanje 7 golova"}
+                    {p.tip === "GG" && "Oba tima daju gol"}
+                    {p.tip === "NG" && "Bar jedan tim bez gola"}
+                    {p.tip === "2+" && "Najmanje 2 gola"}
+                    {p.tip === "7+" && "Najmanje 7 golova"}
                   </div>
                 </div>
-                <div className="match-right" style={{width:60}}>
-                  <div className="match-result" style={{backgroundColor:tipBg(p), border:"1px solid #999", borderRadius:4, textAlign:"center", padding:"2px 4px"}}>
+                <div className="match-right" style={{ width: 60 }}>
+                  <div
+                    className="match-result"
+                    style={{ backgroundColor: tipBg(p), border: "1px solid #999", borderRadius: 4, textAlign: "center", padding: "2px 4px" }}
+                  >
                     {p.rezultat || "-"}
                   </div>
                   <div className="match-tip">{p.tip}</div>
                 </div>
               </div>
             ))}
-            <button className="close-btn" onClick={()=>{
-              if(activeTicket && activeTicket.id===selectedTicket.id) saveActiveTicket();
-              setSelectedTicket(null);
-            }}>Zatvori i sačuvaj</button>
+            <button
+              className="close-btn"
+              onClick={() => {
+                if (activeTicket && activeTicket.id === selectedTicket.id) saveActiveTicket();
+                setSelectedTicket(null);
+              }}
+            >
+              Zatvori i sačuvaj
+            </button>
           </div>
         </div>
       )}

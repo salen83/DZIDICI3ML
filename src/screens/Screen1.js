@@ -1,46 +1,24 @@
-import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import React, { useState, useContext, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
-  const [countryColors, setCountryColors] = useState({});
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const [editing, setEditing] = useState({row:null, col:null});
+  const rowHeight = 28;
+  const buffer = 15;
+  const containerHeight = 600;
 
-  const rowHeight = 35;
-  const buffer = 20;
+  const totalRows = rows?.length || 0;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight)/rowHeight) + buffer);
+  const visibleRows = rows?.slice(startIndex, endIndex);
 
-  const [colWidths, setColWidths] = useState({
-    rb: 40, datum: 80, vreme: 60, liga: 120, home: 120, away: 120, ft: 40, ht: 40, sh: 40, delete: 40
-  });
-  const resizingCol = useRef(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
-
-  useEffect(() => {
-    const savedColors = JSON.parse(localStorage.getItem('countryColors') || '{}');
-    setCountryColors(savedColors);
-  }, []);
-
-  useEffect(() => {
-    if (!rows) return;
-    const newColors = { ...countryColors };
-    rows.forEach(r => {
-      const country = (r.liga || '').split(' ')[0] || r.liga;
-      if (country && !newColors[country]) {
-        let hash = 0;
-        for (let i = 0; i < country.length; i++) {
-          hash = country.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const hue = Math.abs(hash) % 360;
-        newColors[country] = `hsl(${hue}, 70%, 70%)`;
-      }
-    });
-    setCountryColors(newColors);
-    localStorage.setItem('countryColors', JSON.stringify(newColors));
-  }, [rows]);
+  const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
 
   const normalizeDate = (val) => {
     if (!val) return '';
@@ -62,28 +40,23 @@ export default function Screen1() {
   };
 
   const getExcelDate = row => row?.['Datum'] ?? row?.['datum'] ?? row?.['DATE'] ?? row?.['Date'] ?? row?.['date'] ?? '';
-  const getCountryColor = country => countryColors[country] || '#fff';
 
-  const sortRowsByDateDesc = (rowsToSort) => {
-    return [...rowsToSort].sort((a,b)=>{
-      const dateA = a.datum.split('.').reverse().join('-');
-      const dateB = b.datum.split('.').reverse().join('-');
-      return dateB.localeCompare(dateA);
-    });
-  };
+  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
+    const dateA = a.datum.split('.').reverse().join('-');
+    const dateB = b.datum.split('.').reverse().join('-');
+    return dateB.localeCompare(dateA);
+  });
 
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-
     reader.onload = (e) => {
-      const data = new Uint8Array(e.target.result); // <-- promenjeno
-      const wb = XLSX.read(data, { type: 'array' }); // <-- promenjeno
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-
-      const newRows = dataRows.map((r, i) => ({
+      const newRows = dataRows.map((r,i)=>({
         rb: (rows?.length || 0) + i + 1,
         datum: normalizeDate(getExcelDate(r)),
         vreme: String(r['Time'] ?? ''),
@@ -94,20 +67,31 @@ export default function Screen1() {
         ht: r['HT'] ?? '',
         sh: r['SH'] ?? '',
       }));
-
-      const allRows = sortRowsByDateDesc([...(rows || []), ...newRows]);
+      const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
     };
+    reader.readAsArrayBuffer(file);
+  };
 
-    reader.readAsArrayBuffer(file); // <-- promenjeno
+  const saveJSON = async () => {
+    if (!rows || rows.length===0) { alert("Nema mečeva za export"); return; }
+    try {
+      const filename = `matches_${Date.now()}.json`;
+      await Filesystem.writeFile({
+        path: filename,
+        data: JSON.stringify(rows,null,2),
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8
+      });
+      alert(`JSON fajl sačuvan: ${filename}`);
+    } catch(e) { console.error(e); alert("Greška pri čuvanju JSON fajla"); }
   };
 
   const addNewRow = () => {
     const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'' };
-    const sortedExisting = sortRowsByDateDesc(rows);
-    const newRows = [newRow, ...sortedExisting];
+    const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
@@ -121,6 +105,8 @@ export default function Screen1() {
     localStorage.setItem('rows', JSON.stringify(copy));
   };
 
+  const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
+  const handleEditEnd = () => setEditing({row:null, col:null});
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...rows];
     copy[rowIdx][key] = value;
@@ -130,119 +116,124 @@ export default function Screen1() {
     localStorage.setItem('rows', JSON.stringify(sorted));
   };
 
-  const startResize = (e, colKey) => {
-    resizingCol.current = colKey;
-    startX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    startWidth.current = colWidths[colKey];
-    e.preventDefault();
+  const getFontSize = (text,maxWidth,base=11,min=7) => {
+    let size = base;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${size}px Arial`;
+    while(ctx.measureText(text).width > maxWidth && size>min) { size -= 1; ctx.font = `${size}px Arial`; }
+    return size;
   };
-
-  const onResize = (e) => {
-    if (!resizingCol.current) return;
-    const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-    const delta = currentX - startX.current;
-    setColWidths(prev => ({
-      ...prev,
-      [resizingCol.current]: Math.max(0, startWidth.current + delta)
-    }));
-  };
-
-  const endResize = () => { resizingCol.current = null; };
-  const handleScroll = useCallback((e) => { setScrollTop(e.target.scrollTop); }, []);
-
-  const containerHeight = 600;
-  const totalRows = rows?.length || 0;
-  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
-  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight)/rowHeight) + buffer);
-  const visibleRows = rows?.slice(startIndex, endIndex);
-
-  const columnKeys = ['rb','datum','vreme','liga','home','away','ft','ht','sh','delete'];
 
   return (
-    <div className="screen1-container"
-         onTouchMove={onResize}
-         onTouchEnd={endResize}>
+    <div className="screen1-container">
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
-
-        <button
-          onClick={() => {
-            const data = localStorage.getItem("rows");
-            if (!data || data === "[]") {
-              alert("Nema mečeva za export");
-              return;
-            }
-            const blob = new Blob([data], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "matches.json";
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-        >
-          📤 Export JSON (za ML)
-        </button>
+        <button onClick={saveJSON}>📤 Export JSON</button>
       </div>
 
       <div
         className="screen1-table-wrapper"
-        style={{ height: containerHeight, overflowY: 'auto', width:'98%', margin:'0 auto' }}
+        style={{height:containerHeight, overflowY:'auto'}}
         ref={tableWrapperRef}
         onScroll={handleScroll}
       >
-        <table className="screen1-table">
-          <thead>
-            <tr>
-              {columnKeys.map(key => (
-                <th key={key} style={{width: colWidths[key], position:'relative', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                  {key === 'rb' ? '#' :
-                   key==='datum' ? 'Datum' :
-                   key==='vreme' ? 'Vreme' :
-                   key==='liga' ? 'Liga' :
-                   key==='home' ? 'Home' :
-                   key==='away' ? 'Away' :
-                   key==='ft' ? 'FT' :
-                   key==='ht' ? 'HT' :
-                   key==='sh' ? 'SH' : ''}
-                  {key !== 'delete' &&
-                    <div style={{
-                      position:'absolute', right:0, top:0, width:20, height:'100%', touchAction:'none', cursor:'col-resize',
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#333'
-                    }}
-                    onTouchStart={e=>startResize(e,key)}
-                    onMouseDown={e=>startResize(e,key)}>⇔</div>
+        <div style={{height: startIndex*rowHeight}}></div>
+        {visibleRows?.map((r,i)=>{
+          const idx = startIndex+i;
+          const isEditing = editing.row===idx;
+
+          return (
+            <div key={idx} className="screen1-row" style={{height:rowHeight, backgroundColor: r.liga?'#f2f9ff':'transparent'}}>
+              <div className="col rb">{r.rb}</div>
+
+              {/* INFO: datum + vreme u jednoj liniji, liga ispod */}
+              <div className="col info">
+                <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
+                  {isEditing && editing.col==='datum' ?
+                    <input autoFocus className="edit-input" value={r.datum}
+                      onChange={e=>handleCellChange(idx,'datum',e.target.value)}
+                      onBlur={handleEditEnd} /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'datum')}>
+                      {r.datum}
+                    </div>
                   }
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ height: startIndex * rowHeight }}></tr>
-            {visibleRows?.map((r,i)=>{
-              const idx = startIndex + i;
-              const country = (r.liga || '').split(' ')[0] || r.liga;
-              const color = getCountryColor(country);
-              const cellStyle = {overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'};
-              return (
-                <tr key={idx}>
-                  <td style={{...cellStyle, width: colWidths.rb}}>{r.rb}</td>
-                  <td style={{...cellStyle, width: colWidths.datum}}><input value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.vreme}}><input value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.liga, backgroundColor:color, fontWeight:'bold'}}><input value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.home, backgroundColor:color, fontWeight:'bold'}}><input value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.away, backgroundColor:color, fontWeight:'bold'}}><input value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.ft}}><input value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.ht}}><input value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.sh}}><input value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{width: colWidths.delete}}><button onClick={()=>deleteRow(idx)}>x</button></td>
-                </tr>
-              );
-            })}
-            <tr style={{ height: (totalRows - endIndex) * rowHeight }}></tr>
-          </tbody>
-        </table>
+
+                  {isEditing && editing.col==='vreme' ?
+                    <input autoFocus className="edit-input" value={r.vreme}
+                      onChange={e=>handleCellChange(idx,'vreme',e.target.value)}
+                      onBlur={handleEditEnd} /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>
+                      {r.vreme}
+                    </div>
+                  }
+                </div>
+
+                {isEditing && editing.col==='liga' ?
+                  <input autoFocus className="edit-input" value={r.liga}
+                    onChange={e=>handleCellChange(idx,'liga',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="info-center" onClick={()=>handleEditStart(idx,'liga')}
+                    style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>
+                    {r.liga}
+                  </div>
+                }
+              </div>
+
+              {/* TEAMS */}
+              <div className="col teams" style={{fontWeight:'bold', fontSize:getFontSize(`${r.home} - ${r.away}`,110)}}>
+                {isEditing && editing.col==='home' ?
+                  <input autoFocus className="edit-input" value={r.home}
+                    onChange={e=>handleCellChange(idx,'home',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
+                }
+                <span> - </span>
+                {isEditing && editing.col==='away' ?
+                  <input autoFocus className="edit-input" value={r.away}
+                    onChange={e=>handleCellChange(idx,'away',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
+                }
+              </div>
+
+              {/* RESULTS: HT/SH u istoj liniji iznad FT */}
+              <div className="col results" style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+                <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
+                  {isEditing && editing.col==='ht' ?
+                    <input autoFocus className="edit-input" value={r.ht}
+                      onChange={e=>handleCellChange(idx,'ht',e.target.value)}
+                      onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'ht')} style={{fontSize:9}}>
+                      {r.ht}
+                    </div>
+                  }
+                  <span>-</span>
+                  {isEditing && editing.col==='sh' ?
+                    <input autoFocus className="edit-input" value={r.sh}
+                      onChange={e=>handleCellChange(idx,'sh',e.target.value)}
+                      onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>
+                      {r.sh}
+                    </div>
+                  }
+                </div>
+                {isEditing && editing.col==='ft' ?
+                  <input autoFocus className="edit-input" value={r.ft}
+                    onChange={e=>handleCellChange(idx,'ft',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>
+                    {r.ft}
+                  </div>
+                }
+              </div>
+
+              <div className="col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
+            </div>
+          );
+        })}
+        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>
   );

@@ -1,93 +1,91 @@
-/* TOP BAR */
+.screen1-container {
+  width: 95%; /* ukupna širina tabele */
+  margin: 0 auto;
+  font-family: Arial, sans-serif;
+}
+
 .screen1-topbar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 6px;  /* manja visina za mobilni vertikalni prikaz */
-  font-size: 14px;
-  background-color: #87ceeb;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  gap: 3px;
+  margin-bottom: 2px;
+  font-size: 12px;
 }
 
-/* TABELA WRAPPER */
 .screen1-table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  margin: 5px auto;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
-/* TABELA */
-.screen1-table {
-  width: 90%;
-  border-collapse: collapse;
-  margin: 0 auto;
+.screen1-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid transparent; /* linije nevidljive */
+  padding: 0;
   font-size: 12px;
+  height: 28px; /* maksimalno zgusnuto */
 }
 
-/* HEADER */
-.screen1-table th {
-  background-color: #d3d3d3;
-  padding: 4px 6px;
-  text-align: center;
-  font-weight: bold;
+.col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  padding: 0 2px;
 }
 
-/* CELIJE */
-.screen1-table td {
-  padding: 3px 5px;
-  text-align: center;
-  white-space: nowrap;
-  font-size: 12px;
-}
+/* optimalne širine kolona za portrait */
+.col.rb { width: 24px; font-size: 10px; }             /* redni broj */
+.col.info { 
+  width: 80px; 
+  flex-direction: column; 
+  align-items: flex-start; 
+  font-size: 10px; /* manji font za datum i vreme */
+  margin-right: 10px; /* razmak prema koloni timova */
+} 
+.col.teams { 
+  width: 140px; 
+  justify-content: flex-start; 
+  font-size: 11px; 
+  font-weight: bold; 
+} 
+.col.results { 
+  width: 60px; 
+  flex-direction: column; 
+  align-items: center; 
+  font-size: 11px; 
+} 
+.col.delete { width: 20px; }
 
-/* MINIMALNE KOLONE (RB, FT, HT, SH, dugme) */
-.screen1-table .col-min {
-  width: 40px;
-  font-weight: bold;
-}
+/* info i results stilovi */
+.info-top { font-size: 8px; line-height: 1.1; cursor: text; } /* datum i vreme */
+.info-center { font-size: 11px; font-weight: bold; line-height: 1.1; cursor: text; } /* liga */
+.results-top { font-size: 9px; line-height: 1.1; cursor: text; }
+.results-center { font-size: 11px; font-weight: bold; line-height: 1.1; cursor: text; }
 
-/* INPUT POLJA U TABELI */
-.screen1-table input {
+/* input stil */
+.edit-input {
   width: 100%;
+  height: 100%;
   box-sizing: border-box;
-  font-size: 12px;
-  text-align: center;
-  padding: 2px 3px;
+  font-family: Arial, sans-serif;
+  font-size: inherit;
+  font-weight: inherit;
+  border: 1px solid #555;
+  padding: 0 2px;
+  margin: 0;
 }
 
-/* DUGME U TABELI */
-.screen1-table button {
-  padding: 2px 5px;
-  font-size: 12px;
-  cursor: pointer;
+/* trepćuća crtica samo za aktivno polje */
+.edit-cursor {
+  display: inline-block;
+  width: 2px;
+  background-color: black;
+  animation: blink 1s steps(1) infinite;
+  margin-left: 2px;
 }
 
-/* BOJA LIGE/HOME/AWAY */
-.screen1-table td[style] {
-  font-weight: bold;
-}
-
-/* PRILAGOĐAVANJE VELIČINE ZA MOBILE */
-@media (max-width: 768px) {
-  .screen1-table {
-    font-size: 10px;
-  }
-  .screen1-table th, .screen1-table td {
-    padding: 2px 4px;
-  }
-  .screen1-topbar {
-    font-size: 12px;
-    padding: 3px 5px;
-  }
-  .screen1-table .col-min {
-    width: 30px;
-  }
+@keyframes blink {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0; }
 }
