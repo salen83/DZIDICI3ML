@@ -26,20 +26,8 @@ export default function Screen1() {
       const date = new Date((val - 25569) * 86400 * 1000);
       return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).padStart(2,'0')}.${date.getFullYear()}`;
     }
-    const str = String(val).trim();
-    if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-      const [d,m,y]=str.split('/');
-      return `${d}.${m}.${y}`;
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-      const [y,m,d]=str.split('-');
-      return `${d}.${m}.${y}`;
-    }
-    return str;
+    return String(val);
   };
-
-  const getExcelDate = row => row?.['Datum'] ?? row?.['datum'] ?? row?.['DATE'] ?? row?.['Date'] ?? row?.['date'] ?? '';
 
   const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
     const dateA = a.datum.split('.').reverse().join('-');
@@ -58,7 +46,7 @@ export default function Screen1() {
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
       const newRows = dataRows.map((r,i)=>({
         rb: (rows?.length || 0) + i + 1,
-        datum: normalizeDate(getExcelDate(r)),
+        datum: normalizeDate(r['Datum'] ?? ''),
         vreme: String(r['Time'] ?? ''),
         liga: r['Liga'] ?? '',
         home: r['Home'] ?? '',
@@ -76,21 +64,27 @@ export default function Screen1() {
   };
 
   const saveJSON = async () => {
-    if (!rows || rows.length===0) { alert("Nema mečeva za export"); return; }
+    if (!rows || rows.length===0) { 
+      alert("Nema mečeva za export"); 
+      return; 
+    }
     try {
       const filename = `matches_${Date.now()}.json`;
       await Filesystem.writeFile({
         path: filename,
         data: JSON.stringify(rows,null,2),
-        directory: Directory.Documents,
+        directory: Directory.Download,  // <-- čuva u Download folder
         encoding: Encoding.UTF8
       });
-      alert(`JSON fajl sačuvan: ${filename}`);
-    } catch(e) { console.error(e); alert("Greška pri čuvanju JSON fajla"); }
+      alert(`JSON fajl sačuvan u Download folderu: ${filename}`);
+    } catch(e) { 
+      console.error(e); 
+      alert("Greška pri čuvanju JSON fajla"); 
+    }
   };
 
   const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'' };
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
@@ -107,9 +101,11 @@ export default function Screen1() {
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
+
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...rows];
-    copy[rowIdx][key] = value;
+    copy[rowIdx] = { ...copy[rowIdx], [key]: value };
+    delete copy[rowIdx]._new;
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);
     setRows(sorted);
@@ -133,99 +129,65 @@ export default function Screen1() {
         <button onClick={saveJSON}>📤 Export JSON</button>
       </div>
 
-      <div
-        className="screen1-table-wrapper"
-        style={{height:containerHeight, overflowY:'auto'}}
-        ref={tableWrapperRef}
-        onScroll={handleScroll}
-      >
+      <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
         <div style={{height: startIndex*rowHeight}}></div>
+
         {visibleRows?.map((r,i)=>{
           const idx = startIndex+i;
           const isEditing = editing.row===idx;
+          const isNew = r._new === true;
 
           return (
-            <div key={idx} className="screen1-row" style={{height:rowHeight, backgroundColor: r.liga?'#f2f9ff':'transparent'}}>
+            <div key={idx} className="screen1-row" style={{height:rowHeight}}>
               <div className="col rb">{r.rb}</div>
 
-              {/* INFO: datum + vreme u jednoj liniji, liga ispod */}
               <div className="col info">
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
-                  {isEditing && editing.col==='datum' ?
-                    <input autoFocus className="edit-input" value={r.datum}
-                      onChange={e=>handleCellChange(idx,'datum',e.target.value)}
-                      onBlur={handleEditEnd} /> :
-                    <div className="info-text" onClick={()=>handleEditStart(idx,'datum')}>
-                      {r.datum}
-                    </div>
+                  {(isNew || (isEditing && editing.col==='datum')) ?
+                    <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
                   }
 
-                  {isEditing && editing.col==='vreme' ?
-                    <input autoFocus className="edit-input" value={r.vreme}
-                      onChange={e=>handleCellChange(idx,'vreme',e.target.value)}
-                      onBlur={handleEditEnd} /> :
-                    <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>
-                      {r.vreme}
-                    </div>
+                  {(isNew || (isEditing && editing.col==='vreme')) ?
+                    <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
                   }
                 </div>
 
-                {isEditing && editing.col==='liga' ?
-                  <input autoFocus className="edit-input" value={r.liga}
-                    onChange={e=>handleCellChange(idx,'liga',e.target.value)}
-                    onBlur={handleEditEnd} /> :
-                  <div className="info-center" onClick={()=>handleEditStart(idx,'liga')}
-                    style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>
-                    {r.liga}
-                  </div>
+                {(isNew || (isEditing && editing.col==='liga')) ?
+                  <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
+                  <div className="info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>{r.liga}</div>
                 }
               </div>
 
-              {/* TEAMS */}
               <div className="col teams" style={{fontWeight:'bold', fontSize:getFontSize(`${r.home} - ${r.away}`,110)}}>
-                {isEditing && editing.col==='home' ?
-                  <input autoFocus className="edit-input" value={r.home}
-                    onChange={e=>handleCellChange(idx,'home',e.target.value)}
-                    onBlur={handleEditEnd} /> :
+                {(isNew || (isEditing && editing.col==='home')) ?
+                  <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
                   <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
                 }
                 <span> - </span>
-                {isEditing && editing.col==='away' ?
-                  <input autoFocus className="edit-input" value={r.away}
-                    onChange={e=>handleCellChange(idx,'away',e.target.value)}
-                    onBlur={handleEditEnd} /> :
+                {(isNew || (isEditing && editing.col==='away')) ?
+                  <input className="edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd} /> :
                   <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
                 }
               </div>
 
-              {/* RESULTS: HT/SH u istoj liniji iznad FT */}
               <div className="col results" style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
-                  {isEditing && editing.col==='ht' ?
-                    <input autoFocus className="edit-input" value={r.ht}
-                      onChange={e=>handleCellChange(idx,'ht',e.target.value)}
-                      onBlur={handleEditEnd} /> :
-                    <div className="results-text" onClick={()=>handleEditStart(idx,'ht')} style={{fontSize:9}}>
-                      {r.ht}
-                    </div>
+                  {(isNew || (isEditing && editing.col==='ht')) ?
+                    <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'ht')} style={{fontSize:9}}>{r.ht}</div>
                   }
                   <span>-</span>
-                  {isEditing && editing.col==='sh' ?
-                    <input autoFocus className="edit-input" value={r.sh}
-                      onChange={e=>handleCellChange(idx,'sh',e.target.value)}
-                      onBlur={handleEditEnd} /> :
-                    <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>
-                      {r.sh}
-                    </div>
+                  {(isNew || (isEditing && editing.col==='sh')) ?
+                    <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>{r.sh}</div>
                   }
                 </div>
-                {isEditing && editing.col==='ft' ?
-                  <input autoFocus className="edit-input" value={r.ft}
-                    onChange={e=>handleCellChange(idx,'ft',e.target.value)}
-                    onBlur={handleEditEnd} /> :
-                  <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>
-                    {r.ft}
-                  </div>
+
+                {(isNew || (isEditing && editing.col==='ft')) ?
+                  <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
+                  <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>{r.ft}</div>
                 }
               </div>
 
@@ -233,6 +195,7 @@ export default function Screen1() {
             </div>
           );
         })}
+
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>

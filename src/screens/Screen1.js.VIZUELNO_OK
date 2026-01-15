@@ -1,0 +1,160 @@
+import React, { useState, useContext, useRef, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import './Screen1.css';
+import { MatchesContext } from "../MatchesContext";
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+
+export default function Screen1() {
+  const { rows, setRows } = useContext(MatchesContext);
+  const tableWrapperRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [editing, setEditing] = useState({row:null, col:null});
+  const rowHeight = 28;
+  const buffer = 15;
+  const containerHeight = 600;
+
+  const totalRows = rows?.length || 0;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight)/rowHeight) + buffer);
+  const visibleRows = rows?.slice(startIndex, endIndex);
+
+  const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
+
+  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
+    const dateA = a.datum.split('.').reverse().join('-');
+    const dateB = b.datum.split('.').reverse().join('-');
+    return dateB.localeCompare(dateA);
+  });
+
+  const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
+  const handleEditEnd = () => setEditing({row:null, col:null});
+
+  const handleCellChange = (rowIdx,key,value) => {
+    const copy = [...rows];
+    copy[rowIdx][key] = value;
+    const sorted = sortRowsByDateDesc(copy);
+    sorted.forEach((r,i)=>r.rb=i+1);
+    setRows(sorted);
+    localStorage.setItem('rows', JSON.stringify(sorted));
+  };
+
+  const getFontSize = (text,maxWidth,base=11,min=7) => {
+    let size = base;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${size}px Arial`;
+    while(ctx.measureText(text).width > maxWidth && size>min) { size -= 1; ctx.font = `${size}px Arial`; }
+    return size;
+  };
+
+  return (
+    <div className="screen1-container">
+      <div
+        className="screen1-table-wrapper"
+        style={{height:containerHeight, overflowY:'auto'}}
+        ref={tableWrapperRef}
+        onScroll={handleScroll}
+      >
+        <div style={{height: startIndex*rowHeight}}></div>
+        {visibleRows?.map((r,i)=>{
+          const idx = startIndex+i;
+          const isEditing = editing.row===idx;
+
+          return (
+            <div key={idx} className="screen1-row" style={{height:rowHeight}}>
+              <div className="col rb">{r.rb}</div>
+
+              {/* INFO */}
+              <div className="col info">
+
+                {/* DATUM */}
+                {isEditing && editing.col==='datum' ?
+                  <input autoFocus className="edit-input" value={r.datum}
+                    onChange={e=>handleCellChange(idx,'datum',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="info-top" onClick={()=>handleEditStart(idx,'datum')}>
+                    {r.datum}
+                  </div>
+                }
+
+                {/* VREME */}
+                {isEditing && editing.col==='vreme' ?
+                  <input autoFocus className="edit-input" value={r.vreme}
+                    onChange={e=>handleCellChange(idx,'vreme',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="info-top" onClick={()=>handleEditStart(idx,'vreme')}>
+                    {r.vreme}
+                  </div>
+                }
+
+                {/* LIGA */}
+                {isEditing && editing.col==='liga' ?
+                  <input autoFocus className="edit-input" value={r.liga}
+                    onChange={e=>handleCellChange(idx,'liga',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="info-center" onClick={()=>handleEditStart(idx,'liga')}
+                    style={{fontSize:getFontSize(r.liga,80)}}>
+                    {r.liga}
+                  </div>
+                }
+              </div>
+
+              {/* TEAMS */}
+              <div className="col teams">
+
+                {/* HOME */}
+                {isEditing && editing.col==='home' ?
+                  <input autoFocus className="edit-input" value={r.home}
+                    onChange={e=>handleCellChange(idx,'home',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
+                }
+
+                <span> - </span>
+
+                {/* AWAY */}
+                {isEditing && editing.col==='away' ?
+                  <input autoFocus className="edit-input" value={r.away}
+                    onChange={e=>handleCellChange(idx,'away',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
+                }
+              </div>
+
+              {/* RESULTS */}
+              <div className="col results">
+
+                {/* HT */}
+                {isEditing && editing.col==='ht' ?
+                  <input autoFocus className="edit-input" value={r.ht}
+                    onChange={e=>handleCellChange(idx,'ht',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="results-top" onClick={()=>handleEditStart(idx,'ht')}>{r.ht}</div>
+                }
+
+                {/* SH */}
+                {isEditing && editing.col==='sh' ?
+                  <input autoFocus className="edit-input" value={r.sh}
+                    onChange={e=>handleCellChange(idx,'sh',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="results-top" onClick={()=>handleEditStart(idx,'sh')}>{r.sh}</div>
+                }
+
+                {/* FT */}
+                {isEditing && editing.col==='ft' ?
+                  <input autoFocus className="edit-input" value={r.ft}
+                    onChange={e=>handleCellChange(idx,'ft',e.target.value)}
+                    onBlur={handleEditEnd} /> :
+                  <div className="results-center" onClick={()=>handleEditStart(idx,'ft')}>{r.ft}</div>
+                }
+              </div>
+
+              <div className="col delete"><button>x</button></div>
+            </div>
+          );
+        })}
+        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
+      </div>
+    </div>
+  );
+}

@@ -5,42 +5,26 @@ import { MatchesContext } from "../MatchesContext";
 
 export default function Screen3() {
   const { futureMatches, setFutureMatches } = useContext(MatchesContext);
-  const [countryColors, setCountryColors] = useState({});
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const [editing, setEditing] = useState({row:null, col:null});
 
-  const rowHeight = 35;
-  const buffer = 20;
+  const rowHeight = 28;
+  const buffer = 15;
+  const containerHeight = 600;
 
-  const [colWidths, setColWidths] = useState({
-    rb: 40, datum: 80, vreme: 60, liga: 120, home: 120, away: 120, delete: 40
-  });
-  const resizingCol = useRef(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
-
+  // load from localStorage
   useEffect(() => {
-    const savedColors = JSON.parse(localStorage.getItem('countryColors') || '{}');
-    setCountryColors(savedColors);
-  }, []);
+    const saved = JSON.parse(localStorage.getItem("futureMatches") || "[]");
+    setFutureMatches(saved);
+  }, [setFutureMatches]);
 
-  useEffect(() => {
-    if (!futureMatches) return;
-    const newColors = { ...countryColors };
-    futureMatches.forEach(r => {
-      const country = (r.liga || '').split(' ')[0] || r.liga;
-      if (country && !newColors[country]) {
-        let hash = 0;
-        for (let i = 0; i < country.length; i++) {
-          hash = country.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const hue = Math.abs(hash) % 360;
-        newColors[country] = `hsl(${hue}, 70%, 70%)`;
-      }
-    });
-    setCountryColors(newColors);
-    localStorage.setItem('countryColors', JSON.stringify(newColors));
-  }, [futureMatches]);
+  const totalRows = futureMatches?.length || 0;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight)/rowHeight) + buffer);
+  const visibleRows = futureMatches?.slice(startIndex, endIndex);
+
+  const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
 
   const normalizeDate = (val) => {
     if (!val) return '';
@@ -61,21 +45,13 @@ export default function Screen3() {
     return str;
   };
 
-  const getCountryColor = country => countryColors[country] || '#fff';
+  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
+    const dA = (a.datum || '').split('.').reverse().join('-') + ' ' + (a.vreme || '00:00');
+    const dB = (b.datum || '').split('.').reverse().join('-') + ' ' + (b.vreme || '00:00');
+    return dB.localeCompare(dA);
+  });
 
-  const sortRowsByDateDesc = (rowsToSort) => {
-    return [...rowsToSort].sort((a,b)=>{
-      const dA = (a.datum || '').split('.').reverse().join('-') + ' ' + (a.vreme || '00:00');
-      const dB = (b.datum || '').split('.').reverse().join('-') + ' ' + (b.vreme || '00:00');
-      return dB.localeCompare(dA);
-    });
-  };
-
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("futureMatches")) || [];
-    setFutureMatches(saved);
-  }, [setFutureMatches]);
-
+  // ===== IMPORT =====
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -92,6 +68,7 @@ export default function Screen3() {
         liga: r['Liga'] ?? '',
         home: r['Home'] ?? '',
         away: r['Away'] ?? '',
+        _new:true
       }));
 
       const allRows = sortRowsByDateDesc([...(futureMatches || []), ...newRows]);
@@ -103,8 +80,8 @@ export default function Screen3() {
   };
 
   const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'' };
-    const newRows = sortRowsByDateDesc([newRow, ...(futureMatches || [])]);
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', _new:true };
+    const newRows = [newRow, ...(futureMatches||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setFutureMatches(newRows);
     localStorage.setItem('futureMatches', JSON.stringify(newRows));
@@ -118,104 +95,98 @@ export default function Screen3() {
     localStorage.setItem('futureMatches', JSON.stringify(copy));
   };
 
+  const deleteAllRows = () => {
+    if(window.confirm("Da li ste sigurni da želite da obrišete sve mečeve?")) {
+      setFutureMatches([]);
+      localStorage.setItem('futureMatches', JSON.stringify([]));
+    }
+  };
+
+  const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
+  const handleEditEnd = () => setEditing({row:null, col:null});
+
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...futureMatches];
-    copy[rowIdx][key] = value;
+    copy[rowIdx] = { ...copy[rowIdx], [key]: value };
+    delete copy[rowIdx]._new;
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);
     setFutureMatches(sorted);
     localStorage.setItem('futureMatches', JSON.stringify(sorted));
   };
 
-  const startResize = (e, colKey) => {
-    resizingCol.current = colKey;
-    startX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    startWidth.current = colWidths[colKey];
-    e.preventDefault();
+  // funkcija za prilagodjavanje fonta timova da ne prelazi kolonu
+  const getTeamFontSize = (text,maxWidth,base=13,min=7) => {
+    let size = base;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${size}px Arial`;
+    while(ctx.measureText(text).width > maxWidth && size>min) { size -= 1; ctx.font = `${size}px Arial`; }
+    return size;
   };
-
-  const onResize = (e) => {
-    if (!resizingCol.current) return;
-    const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-    const delta = currentX - startX.current;
-    setColWidths(prev => ({
-      ...prev,
-      [resizingCol.current]: Math.max(0, startWidth.current + delta)
-    }));
-  };
-
-  const endResize = () => { resizingCol.current = null; };
-
-  const handleScroll = useCallback((e) => { setScrollTop(e.target.scrollTop); }, []);
-
-  const containerHeight = 600;
-  const totalRows = futureMatches?.length || 0;
-  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
-  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight)/rowHeight) + buffer);
-  const visibleRows = futureMatches?.slice(startIndex, endIndex);
-
-  const columnKeys = ['rb','datum','vreme','liga','home','away','delete'];
 
   return (
-    <div className="screen1-container"
-         onTouchMove={onResize}
-         onTouchEnd={endResize}>
-      <div className="screen1-topbar">
+    <div className="screen3-container">
+      <div className="screen3-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
+        <button onClick={deleteAllRows}>Obriši sve</button>
       </div>
 
-      <div
-        className="screen1-table-wrapper"
-        style={{ height: containerHeight, overflowY: 'auto', width:'98%', margin:'0 auto' }}
-        ref={tableWrapperRef}
-        onScroll={handleScroll}
-      >
-        <table className="screen1-table">
-          <thead>
-            <tr>
-              {columnKeys.map(key => (
-                <th key={key} style={{width: colWidths[key], position:'relative', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                  {key === 'rb' ? '#' :
-                   key==='datum' ? 'Datum' :
-                   key==='vreme' ? 'Vreme' :
-                   key==='liga' ? 'Liga' :
-                   key==='home' ? 'Home' :
-                   key==='away' ? 'Away' : ''}
-                  {key !== 'delete' &&
-                    <div style={{
-                      position:'absolute', right:0, top:0, width:20, height:'100%', touchAction:'none', cursor:'col-resize',
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#333'
-                    }}
-                    onTouchStart={e=>startResize(e,key)}
-                    onMouseDown={e=>startResize(e,key)}>⇔</div>
+      <div className="screen3-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
+        <div style={{height: startIndex*rowHeight}}></div>
+
+        {visibleRows?.map((r,i)=>{
+          const idx = startIndex+i;
+          const isEditing = editing.row===idx;
+          const isNew = r._new === true;
+
+          const teamText = `${r.home} - ${r.away}`;
+          const teamFontSize = getTeamFontSize(teamText, 140, 13, 7);
+
+          const rowBgColor = idx % 2 === 0 ? '#e6f0fa' : '#ffffff';
+
+          return (
+            <div key={idx} className="screen3-row" style={{height:rowHeight, backgroundColor: rowBgColor}}>
+              <div className="s3-col rb">{r.rb}</div>
+
+              <div className="s3-col info">
+                <div style={{display:'flex', flexDirection:'row', gap:'2px'}}>
+                  {(isNew || (isEditing && editing.col==='datum')) ?
+                    <input className="s3-edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd}/> :
+                    <div className="s3-info-text" onClick={()=>handleEditStart(idx,'datum')} style={{fontSize:'9px'}}>{r.datum}</div>
                   }
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ height: startIndex * rowHeight }}></tr>
-            {visibleRows?.map((r,i)=>{
-              const idx = startIndex + i;
-              const country = (r.liga || '').split(' ')[0] || r.liga;
-              const color = getCountryColor(country);
-              const cellStyle = {overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'};
-              return (
-                <tr key={idx}>
-                  <td style={{...cellStyle, width: colWidths.rb}}>{r.rb}</td>
-                  <td style={{...cellStyle, width: colWidths.datum}}><input value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.vreme}}><input value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.liga, backgroundColor:color, fontWeight:'bold'}}><input value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.home, backgroundColor:color, fontWeight:'bold'}}><input value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{...cellStyle, width: colWidths.away, backgroundColor:color, fontWeight:'bold'}}><input value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} style={{width:'100%'}} /></td>
-                  <td style={{width: colWidths.delete}}><button onClick={()=>deleteRow(idx)}>x</button></td>
-                </tr>
-              );
-            })}
-            <tr style={{ height: (totalRows - endIndex) * rowHeight }}></tr>
-          </tbody>
-        </table>
+
+                  {(isNew || (isEditing && editing.col==='vreme')) ?
+                    <input className="s3-edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd}/> :
+                    <div className="s3-info-text" onClick={()=>handleEditStart(idx,'vreme')} style={{fontSize:'9px'}}>{r.vreme}</div>
+                  }
+                </div>
+
+                {(isNew || (isEditing && editing.col==='liga')) ?
+                  <input className="s3-edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd}/> :
+                  <div className="s3-info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:'13px'}}>{r.liga}</div>
+                }
+              </div>
+
+              <div className="s3-col teams" style={{fontWeight:'bold', fontSize:`${teamFontSize}px`}}>
+                {(isNew || (isEditing && editing.col==='home')) ?
+                  <input className="s3-edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd}/> :
+                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
+                }
+                <span> - </span>
+                {(isNew || (isEditing && editing.col==='away')) ?
+                  <input className="s3-edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd}/> :
+                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
+                }
+              </div>
+
+              <div className="s3-col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
+            </div>
+          );
+        })}
+
+        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>
   );

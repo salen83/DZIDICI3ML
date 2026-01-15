@@ -26,14 +26,20 @@ export default function Screen9() {
   // AUTOMATSKO AŽURIRANJE TIKETA
   // ===============================
   useEffect(() => {
-    if (!rows.length || !tickets.otvoreni.length) return;
+    if (!rows.length) return;
 
     setTickets((prev) => {
       const opened = [];
-      const won = [...prev.dobitni];
-      const lost = [...prev.gubitni];
+      const won = [];
+      const lost = [];
 
-      prev.otvoreni.forEach((ticket) => {
+      const allTickets = [
+        ...prev.otvoreni.map(t => ({ ...t, __from: "otvoreni" })),
+        ...prev.dobitni.map(t => ({ ...t, __from: "dobitni" })),
+        ...prev.gubitni.map(t => ({ ...t, __from: "gubitni" })),
+      ];
+
+      allTickets.forEach((ticket) => {
         let allChecked = true;
         let lostFlag = false;
 
@@ -67,10 +73,10 @@ export default function Screen9() {
 
         const newTicket = { ...ticket, matches: updatedMatches };
 
-        if (lostFlag) {
+        if (!allChecked) {
+          opened.push({ ...newTicket, status: "open" });
+        } else if (lostFlag) {
           lost.push({ ...newTicket, status: "lose" });
-        } else if (!allChecked) {
-          opened.push(newTicket);
         } else {
           won.push({ ...newTicket, status: "win" });
         }
@@ -78,7 +84,7 @@ export default function Screen9() {
 
       return { otvoreni: opened, dobitni: won, gubitni: lost };
     });
-  }, [rows]);
+  }, [rows, setTickets]); // <-- dodali setTickets ovde
 
   // ===============================
   // DOBAVLJANJE TIKETA ZA TAB
@@ -109,7 +115,6 @@ export default function Screen9() {
 
   return (
     <div className="screen9-container">
-      {/* ================== INTERNET STATUS ================== */}
       <div style={{ marginBottom: 10, fontWeight: "bold" }}>
         Status interneta:{" "}
         {online ? <span style={{ color: "green" }}>ONLINE 🌐</span> : <span style={{ color: "red" }}>OFFLINE 🚫</span>}
@@ -123,6 +128,7 @@ export default function Screen9() {
           </button>
         ))}
       </div>
+
       <div className="tab-content">
         {tabTickets.map((ticket) => (
           <div
@@ -147,6 +153,7 @@ export default function Screen9() {
             <h3 style={{ backgroundColor: ticketBg(selectedTicket), padding: "6px", borderRadius: "4px" }}>
               {selectedTicket.name}
             </h3>
+
             {selectedTicket.matches.map((p, i) => (
               <div className="ticket-match" key={i}>
                 <div className="match-left">
@@ -155,12 +162,6 @@ export default function Screen9() {
                   </div>
                   <div className="match-teams">
                     {p.home} – {p.away}
-                  </div>
-                  <div className="match-desc">
-                    {p.tip === "GG" && "Oba tima daju gol"}
-                    {p.tip === "NG" && "Bar jedan tim bez gola"}
-                    {p.tip === "2+" && "Najmanje 2 gola"}
-                    {p.tip === "7+" && "Najmanje 7 golova"}
                   </div>
                 </div>
                 <div className="match-right" style={{ width: 60 }}>
@@ -174,6 +175,7 @@ export default function Screen9() {
                 </div>
               </div>
             ))}
+
             <button
               className="close-btn"
               onClick={() => {
@@ -181,7 +183,7 @@ export default function Screen9() {
                 setSelectedTicket(null);
               }}
             >
-              Zatvori i sačuvaj
+              Zatvori
             </button>
           </div>
         </div>

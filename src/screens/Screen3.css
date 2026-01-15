@@ -1,27 +1,69 @@
-.ponuda-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+.screen3-container {
+  width: 95%;
+  margin: 0 auto;
+  font-family: Arial, sans-serif;
 }
 
-.ponuda-table th,
-.ponuda-table td {
-  padding: 4px;
+.screen3-topbar {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+.screen3-table-wrapper {
+  overflow-x: hidden;
+}
+
+.screen3-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid transparent;
+  padding: 0;
+  font-size: 12px;
+  height: 28px;
+}
+
+.s3-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border: 1px solid #ccc;
+  padding: 0 2px;
 }
 
-.team-cell {
-  text-align: left;
-  max-width: 40px; /* dodatno suženo */
+/* Širine kolona ostaju iste */
+.s3-col.rb { width: 24px; font-size: 10px; }
+.s3-col.info {
+  width: 105px; /* širina ostala ista */
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 10px; /* manji font za datum/vreme */
+  margin-right: 10px;
 }
+.s3-col.teams {
+  width: 175px;
+  justify-content: flex-start;
+  font-size: 17px; /* veći font za timove */
+  font-weight: bold;
+}
+.s3-col.delete { width: 20px; }
 
-.delete-btn {
-  padding: 0;
-  font-size: 10px;
-  height: 16px;
-  width: 16px;
-  cursor: pointer;
+/* tekst */
+.s3-info-text { font-size: 10px; line-height: 1.1; cursor: text; } /* datum i vreme manji */
+.s3-info-center { font-size: 17px; font-weight: bold; line-height: 1.1; cursor: text; } /* liga veći */
+
+/* input */
+.s3-edit-input {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+  font-size: inherit;
+  font-weight: inherit;
+  border: 1px solid #555;
+  padding: 0 2px;
+  margin: 0;
 }
