@@ -10,7 +10,7 @@ export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
-
+  const [editing, setEditing] = useState({row:null, col:null});
   const rowHeight = 28;
   const buffer = 15;
   const containerHeight = 600;
@@ -26,16 +26,12 @@ export default function Screen1() {
     if (!val) return '';
     if (!isNaN(val)) {
       const date = new Date((val - 25569) * 86400 * 1000);
-      const d = String(date.getDate()).padStart(2,'0');
-      const m = String(date.getMonth()+1).padStart(2,'0');
-      const y = date.getFullYear();
-      return d + "." + m + "." + y;
+      return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).padStart(2,'0')}.${date.getFullYear()}`;
     }
     return String(val);
   };
 
   const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
-    if (!a.datum || !b.datum) return 0;
     const dateA = a.datum.split('.').reverse().join('-');
     const dateB = b.datum.split('.').reverse().join('-');
     return dateB.localeCompare(dateA);
@@ -50,8 +46,8 @@ export default function Screen1() {
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-      const newRows = dataRows.map((r)=>({
-        rb: 0,
+      const newRows = dataRows.map((r,i)=>({
+        rb: (rows?.length || 0) + i + 1,
         datum: normalizeDate(r['Datum'] ?? ''),
         vreme: String(r['Time'] ?? ''),
         liga: r['Liga'] ?? '',
@@ -69,29 +65,12 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
-<<<<<<< HEAD
-  const saveJSON = async () => {
-=======
   const saveJSONZip = async () => {
->>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
     if (!rows || rows.length===0) {
       alert("Nema mečeva za export");
       return;
     }
     try {
-<<<<<<< HEAD
-      const filename = "matches_" + Date.now() + ".json";
-      await Filesystem.writeFile({
-        path: filename,
-        data: JSON.stringify(rows,null,2),
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8
-      });
-      alert("JSON sačuvan u Documents folder: " + filename);
-    } catch(e) {
-      console.error(e);
-      alert("Greška pri čuvanju fajla");
-=======
       // kreiraj JSON fajl
       const jsonStr = JSON.stringify(rows,null,2);
       const zip = new JSZip();
@@ -124,12 +103,11 @@ export default function Screen1() {
     } catch(e) {
       console.error(e);
       alert("Greška pri kreiranju i slanju ZIP fajla");
->>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
     }
   };
 
   const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'' };
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
@@ -144,26 +122,34 @@ export default function Screen1() {
     localStorage.setItem('rows', JSON.stringify(copy));
   };
 
+  const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
+  const handleEditEnd = () => setEditing({row:null, col:null});
+
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...rows];
     copy[rowIdx] = { ...copy[rowIdx], [key]: value };
+    delete copy[rowIdx]._new;
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);
     setRows(sorted);
     localStorage.setItem('rows', JSON.stringify(sorted));
   };
 
+  const getFontSize = (text,maxWidth,base=11,min=7) => {
+    let size = base;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${size}px Arial`;
+    while(ctx.measureText(text).width > maxWidth && size>min) { size -= 1; ctx.font = `${size}px Arial`; }
+    return size;
+  };
+
   return (
     <div className="screen1-container">
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
-<<<<<<< HEAD
-        <button onClick={addNewRow}>➕ Dodaj novi meč</button>
-        <button onClick={saveJSON}>📤 Export JSON</button>
-=======
         <button onClick={addNewRow}>Dodaj novi mec</button>
         <button onClick={saveJSONZip}>📤 Export JSON ZIP</button>
->>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
       </div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
@@ -171,32 +157,64 @@ export default function Screen1() {
 
         {visibleRows?.map((r,i)=>{
           const idx = startIndex+i;
+          const isEditing = editing.row===idx;
+          const isNew = r._new === true;
 
           return (
             <div key={idx} className="screen1-row" style={{height:rowHeight}}>
               <div className="col rb">{r.rb}</div>
 
               <div className="col info">
-                <input value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} />
-                <input value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} />
-                <input value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} />
+                <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
+                  {(isNew || (isEditing && editing.col==='datum')) ?
+                    <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
+                  }
+
+                  {(isNew || (isEditing && editing.col==='vreme')) ?
+                    <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
+                  }
+                </div>
+
+                {(isNew || (isEditing && editing.col==='liga')) ?
+                  <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
+                  <div className="info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>{r.liga}</div>
+                }
               </div>
 
-              <div className="col teams">
-                <input value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} />
+              <div className="col teams" style={{fontWeight:'bold', fontSize:getFontSize(`${r.home} - ${r.away}`,110)}}>
+                {(isNew || (isEditing && editing.col==='home')) ?
+                  <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
+                }
                 <span> - </span>
-                <input value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} />
+                {(isNew || (isEditing && editing.col==='away')) ?
+                  <input className="edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
+                }
               </div>
 
-              <div className="col results">
-                <input value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} />
-                <input value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} />
-                <input value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} />
+              <div className="col results" style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+                <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
+                  {(isNew || (isEditing && editing.col==='ht')) ?
+                    <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'ht')} style={{fontSize:9}}>{r.ht}</div>
+                  }
+                  <span>-</span>
+                  {(isNew || (isEditing && editing.col==='sh')) ?
+                    <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>{r.sh}</div>
+                  }
+                </div>
+
+                {(isNew || (isEditing && editing.col==='ft')) ?
+                  <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
+                  <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>{r.ft}</div>
+                }
               </div>
 
-              <div className="col delete">
-                <button onClick={()=>deleteRow(idx)}>x</button>
-              </div>
+              <div className="col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
             </div>
           );
         })}
