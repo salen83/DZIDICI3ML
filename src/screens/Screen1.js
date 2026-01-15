@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import JSZip from 'jszip';
+import { Share } from '@capacitor/share';
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
@@ -67,12 +69,17 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
+<<<<<<< HEAD
   const saveJSON = async () => {
+=======
+  const saveJSONZip = async () => {
+>>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
     if (!rows || rows.length===0) {
       alert("Nema mečeva za export");
       return;
     }
     try {
+<<<<<<< HEAD
       const filename = "matches_" + Date.now() + ".json";
       await Filesystem.writeFile({
         path: filename,
@@ -84,6 +91,40 @@ export default function Screen1() {
     } catch(e) {
       console.error(e);
       alert("Greška pri čuvanju fajla");
+=======
+      // kreiraj JSON fajl
+      const jsonStr = JSON.stringify(rows,null,2);
+      const zip = new JSZip();
+      zip.file('matches.json', jsonStr);
+      const zipContent = await zip.generateAsync({type:"base64"});
+
+      // čuvanje ZIP fajla u Downloads folder
+      const filename = `matches_${Date.now()}.zip`;
+      await Filesystem.writeFile({
+        path: filename,
+        data: zipContent,
+        directory: Directory.External,
+        encoding: Encoding.Base64
+      });
+
+      // dobija apsolutnu putanju fajla za Share
+      const uriFile = await Filesystem.getUri({
+        directory: Directory.External,
+        path: filename
+      });
+
+      // Share ili otvori Gmail/Share sheet
+      await Share.share({
+        title: 'Export JSON Matches',
+        text: 'Evo ZIP fajla sa mečevima za ML aplikaciju',
+        url: uriFile.uri,
+        dialogTitle: 'Pošalji fajl'
+      });
+
+    } catch(e) {
+      console.error(e);
+      alert("Greška pri kreiranju i slanju ZIP fajla");
+>>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
     }
   };
 
@@ -116,8 +157,13 @@ export default function Screen1() {
     <div className="screen1-container">
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
+<<<<<<< HEAD
         <button onClick={addNewRow}>➕ Dodaj novi meč</button>
         <button onClick={saveJSON}>📤 Export JSON</button>
+=======
+        <button onClick={addNewRow}>Dodaj novi mec</button>
+        <button onClick={saveJSONZip}>📤 Export JSON ZIP</button>
+>>>>>>> d4850b4 (Update Screen1 export JSON ZIP and capacitor build settings)
       </div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
