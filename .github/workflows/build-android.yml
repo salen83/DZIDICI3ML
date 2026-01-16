@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,8 +59,7 @@ jobs:
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleDebug
-        continue-on-error: true
+          ./gradlew assembleDebug || true
 
       - name: Check Gradle Build Failure
         if: failure()
