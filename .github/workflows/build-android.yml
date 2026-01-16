@@ -54,8 +54,7 @@ jobs:
       - name: Ensure MainActivity.java exists
         run: |
           if [ ! -f android/app/src/main/java/com/dzidici/app/ml/MainActivity.java ]; then
-            echo "MainActivity.java not found! Build will fail."
-            exit 1
+            echo "MainActivity.java not found! Build will fail." && exit 1
           fi
 
       - name: Build APK
