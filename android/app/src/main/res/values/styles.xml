@@ -2,16 +2,14 @@
 <resources>
 
     <!-- Base application theme -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-        <item name="windowBackground">@color/white</item>
+        <item name="android:windowBackground">@color/white</item>
     </style>
 
     <!-- Splash Screen theme -->
-    <style name="Theme.SplashScreen" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="windowBackground">@color/white</item>
+    <style name="Theme.SplashScreen" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/white</item>
     </style>
 
 </resources>
