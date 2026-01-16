@@ -29,6 +29,9 @@ dependencies {
 
     // Kotlin library forced na 1.8.22
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
+
+    // Capacitor Android
+    implementation 'com.getcapacitor:capacitor-android:5.0.4'
 }
 
 configurations.all {
