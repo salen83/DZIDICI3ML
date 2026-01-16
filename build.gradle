@@ -1,0 +1,31 @@
+// Root build.gradle
+buildscript {
+    ext {
+        compileSdkVersion = 34
+        minSdkVersion = 33
+        targetSdkVersion = 34
+        kotlin_version = '1.8.22'
+        androidxAppCompatVersion = '1.6.1'
+        androidxCoordinatorLayoutVersion = '1.2.0'
+        coreSplashScreenVersion = '1.0.1'
+        junitVersion = '4.13.2'
+        androidxJunitVersion = '1.1.5'
+        androidxEspressoCoreVersion = '3.5.1'
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.1.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:"
+        classpath "com.google.gms:google-services:4.3.15"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

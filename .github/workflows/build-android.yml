@@ -38,31 +38,13 @@ jobs:
         run: |
           CI=false npm run build
 
-      # ❌ NE BRISATI android folder
-      # - name: Recreate Android platform
-      #   run: |
-      #     rm -rf android
-      #     npx cap add android
-
       - name: Force change Android package name
         run: |
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      - name: Verify package name
-        run: |
-          grep applicationId android/app/build.gradle
-          grep namespace android/app/build.gradle
-
       - name: Sync Capacitor
         run: npx cap sync android
-
-      - name: Fix Kotlin version in Android build
-        run: |
-          sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.8.22'/" android/build.gradle
-          if ! grep -q "resolutionStrategy.eachDependency" android/app/build.gradle; then
-            printf '%s\n' "configurations.all {"             "    resolutionStrategy.eachDependency { DependencyResolveDetails details ->"             "        if (details.requested.group == 'org.jetbrains.kotlin') {"             "            details.useVersion '1.8.22'"             "        }"             "    }"             "}" >> android/app/build.gradle
-          fi
 
       - name: Ensure MainActivity.java exists
         run: |
