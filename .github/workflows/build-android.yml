@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,13 +54,14 @@ jobs:
       - name: Ensure MainActivity.java exists
         run: |
           if [ ! -f android/app/src/main/java/com/dzidici/app/ml/MainActivity.java ]; then
-            echo "MainActivity.java not found! Build will fail." && exit 1
+            echo "MainActivity.java not found! Build will fail."
+            exit 1
           fi
 
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleDebug || true
+          ./gradlew assembleDebug
 
       - name: Check Gradle Build Failure
         if: failure()
