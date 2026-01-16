@@ -1,4 +1,4 @@
-package com.salen.dzidici.app.ml;
+package com.dzidici.app.ml;
 
 import com.getcapacitor.BridgeActivity;
 
