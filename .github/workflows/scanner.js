@@ -1,46 +1,36 @@
-// .github/workflows/scanner.js
 const fs = require('fs');
 const path = require('path');
 
-// CONFIG
-const nodeVersion = '22';
-const javaVersion = '17';
-const kotlinVersion = '1.9.10';
-const gradleVersion = '8.14.3';
-const webDir = 'build';
-const outputYml = 'tmp-build-android.yml';
-
-// Funkcija koja rekurzivno skuplja sve fajlove u direktorijumu
-function getAllFiles(dirPath, arrayOfFiles = []) {
-    const files = fs.readdirSync(dirPath);
-    files.forEach(function(file) {
-        const fullPath = path.join(dirPath, file);
-        if (fs.statSync(fullPath).isDirectory()) {
-            arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
-        } else {
-            arrayOfFiles.push(fullPath);
-        }
-    });
-    return arrayOfFiles;
+// Funkcija za rekurzivno listanje fajlova
+function walkDir(dir, fileList = []) {
+  const files = fs.readdirSync(dir);
+  files.forEach(file => {
+    const filePath = path.join(dir, file);
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      walkDir(filePath, fileList);
+    } else {
+      fileList.push(filePath);
+    }
+  });
+  return fileList;
 }
 
-// Detekcija Screens
-function getScreenFiles(allFiles) {
-    return allFiles.filter(f => f.toLowerCase().includes('screen') && f.endsWith('.js'));
-}
+// Glavni folder repozitorija
+const repoRoot = process.cwd();
+const allFiles = walkDir(repoRoot);
 
-// Provera webDir
-const hasWebDir = fs.existsSync(path.join('.', webDir, 'index.html'));
+// Da li postoji webDir build
+const hasWebDir = fs.existsSync(path.join(repoRoot, 'build', 'index.html'));
 
-// Uzimanje svih fajlova u repo
-const allFiles = getAllFiles('.');
+// Filtriraj screen fajlove (svi .js fajlovi u src/screens)
+const screenFiles = allFiles.filter(f => f.includes('src/screens') && f.endsWith('.js'));
 
-// Screens fajlovi
-const screens = getScreenFiles(allFiles);
+// Broj fajlova u repozitoriju
+const totalFiles = allFiles.length;
 
-// Generisanje YAML sadržaja
-const yamlContent = `
-name: Android Build
+// Kreiranje YAML fajla
+let yaml = `name: Android Build
 on:
   push:
     branches:
@@ -55,21 +45,31 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          'node-version': ${nodeVersion}
+          node-version: 22
       - name: Install dependencies
         run: npm install
-      - ${hasWebDir 
-          ? "{ name: 'Build Web Assets', run: 'npm run build', 'working-directory': '.' }" 
-          : "{ name: 'Web Assets missing', run: 'echo \"⚠️ build/index.html missing\"\" }"}
-      - name: Capacitor Sync
+`;
+
+if (hasWebDir) {
+  yaml += `      - name: Build Web Assets
+        run: npm run build
+        working-directory: .
+`;
+} else {
+  yaml += `      - name: Web Assets missing
+        run: echo "⚠️ build/index.html missing"
+`;
+}
+
+yaml += `      - name: Capacitor Sync
         run: npx cap sync android
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          'java-version': ${javaVersion}
+          java-version: 17
       - name: Build Android APK
-        'working-directory': android
+        working-directory: android
         run: ./gradlew assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -79,18 +79,17 @@ jobs:
       - name: All Screens Detected
         run: |
           echo "Screens found:"
-          ${screens.map(f => `echo "${f}"`).join('\n          ')}
-      - name: All Files Detected
-        run: |
-          echo "Total files scanned: ${allFiles.length}"
-      - name: Build Info
-        run: echo "Gradle: ${gradleVersion}, Kotlin: ${kotlinVersion}, Java: ${javaVersion}, WebDir: ${webDir}"
 `;
 
-// Ispis u konzolu
-console.log('================ GENERATED build-android.yml ================');
-console.log(yamlContent);
-console.log('=============================================================');
+screenFiles.forEach(f => {
+  yaml += `          echo "${f.replace(repoRoot+'/', '')}"\n`;
+});
 
-// Opcionalno: možeš i sačuvati fajl
-// fs.writeFileSync(outputYml, yamlContent, 'utf8');
+yaml += `      - name: All Files Detected
+        run: |
+          echo "Total files scanned: ${totalFiles}"
+      - name: Build Info
+        run: echo "Gradle: 8.14.3, Kotlin: 1.9.10, Java: 17, WebDir: build"
+`;
+
+console.log(yaml);
