@@ -43,11 +43,6 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      - name: Set up Maven auth for Capacitor
-        run: |
-          echo "gpr.user=${{ github.actor }}" >> android/gradle.properties
-          echo "gpr.token=${{ secrets.GH_TOKEN }}" >> android/gradle.properties
-
       - name: Sync Capacitor
         run: npx cap sync android
 
