@@ -28,15 +28,15 @@ repositories {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
 
-    // AppCompat i Material biblioteke
+    // AppCompat i Material
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
 
-    // Kotlin library
+    // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
 
-    // Capacitor Android (najnovija javna verzija)
-    implementation 'com.getcapacitor:capacitor-android:8.0.1'
+    // ✅ Capacitor kao LOKALNI MODUL (NE MAVEN)
+    implementation project(':capacitor-android')
 }
 
 configurations.all {
