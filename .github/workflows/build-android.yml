@@ -1,58 +1,37 @@
-name: Build Android App
-
+name: Android Build
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+    branches:
+      - main
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.x'
-
-    - name: Install npm dependencies
-      run: npm ci
-
-    - name: Build web assets
-      run: |
-        if [ ! -d "./build" ] || [ ! -f "./build/index.html" ]; then
-          npm run build
-        fi
-
-    - name: Check Capacitor webDir
-      run: |
-        WEBDIR=$(jq -r .webDir capacitor.config.json)
-        if [ ! -d "$WEBDIR" ] || [ ! -f "$WEBDIR/index.html" ]; then
-          echo "Web assets not found! Make sure $WEBDIR exists and has index.html"
-          exit 1
-        fi
-
-    - name: Sync Capacitor Android
-      run: npx cap sync android
-
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 17   # da bude kompatibilno sa Kotlin i Gradle
-        cache: gradle
-
-    - name: Gradle Build
-      working-directory: android
-      run: ./gradlew assembleDebug --warning-mode all
-
-    - name: Upload APK
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build Web Assets
+        run: npm run build
+        working-directory: .
+      
+      - name: Capacitor Sync
+        run: npx cap sync android
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Build Android APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
