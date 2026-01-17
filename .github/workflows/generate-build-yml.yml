@@ -1,15 +1,14 @@
-name: Scan and Generate Build YML
+name: Generate Android Build YML
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # možeš pokrenuti ručno iz GitHub UI
 
 jobs:
-  generate-build-yml:
+  generate-yml:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -19,13 +18,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run scanner.js to generate build-android.yml
+      - name: Run scanner
         run: node .github/workflows/scanner.js
 
-      - name: Show generated build-android.yml in logs
-        run: cat .github/workflows/build-android.yml
-
-      - name: Upload generated build-android.yml as artifact
+      - name: Upload generated YML as artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-android-yml
