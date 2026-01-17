@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Web Assets
+      - name: Check and Build Web Assets
         run: |
           if [ -f build/index.html ]; then
             echo "✅ Web assets found"
@@ -52,18 +52,7 @@ jobs:
       - name: List all screens detected
         run: |
           echo "Screens found:"
-          echo "src/screens/Screen1.js"
-          echo "src/screens/Screen2.js"
-          echo "src/screens/Screen3.js"
-          echo "src/screens/Screen4.js"
-          echo "src/screens/Screen5.js"
-          echo "src/screens/Screen6.js"
-          echo "src/screens/Screen7.js"
-          echo "src/screens/Screen8.js"
-          echo "src/screens/Screen9.js"
-          echo "src/screens/Screen10.js"
-          echo "src/screens/Screen11.js"
-          echo "src/screens/Screen12.js"
+          find src/screens -type f -name "*.js" | sort
 
       - name: Build Info
         run: echo "Gradle: 8.14.3, Kotlin: 1.9.10, Java: 17, WebDir: build"
