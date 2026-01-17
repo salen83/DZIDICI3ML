@@ -43,17 +43,17 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      - name: Patch Kotlin JVM target for Capacitor plugins
+      # 🔹 Patch Kotlin JVM toolchain for Capacitor plugins
+      # Ostavlja Kotlin na 1.8, Java ostaje 21
+      - name: Patch Kotlin JVM target to 1.8
         run: |
-          echo "allprojects {
-              afterEvaluate {
-                  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
-                      kotlinOptions {
-                          jvmTarget = '21'
-                      }
-                  }
-              }
-          }" >> android/build.gradle
+          for f in node_modules/@capacitor/filesystem/android/build.gradle \
+                   node_modules/@capacitor/share/android/build.gradle \
+                   node_modules/@capacitor/android/capacitor/build.gradle; do
+            if grep -q 'jvmToolchain(21)' "$f"; then
+              sed -i 's/jvmToolchain(21)/kotlinOptions { jvmTarget = "1.8" }/' "$f"
+            fi
+          done
 
       - name: Sync Capacitor
         run: npx cap sync android
