@@ -1,49 +1,35 @@
-name: Build Android APK
+name: Build Android
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
-      - name: Install npm dependencies
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install dependencies
         run: npm install
 
-      - name: Install Capacitor packages
-        run: |
-          npm install @capacitor/core
-          npm install @capacitor/cli
-          npm install @capacitor/android
-
-      - name: Build React app
-        run: |
-          CI=false npm run build
-
-      - name: Force change Android package name
-        run: |
-          sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
-          sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
-
-      - name: Patch Kotlin JVM target for Capacitor plugins
+      - name: Patch Kotlin JVM target for Capacitor modules
         run: |
           files=(
             "node_modules/@capacitor/filesystem/android/build.gradle"
@@ -51,30 +37,16 @@ jobs:
             "node_modules/@capacitor/android/capacitor/build.gradle"
           )
           for f in "${files[@]}"; do
-            if grep -q "jvmTarget" "$f"; then
-              sed -i 's/jvmTarget = .*/jvmTarget = "1.8"/' "$f"
-            else
-              echo 'kotlinOptions { jvmTarget = "1.8" }' >> "$f"
-            fi
+            echo '
+            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+                kotlinOptions {
+                    jvmTarget = "1.8"
+                }
+            }
+            ' >> "$f"
           done
 
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Ensure MainActivity.java exists
-        run: |
-          if [ ! -f android/app/src/main/java/com/dzidici/app/ml/MainActivity.java ]; then
-            echo "MainActivity.java not found! Build will fail."
-            exit 1
-          fi
-
-      - name: Build APK
+      - name: Build Android
         run: |
           cd android
-          ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          ./gradlew assembleDebug --stacktrace
