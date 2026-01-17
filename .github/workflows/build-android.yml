@@ -43,13 +43,19 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      # 🔴 Patch Kotlin JVM target to 1.8
       - name: Patch Kotlin JVM target for Capacitor plugins
         run: |
-          for f in node_modules/@capacitor/filesystem/android/build.gradle \
-                   node_modules/@capacitor/share/android/build.gradle \
-                   node_modules/@capacitor/android/capacitor/build.gradle; do
-            sed -i 's/jvmTarget = .*/jvmTarget = "1.8"/' "$f" || true
+          files=(
+            "node_modules/@capacitor/filesystem/android/build.gradle"
+            "node_modules/@capacitor/share/android/build.gradle"
+            "node_modules/@capacitor/android/capacitor/build.gradle"
+          )
+          for f in "${files[@]}"; do
+            if grep -q "jvmTarget" "$f"; then
+              sed -i 's/jvmTarget = .*/jvmTarget = "1.8"/' "$f"
+            else
+              echo 'kotlinOptions { jvmTarget = "1.8" }' >> "$f"
+            fi
           done
 
       - name: Sync Capacitor
