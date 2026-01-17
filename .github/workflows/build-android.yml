@@ -43,18 +43,18 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      # 🔴 Patch Kotlin JVM toolchain to 21 (uskladiti sa Java 21)
-      - name: Patch Kotlin JVM toolchain for Capacitor plugins
+      # 🔴 Novi step: Postavi Kotlin JVM target na 21 za sve compile taskove
+      - name: Patch Kotlin JVM target
         run: |
-          for f in node_modules/@capacitor/filesystem/android/build.gradle \
-                   node_modules/@capacitor/share/android/build.gradle \
-                   node_modules/@capacitor/android/capacitor/build.gradle; do
-            if grep -q 'jvmToolchain' "$f"; then
-              sed -i 's/jvmToolchain(.*)/jvmToolchain(21)/' "$f"
-            else
-              echo -e "\nkotlin {\n    jvmToolchain(21)\n}" >> "$f"
-            fi
-          done
+          echo "allprojects {
+  afterEvaluate {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+      kotlinOptions {
+        jvmTarget = '21'
+      }
+    }
+  }
+}" >> android/build.gradle
 
       - name: Sync Capacitor
         run: npx cap sync android
