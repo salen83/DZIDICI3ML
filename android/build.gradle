@@ -2,7 +2,6 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://maven.pkg.github.com/ionic-team/capacitor" }
     }
     dependencies {
         classpath "com.android.tools.build:gradle:8.1.0"
@@ -14,6 +13,5 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://maven.pkg.github.com/ionic-team/capacitor" }
     }
 }
