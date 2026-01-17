@@ -17,5 +17,3 @@ allprojects {
         maven { url "https://maven.pkg.github.com/ionic-team/capacitor" }
     }
 }
-
-apply from: 'capacitor.settings.gradle'
