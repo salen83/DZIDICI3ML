@@ -25,10 +25,10 @@ jobs:
       - name: Check Web Assets
         run: |
           if [ -f build/index.html ]; then
-            echo "✅ build/index.html found, building web assets..."
+            echo "build/index.html found, building web assets..."
             npm run build
           else
-            echo "⚠️ build/index.html missing"
+            echo "build/index.html missing"
           fi
 
       - name: Capacitor Sync
