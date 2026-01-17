@@ -1,5 +1,4 @@
 name: Android Build
-
 on:
   push:
     branches:
@@ -25,10 +24,10 @@ jobs:
       - name: Check Web Assets
         run: |
           if [ -f build/index.html ]; then
-            echo "build/index.html found, building web assets..."
+            echo "✅ Web assets found"
             npm run build
           else
-            echo "build/index.html missing"
+            echo "⚠️ build/index.html missing"
           fi
 
       - name: Capacitor Sync
@@ -53,43 +52,46 @@ jobs:
       - name: All Screens Detected
         run: |
           echo "Screens found:"
-          for screen in \
-            "node_modules/@testing-library/dom/dist/screen.js" \
-            "node_modules/autoprefixer/lib/hacks/fullscreen.js" \
-            "node_modules/caniuse-lite/data/features/fullscreen.js" \
-            "node_modules/caniuse-lite/data/features/offscreencanvas.js" \
-            "node_modules/caniuse-lite/data/features/screen-orientation.js" \
-            "node_modules/eslint-plugin-jsx-a11y/lib/util/isHiddenFromScreenReader.js" \
-            "node_modules/eslint-plugin-testing-library/rules/prefer-screen-queries.js" \
-            "node_modules/jsdom/lib/jsdom/living/generated/Screen.js" \
-            "node_modules/jsdom/lib/jsdom/living/window/Screen-impl.js" \
-            "node_modules/tailwindcss/lib/lib/substituteScreenAtRules.js" \
-            "node_modules/tailwindcss/lib/util/normalizeScreens.js" \
-            "node_modules/tailwindcss/src/lib/substituteScreenAtRules.js" \
-            "node_modules/tailwindcss/src/util/normalizeScreens.js" \
-            "src/screens/Screen1.js" \
-            "src/screens/Screen10.js" \
-            "src/screens/Screen10Poisson.js" \
-            "src/screens/Screen11.js" \
-            "src/screens/Screen12.js" \
-            "src/screens/Screen2.js" \
-            "src/screens/Screen2Liga.js" \
-            "src/screens/Screen3.js" \
-            "src/screens/Screen4.js" \
-            "src/screens/Screen5.js" \
-            "src/screens/Screen6.js" \
-            "src/screens/Screen7.js" \
-            "src/screens/Screen8.js" \
-            "src/screens/Screen9.js" \
-            "src/screens/screen2/teamCountryMap/TeamCountryMap.js" \
-            "src/screens/screen2/teamCountryMap/countries.js" \
-            "src/screens/screen2/teamCountryMap/index.js" \
-            "src/screens/screen2/teamCountryMap/teamCountryMapUtils.js"; do
+          screens=(
+            node_modules/@testing-library/dom/dist/screen.js
+            node_modules/autoprefixer/lib/hacks/fullscreen.js
+            node_modules/caniuse-lite/data/features/fullscreen.js
+            node_modules/caniuse-lite/data/features/offscreencanvas.js
+            node_modules/caniuse-lite/data/features/screen-orientation.js
+            node_modules/eslint-plugin-jsx-a11y/lib/util/isHiddenFromScreenReader.js
+            node_modules/eslint-plugin-testing-library/rules/prefer-screen-queries.js
+            node_modules/jsdom/lib/jsdom/living/generated/Screen.js
+            node_modules/jsdom/lib/jsdom/living/window/Screen-impl.js
+            node_modules/tailwindcss/lib/lib/substituteScreenAtRules.js
+            node_modules/tailwindcss/lib/util/normalizeScreens.js
+            node_modules/tailwindcss/src/lib/substituteScreenAtRules.js
+            node_modules/tailwindcss/src/util/normalizeScreens.js
+            src/screens/Screen1.js
+            src/screens/Screen10.js
+            src/screens/Screen10Poisson.js
+            src/screens/Screen11.js
+            src/screens/Screen12.js
+            src/screens/Screen2.js
+            src/screens/Screen2Liga.js
+            src/screens/Screen3.js
+            src/screens/Screen4.js
+            src/screens/Screen5.js
+            src/screens/Screen6.js
+            src/screens/Screen7.js
+            src/screens/Screen8.js
+            src/screens/Screen9.js
+            src/screens/screen2/teamCountryMap/TeamCountryMap.js
+            src/screens/screen2/teamCountryMap/countries.js
+            src/screens/screen2/teamCountryMap/index.js
+            src/screens/screen2/teamCountryMap/teamCountryMapUtils.js
+          )
+          for screen in "${screens[@]}"; do
             echo "$screen"
           done
 
       - name: All Files Detected
-        run: echo "Total files scanned: 39412"
+        run: |
+          echo "Total files scanned: 39412"
 
       - name: Build Info
         run: echo "Gradle: 8.14.3, Kotlin: 1.9.10, Java: 17, WebDir: build"
