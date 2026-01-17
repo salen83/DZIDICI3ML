@@ -1,25 +1,26 @@
-name: Show Generated Android Build YML
+name: Generate Build YML Preview
 
 on:
-  workflow_dispatch: # ručno pokretanje
+  workflow_dispatch: # Pokreće se ručno iz Actions
 
 jobs:
-  display-yml:
+  generate-yml:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 22
+          node-version: '22' # koristi Node 22+
 
       - name: Install dependencies
         run: npm install
 
-      - name: Run scanner
-        run: node .github/workflows/scanner.js
-
-      - name: Show generated build-android.yml
-        run: cat .github/workflows/build-android.yml
+      - name: Generate build-android.yml preview
+        run: |
+          node .github/workflows/scanner.js > tmp-build-android.yml
+          echo "================ GENERATED build-android.yml ================"
+          cat tmp-build-android.yml
+          echo "============================================================="
