@@ -43,18 +43,17 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      # 🔴 Novi step: Postavi Kotlin JVM target na 21 za sve compile taskove
-      - name: Patch Kotlin JVM target
+      - name: Patch Kotlin JVM target for Capacitor plugins
         run: |
           echo "allprojects {
-  afterEvaluate {
-    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
-      kotlinOptions {
-        jvmTarget = '21'
-      }
-    }
-  }
-}" >> android/build.gradle
+              afterEvaluate {
+                  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+                      kotlinOptions {
+                          jvmTarget = '21'
+                      }
+                  }
+              }
+          }" >> android/build.gradle
 
       - name: Sync Capacitor
         run: npx cap sync android
