@@ -43,14 +43,16 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      # 🔴 Novi step: patch Kotlin jvmToolchain na 8
+      # 🔴 Patch Kotlin JVM toolchain to 21 (uskladiti sa Java 21)
       - name: Patch Kotlin JVM toolchain for Capacitor plugins
         run: |
           for f in node_modules/@capacitor/filesystem/android/build.gradle \
                    node_modules/@capacitor/share/android/build.gradle \
                    node_modules/@capacitor/android/capacitor/build.gradle; do
-            if grep -q 'jvmToolchain(21)' "$f"; then
-              sed -i 's/jvmToolchain(21)/jvmToolchain(8)/' "$f"
+            if grep -q 'jvmToolchain' "$f"; then
+              sed -i 's/jvmToolchain(.*)/jvmToolchain(21)/' "$f"
+            else
+              echo -e "\nkotlin {\n    jvmToolchain(21)\n}" >> "$f"
             fi
           done
 
