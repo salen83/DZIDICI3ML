@@ -31,7 +31,6 @@ jobs:
           fi
 
       - name: Build Web Assets
-        if: ${{ always() }}
         run: npm run build
 
       - name: Capacitor Sync
