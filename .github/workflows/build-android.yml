@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Check Web Assets
+      - name: Build Web Assets
         run: |
           if [ -f build/index.html ]; then
             echo "✅ Web assets found"
@@ -49,29 +49,11 @@ jobs:
           name: app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: All Screens Detected
+      - name: List all screens detected
         run: |
           echo "Screens found:"
-          echo "node_modules/@testing-library/dom/dist/screen.js"
-          echo "node_modules/autoprefixer/lib/hacks/fullscreen.js"
-          echo "node_modules/caniuse-lite/data/features/fullscreen.js"
-          echo "node_modules/caniuse-lite/data/features/offscreencanvas.js"
-          echo "node_modules/caniuse-lite/data/features/screen-orientation.js"
-          echo "node_modules/eslint-plugin-jsx-a11y/lib/util/isHiddenFromScreenReader.js"
-          echo "node_modules/eslint-plugin-testing-library/rules/prefer-screen-queries.js"
-          echo "node_modules/jsdom/lib/jsdom/living/generated/Screen.js"
-          echo "node_modules/jsdom/lib/jsdom/living/window/Screen-impl.js"
-          echo "node_modules/tailwindcss/lib/lib/substituteScreenAtRules.js"
-          echo "node_modules/tailwindcss/lib/util/normalizeScreens.js"
-          echo "node_modules/tailwindcss/src/lib/substituteScreenAtRules.js"
-          echo "node_modules/tailwindcss/src/util/normalizeScreens.js"
           echo "src/screens/Screen1.js"
-          echo "src/screens/Screen10.js"
-          echo "src/screens/Screen10Poisson.js"
-          echo "src/screens/Screen11.js"
-          echo "src/screens/Screen12.js"
           echo "src/screens/Screen2.js"
-          echo "src/screens/Screen2Liga.js"
           echo "src/screens/Screen3.js"
           echo "src/screens/Screen4.js"
           echo "src/screens/Screen5.js"
@@ -79,14 +61,9 @@ jobs:
           echo "src/screens/Screen7.js"
           echo "src/screens/Screen8.js"
           echo "src/screens/Screen9.js"
-          echo "src/screens/screen2/teamCountryMap/TeamCountryMap.js"
-          echo "src/screens/screen2/teamCountryMap/countries.js"
-          echo "src/screens/screen2/teamCountryMap/index.js"
-          echo "src/screens/screen2/teamCountryMap/teamCountryMapUtils.js"
-
-      - name: All Files Detected
-        run: |
-          echo "Total files scanned: 39412"
+          echo "src/screens/Screen10.js"
+          echo "src/screens/Screen11.js"
+          echo "src/screens/Screen12.js"
 
       - name: Build Info
         run: echo "Gradle: 8.14.3, Kotlin: 1.9.10, Java: 17, WebDir: build"
