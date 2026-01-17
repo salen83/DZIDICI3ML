@@ -43,4 +43,30 @@ jobs:
 `;
 
 fs.writeFileSync('.github/workflows/build-android.yml', buildYml);
-console.log('✅ Generated build-android.yml');
+const fs = require('fs');
+const path = require('path');
+
+// Pretpostavimo da scanner.js generiše build content u promenljivoj `ymlContent`
+const ymlContent = `
+name: Android Build
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build Android
+        run: npx cap sync android && cd android && ./gradlew assembleDebug
+`;
+
+console.log('================ GENERATED build-android.yml ================');
+console.log(ymlContent.trim());
+console.log('=============================================================');
