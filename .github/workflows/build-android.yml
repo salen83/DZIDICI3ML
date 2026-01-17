@@ -43,13 +43,6 @@ jobs:
           sed -i 's/applicationId ".*"/applicationId "com.dzidici.app.ml"/' android/app/build.gradle
           sed -i 's/namespace ".*"/namespace "com.dzidici.app.ml"/' android/app/build.gradle
 
-      # 🔴 Dodajemo globalni Kotlin jvmTarget u android/build.gradle preko sed
-      - name: Set Kotlin JVM target for CI
-        run: |
-          if ! grep -q 'kotlinOptions { jvmTarget = "1.8" }' android/build.gradle; then
-            sed -i '/android {/a \\n    kotlinOptions { jvmTarget = "1.8" }\n' android/build.gradle
-          fi
-
       - name: Sync Capacitor
         run: npx cap sync android
 
