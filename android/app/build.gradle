@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "com.dzidici.app.ml"
-        minSdkVersion 23
+        minSdkVersion 24   // ⬆️ Povećano sa 23 na 24 zbog capacitor-android
         targetSdkVersion 36
         versionCode 1
         versionName "1.0"
