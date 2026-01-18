@@ -61,6 +61,22 @@ android {
     }
 }
 
+// ✅ Task da proveri da li postoji barem jedan APK ili AAB posle build-a
+tasks.register("checkOutputs") {
+    doLast {
+        def outputs = fileTree(dir: "${buildDir}/outputs").matching {
+            include "**/*.apk", "**/*.aab"
+        }
+        if (outputs.isEmpty()) {
+            println "⚠️ No APK or AAB files were generated!"
+        } else {
+            outputs.each { f ->
+                println "🎯 Generated file: ${f.absolutePath}"
+            }
+        }
+    }
+}
+
 repositories {
     google()
     mavenCentral()
