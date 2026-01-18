@@ -12,13 +12,19 @@ android {
         versionName "1.0"
     }
 
-    // 🔐 Bitrise signingConfig – koristi prave env var
+    // 🔐 Robust Signing Config za Bitrise
     signingConfigs {
         release {
-            storeFile file(System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH"))
-            storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("BITRISEIO_ANDROID_KEYSTORE_ALIAS")
-            keyPassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
+            def keystorePath = System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH")
+            if (keystorePath != null && file(keystorePath).exists()) {
+                println "✅ Keystore found at $keystorePath, release build will be signed"
+                storeFile file(keystorePath)
+                storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("BITRISEIO_ANDROID_KEYSTORE_ALIAS")
+                keyPassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
+            } else {
+                println "⚠️ BITRISE keystore not found or env var missing, release build will be UNSIGNED"
+            }
         }
     }
 
@@ -30,11 +36,15 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+
+            // samo postavi signingConfig ako storeFile postoji
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
-    // 📦 Output APK ime i lokacija kompatibilni sa AGP 8+
+    // 📦 Output APK ime kompatibilno sa AGP 8+
     applicationVariants.all { variant ->
         if (variant.buildType.name == "release") {
             variant.outputs.all { output ->
