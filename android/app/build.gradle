@@ -12,18 +12,13 @@ android {
         versionName "1.0"
     }
 
-    // 🔐 SIGNING CONFIG
+    // 🔐 Signing Config za Bitrise
     signingConfigs {
         release {
-            def keystorePath = System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH")
-            if (keystorePath != null) {
-                storeFile file(keystorePath)
-                storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
-                keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
-            } else {
-                println "⚠️ BITRISE keystore env var not found, release signing disabled"
-            }
+            storeFile file(System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH"))
+            storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
+            keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
         }
     }
 
@@ -35,21 +30,21 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-
-            // samo postavi signingConfig ako storeFile postoji
-            if (signingConfigs.release.storeFile != null) {
-                signingConfig signingConfigs.release
-            } else {
-                println "⚠️ Release build will be unsigned"
-            }
+            // direktno postavi signingConfig
+            signingConfig signingConfigs.release
         }
     }
 
-    // 📦 Always output app-release.apk
+    // 📦 Output APK ime i lokacija kompatibilni sa AGP 8+
     applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            if (variant.buildType.name == "release") {
-                output.outputFileName = "app-release.apk"
+        if (variant.buildType.name == "release") {
+            variant.outputs.all { output ->
+                def apkName = "app-release.apk"
+                if (output.hasProperty("outputFileName")) {
+                    output.outputFileName = apkName
+                } else if (output.hasProperty("outputFile")) {
+                    output.outputFile = new File(output.outputFile.parent, apkName)
+                }
             }
         }
     }
