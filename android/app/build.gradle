@@ -12,25 +12,40 @@ android {
         versionName "1.0"
     }
 
-    // 🔐 BITRISE SIGN CONFIG
+    // 🔐 SIGNING CONFIG
     signingConfigs {
         release {
-            storeFile file(System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH"))
-            storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
-            keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
+            def keystorePath = System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH")
+            if (keystorePath != null) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
+            } else {
+                println "⚠️ BITRISE keystore env var not found, release signing disabled"
+            }
         }
     }
 
     buildTypes {
+        debug {
+            minifyEnabled false
+        }
+
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+
+            // samo postavi signingConfig ako storeFile postoji
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            } else {
+                println "⚠️ Release build will be unsigned"
+            }
         }
     }
 
-    // 📦 Uvek pravi app-release.apk
+    // 📦 Always output app-release.apk
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             if (variant.buildType.name == "release") {
@@ -47,15 +62,9 @@ repositories {
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
-
-    // AppCompat i Material
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
-
-    // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
-
-    // Capacitor lokalni modul
     implementation project(':capacitor-android')
 }
 
