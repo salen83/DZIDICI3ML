@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "com.dzidici.app.ml"
-        minSdkVersion 24   // ⬆️ Povećano sa 23 na 24 zbog capacitor-android
+        minSdkVersion 24
         targetSdkVersion 36
         versionCode 1
         versionName "1.0"
@@ -16,6 +16,15 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Ovo osigurava da output ima standardni APK naziv
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            if (variant.buildType.name == "release") {
+                output.outputFileName = "app-release.apk"
+            }
         }
     }
 }
@@ -35,7 +44,7 @@ dependencies {
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
 
-    // ✅ Capacitor kao LOKALNI MODUL (NE MAVEN)
+    // Capacitor lokalni modul
     implementation project(':capacitor-android')
 }
 
