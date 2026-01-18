@@ -44,20 +44,19 @@ android {
         }
     }
 
-    // 📦 Output APK ime i putanja, + ispis u konzolu
+    // 📦 Output APK ime i putanja, + ispis u konzolu (sigurno za AGP <8 i 8+)
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def apkName = "${variant.name}.apk"  // ime fajla po varijanti
+            def apkName = "${variant.name}.apk"
+
             if (output.hasProperty("outputFileName")) {
                 output.outputFileName = apkName
             } else if (output.hasProperty("outputFile")) {
                 output.outputFile = new File(output.outputFile.parent, apkName)
             }
 
-            // ispis gde APK fajl treba da bude
-            output.assembleProvider.get().doLast {
-                println "📌 APK for variant '${variant.name}' should be here: ${output.outputFile.absolutePath}"
-            }
+            // Ispis gde će APK fajl biti generisan
+            println "📌 APK for variant '${variant.name}' will be generated at: ${output.outputFile}"
         }
     }
 }
