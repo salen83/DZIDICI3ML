@@ -12,10 +12,21 @@ android {
         versionName "1.0"
     }
 
+    // ✅ Dodaj signingConfig
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("BITRISEIO_KEYSTORE_URL"))
+            storePassword System.getenv("BITRISEIO_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("BITRISEIO_KEY_ALIAS")
+            keyPassword System.getenv("BITRISEIO_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release   // 🔑 Ovde kaže Gradle-u da potpiše APK
         }
     }
 
