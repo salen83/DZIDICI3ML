@@ -12,13 +12,13 @@ android {
         versionName "1.0"
     }
 
-    // ✅ Dodaj signingConfig
+    // 🔐 BITRISE SIGN CONFIG
     signingConfigs {
         release {
-            storeFile file(System.getenv("BITRISEIO_KEYSTORE_URL"))
-            storePassword System.getenv("BITRISEIO_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("BITRISEIO_KEY_ALIAS")
-            keyPassword System.getenv("BITRISEIO_KEY_PASSWORD")
+            storeFile file(System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH"))
+            storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
+            keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
         }
     }
 
@@ -26,11 +26,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release   // 🔑 Ovde kaže Gradle-u da potpiše APK
+            signingConfig signingConfigs.release
         }
     }
 
-    // Ovo osigurava da output ima standardni APK naziv
+    // 📦 Uvek pravi app-release.apk
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             if (variant.buildType.name == "release") {
