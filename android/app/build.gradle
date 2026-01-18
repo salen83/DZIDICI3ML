@@ -44,16 +44,19 @@ android {
         }
     }
 
-    // 📦 Output APK ime kompatibilno sa AGP 8+
+    // 📦 Output APK ime i putanja, + ispis u konzolu
     applicationVariants.all { variant ->
-        if (variant.buildType.name == "release") {
-            variant.outputs.all { output ->
-                def apkName = "app-release.apk"
-                if (output.hasProperty("outputFileName")) {
-                    output.outputFileName = apkName
-                } else if (output.hasProperty("outputFile")) {
-                    output.outputFile = new File(output.outputFile.parent, apkName)
-                }
+        variant.outputs.all { output ->
+            def apkName = "${variant.name}.apk"  // ime fajla po varijanti
+            if (output.hasProperty("outputFileName")) {
+                output.outputFileName = apkName
+            } else if (output.hasProperty("outputFile")) {
+                output.outputFile = new File(output.outputFile.parent, apkName)
+            }
+
+            // ispis gde APK fajl treba da bude
+            output.assembleProvider.get().doLast {
+                println "📌 APK for variant '${variant.name}' should be here: ${output.outputFile.absolutePath}"
             }
         }
     }
