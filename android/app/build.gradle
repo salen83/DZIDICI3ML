@@ -12,13 +12,13 @@ android {
         versionName "1.0"
     }
 
-    // 🔐 Signing Config za Bitrise
+    // 🔐 Bitrise signingConfig – koristi prave env var
     signingConfigs {
         release {
             storeFile file(System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH"))
             storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("BITRISEIO_ANDROID_KEY_ALIAS")
-            keyPassword System.getenv("BITRISEIO_ANDROID_KEY_PASSWORD")
+            keyAlias System.getenv("BITRISEIO_ANDROID_KEYSTORE_ALIAS")
+            keyPassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
         }
     }
 
@@ -30,7 +30,6 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // direktno postavi signingConfig
             signingConfig signingConfigs.release
         }
     }
