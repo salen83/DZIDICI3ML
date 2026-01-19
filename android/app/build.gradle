@@ -12,13 +12,13 @@ android {
         versionName "1.0"
     }
 
-    // 🔐 Robust Signing Config za Bitrise
+    // 🔐 Robust Signing Config za Bitrise koristeći URL keystore-a
     signingConfigs {
         release {
-            def keystorePath = System.getenv("BITRISEIO_ANDROID_KEYSTORE_PATH")
-            if (keystorePath != null && file(keystorePath).exists()) {
-                println "✅ Keystore found at $keystorePath, release build will be signed"
-                storeFile file(keystorePath)
+            def keystoreUrl = System.getenv("BITRISEIO_myappkey_URL")
+            if (keystoreUrl != null && file(keystoreUrl).exists()) {
+                println "✅ Keystore found at $keystoreUrl, release build will be signed"
+                storeFile file(keystoreUrl)
                 storePassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PASSWORD")
                 keyAlias System.getenv("BITRISEIO_ANDROID_KEYSTORE_ALIAS")
                 keyPassword System.getenv("BITRISEIO_ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
