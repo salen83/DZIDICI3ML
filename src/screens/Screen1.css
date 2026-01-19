@@ -1,29 +1,59 @@
 .screen1-container {
-  width: 95%; /* ukupna širina tabele */
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
   font-family: Arial, sans-serif;
 }
 
+/* TOP BAR — maksimalno smanjen */
 .screen1-topbar {
   display: flex;
-  gap: 3px;
-  margin-bottom: 2px;
-  font-size: 12px;
+  flex-direction: row;
+  gap: 4px;
+  margin-bottom: 4px;
+  align-items: center;
 }
 
+.screen1-topbar input[type="file"] {
+  padding: 2px;
+  font-size: 11px;
+  height: 22px;
+}
+
+.screen1-topbar button {
+  padding: 2px 6px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  font-size: 11px;
+  height: 22px;
+}
+
+.screen1-topbar button:hover {
+  background-color: #e0e0e0;
+}
+
+/* TABELA — NAMERNO SPUŠTENA DOLE */
 .screen1-table-wrapper {
-  overflow-x: hidden;
+  height: calc(100vh - 140px);
+  overflow-y: auto;
+  margin-top: 20px;      /* <<< OVO GARANTUJE RAZMAK */
+  padding-top: 10px;     /* <<< OVO GARANTUJE DA PRVI RED NE UPADA */
+  border-top: 1px solid #ccc;
 }
 
+/* RED */
 .screen1-row {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid transparent; /* linije nevidljive */
+  border-bottom: 1px solid transparent;
   padding: 0;
   font-size: 12px;
-  height: 28px; /* maksimalno zgusnuto */
+  height: 28px;
 }
 
+/* KOLONE */
 .col {
   display: flex;
   align-items: center;
@@ -34,36 +64,39 @@
   padding: 0 2px;
 }
 
-/* optimalne širine kolona za portrait */
-.col.rb { width: 24px; font-size: 10px; }             /* redni broj */
-.col.info { 
-  width: 80px; 
-  flex-direction: column; 
-  align-items: flex-start; 
-  font-size: 10px; /* manji font za datum i vreme */
-  margin-right: 10px; /* razmak prema koloni timova */
-} 
-.col.teams { 
-  width: 140px; 
-  justify-content: flex-start; 
-  font-size: 11px; 
-  font-weight: bold; 
-} 
-.col.results { 
-  width: 60px; 
-  flex-direction: column; 
-  align-items: center; 
-  font-size: 11px; 
-} 
+.col.rb { width: 24px; font-size: 10px; }
+
+.col.info {
+  width: 80px;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 10px;
+  margin-right: 10px;
+}
+
+.col.teams {
+  width: 140px;
+  justify-content: flex-start;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.col.results {
+  width: 60px;
+  flex-direction: column;
+  align-items: center;
+  font-size: 11px;
+}
+
 .col.delete { width: 20px; }
 
-/* info i results stilovi */
-.info-top { font-size: 8px; line-height: 1.1; cursor: text; } /* datum i vreme */
-.info-center { font-size: 11px; font-weight: bold; line-height: 1.1; cursor: text; } /* liga */
+/* TEKSTOVI */
+.info-top { font-size: 8px; line-height: 1.1; cursor: text; }
+.info-center { font-size: 11px; font-weight: bold; line-height: 1.1; cursor: text; }
 .results-top { font-size: 9px; line-height: 1.1; cursor: text; }
 .results-center { font-size: 11px; font-weight: bold; line-height: 1.1; cursor: text; }
 
-/* input stil */
+/* EDIT POLJA */
 .edit-input {
   width: 100%;
   height: 100%;
@@ -74,9 +107,10 @@
   border: 1px solid #555;
   padding: 0 2px;
   margin: 0;
+  background: #fff;
 }
 
-/* trepćuća crtica samo za aktivno polje */
+/* KURSOR */
 .edit-cursor {
   display: inline-block;
   width: 2px;

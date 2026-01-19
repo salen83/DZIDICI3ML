@@ -11,6 +11,7 @@ export default function Screen1() {
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
+  const [jsonContent, setJsonContent] = useState("");
   const rowHeight = 28;
   const buffer = 15;
   const containerHeight = 600;
@@ -65,19 +66,33 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
-  const saveJSONZip = async () => {
-    if (!rows || rows.length===0) {
-      alert("Nema mečeva za export");
+  const createJSON = () => {
+    if(!rows || rows.length===0){
+      alert("Nema mečeva za kreiranje JSON");
+      return;
+    }
+    const jsonStr = JSON.stringify(rows,null,2);
+    setJsonContent(jsonStr);
+    alert("JSON kreiran i spreman za pregled/export");
+  };
+
+  const viewJSON = () => {
+    if(!jsonContent){
+      alert("Prvo kreiraj JSON klikom na 'Kreiraj JSON'");
+      return;
+    }
+    alert(jsonContent.substring(0, 2000) + (jsonContent.length>2000 ? "\n...":""));
+  };
+
+  const exportJSON = async () => {
+    if(!jsonContent){
+      alert("Prvo kreiraj JSON klikom na 'Kreiraj JSON'");
       return;
     }
     try {
-      // kreiraj JSON fajl
-      const jsonStr = JSON.stringify(rows,null,2);
       const zip = new JSZip();
-      zip.file('matches.json', jsonStr);
+      zip.file('matches.json', jsonContent);
       const zipContent = await zip.generateAsync({type:"base64"});
-
-      // čuvanje ZIP fajla u Downloads folder
       const filename = `matches_${Date.now()}.zip`;
       await Filesystem.writeFile({
         path: filename,
@@ -85,33 +100,34 @@ export default function Screen1() {
         directory: Directory.External,
         encoding: Encoding.Base64
       });
-
-      // dobija apsolutnu putanju fajla za Share
       const uriFile = await Filesystem.getUri({
         directory: Directory.External,
         path: filename
       });
-
-      // Share ili otvori Gmail/Share sheet
       await Share.share({
         title: 'Export JSON Matches',
         text: 'Evo ZIP fajla sa mečevima za ML aplikaciju',
         url: uriFile.uri,
         dialogTitle: 'Pošalji fajl'
       });
-
     } catch(e) {
       console.error(e);
-      alert("Greška pri kreiranju i slanju ZIP fajla");
+      alert("Greška pri kreiranju ili slanju ZIP fajla");
     }
   };
 
+  // ✅ JEDINA IZMENJENA FUNKCIJA
   const addNewRow = () => {
     const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
+
+    if (tableWrapperRef.current) {
+      tableWrapperRef.current.scrollTop = 0;
+    }
+    setScrollTop(0);
   };
 
   const deleteRow = (index) => {
@@ -149,12 +165,12 @@ export default function Screen1() {
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
-        <button onClick={saveJSONZip}>📤 Export JSON ZIP</button>
+        <button onClick={createJSON}>Kreiraj JSON</button>
+        <button onClick={viewJSON}>Prikaži JSON</button>
+        <button onClick={exportJSON}>📤 Export JSON ZIP</button>
       </div>
-
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
         <div style={{height: startIndex*rowHeight}}></div>
-
         {visibleRows?.map((r,i)=>{
           const idx = startIndex+i;
           const isEditing = editing.row===idx;
@@ -163,26 +179,22 @@ export default function Screen1() {
           return (
             <div key={idx} className="screen1-row" style={{height:rowHeight}}>
               <div className="col rb">{r.rb}</div>
-
               <div className="col info">
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='datum')) ?
                     <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
                     <div className="info-text" onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
                   }
-
                   {(isNew || (isEditing && editing.col==='vreme')) ?
                     <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
                     <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
                   }
                 </div>
-
                 {(isNew || (isEditing && editing.col==='liga')) ?
                   <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
                   <div className="info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>{r.liga}</div>
                 }
               </div>
-
               <div className="col teams" style={{fontWeight:'bold', fontSize:getFontSize(`${r.home} - ${r.away}`,110)}}>
                 {(isNew || (isEditing && editing.col==='home')) ?
                   <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
@@ -194,7 +206,6 @@ export default function Screen1() {
                   <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
                 }
               </div>
-
               <div className="col results" style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='ht')) ?
@@ -207,18 +218,15 @@ export default function Screen1() {
                     <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>{r.sh}</div>
                   }
                 </div>
-
                 {(isNew || (isEditing && editing.col==='ft')) ?
                   <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
                   <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>{r.ft}</div>
                 }
               </div>
-
               <div className="col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
             </div>
           );
         })}
-
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>

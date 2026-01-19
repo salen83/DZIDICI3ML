@@ -5,36 +5,15 @@ import { ensureTeam } from "./screens/screen2/teamCountryMap";
 
 export const MatchesContext = createContext();
 
-// ✅ ČISTI SMEĆE REDOVE
-function sanitizeRows(input) {
-  if (!Array.isArray(input)) return [];
-
-  return input.filter(r =>
-    r &&
-    r.home && r.home.trim() !== "" &&
-    r.away && r.away.trim() !== "" &&
-    r.liga && r.liga.trim() !== "" &&
-    r.ft && r.ft.includes(":")
-  );
-}
-
 export function MatchesProvider({ children }) {
 
-  const [rows, setRowsRaw] = useState(() => {
+  const [rows, setRows] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("rows")) || [];
-      return sanitizeRows(saved);
+      return JSON.parse(localStorage.getItem("rows")) || [];
     } catch {
       return [];
     }
   });
-
-  // 👇 OVO JE JEDINI SETROWS KOJI SME DA SE KORISTI
-  const setRows = (data) => {
-    const clean = sanitizeRows(data);
-    console.log("SANITIZED ROWS:", clean.length);
-    setRowsRaw(clean);
-  };
 
   const [futureMatches, setFutureMatches] = useState([]);
   const [tickets, setTickets] = useState(() => {

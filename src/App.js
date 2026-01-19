@@ -57,7 +57,7 @@ export default function App() {
 
   return (
     <MatchesProvider>
-      <div style={{ paddingTop: "30px" }}>
+      <div>
         <div className="top-bar">
           <button
             onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
