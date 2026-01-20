@@ -2,16 +2,12 @@ import React, { useState, useContext, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import JSZip from 'jszip';
-import { Share } from '@capacitor/share';
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
-  const [jsonContent, setJsonContent] = useState("");
   const rowHeight = 28;
   const buffer = 15;
   const containerHeight = 600;
@@ -57,6 +53,7 @@ export default function Screen1() {
         ft: r['FT'] ?? '',
         ht: r['HT'] ?? '',
         sh: r['SH'] ?? '',
+        _confirmed: false
       }));
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
@@ -66,59 +63,18 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
-  const createJSON = () => {
-    if(!rows || rows.length===0){
-      alert("Nema mečeva za kreiranje JSON");
-      return;
-    }
-    const jsonStr = JSON.stringify(rows,null,2);
-    setJsonContent(jsonStr);
-    alert("JSON kreiran i spreman za pregled/export");
+  // ✅ Sabiranje golova iz "3:2"
+  const getTotalGoalsFromScore = (score) => {
+    if (!score || typeof score !== 'string' || !score.includes(':')) return 0;
+    const parts = score.split(':');
+    const a = parseInt(parts[0], 10);
+    const b = parseInt(parts[1], 10);
+    if (isNaN(a) || isNaN(b)) return 0;
+    return a + b;
   };
 
-  const viewJSON = () => {
-    if(!jsonContent){
-      alert("Prvo kreiraj JSON klikom na 'Kreiraj JSON'");
-      return;
-    }
-    alert(jsonContent.substring(0, 2000) + (jsonContent.length>2000 ? "\n...":""));
-  };
-
-  const exportJSON = async () => {
-    if(!jsonContent){
-      alert("Prvo kreiraj JSON klikom na 'Kreiraj JSON'");
-      return;
-    }
-    try {
-      const zip = new JSZip();
-      zip.file('matches.json', jsonContent);
-      const zipContent = await zip.generateAsync({type:"base64"});
-      const filename = `matches_${Date.now()}.zip`;
-      await Filesystem.writeFile({
-        path: filename,
-        data: zipContent,
-        directory: Directory.External,
-        encoding: Encoding.Base64
-      });
-      const uriFile = await Filesystem.getUri({
-        directory: Directory.External,
-        path: filename
-      });
-      await Share.share({
-        title: 'Export JSON Matches',
-        text: 'Evo ZIP fajla sa mečevima za ML aplikaciju',
-        url: uriFile.uri,
-        dialogTitle: 'Pošalji fajl'
-      });
-    } catch(e) {
-      console.error(e);
-      alert("Greška pri kreiranju ili slanju ZIP fajla");
-    }
-  };
-
-  // ✅ JEDINA IZMENJENA FUNKCIJA
   const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true, _confirmed:false };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
@@ -145,10 +101,19 @@ export default function Screen1() {
     const copy = [...rows];
     copy[rowIdx] = { ...copy[rowIdx], [key]: value };
     delete copy[rowIdx]._new;
+    copy[rowIdx]._confirmed = false; // ako menjaš rezultat -> opet postaje neproveren
+
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);
     setRows(sorted);
     localStorage.setItem('rows', JSON.stringify(sorted));
+  };
+
+  const confirmRow = (idx) => {
+    const copy = [...rows];
+    copy[idx] = { ...copy[idx], _confirmed: true };
+    setRows(copy);
+    localStorage.setItem('rows', JSON.stringify(copy));
   };
 
   const getFontSize = (text,maxWidth,base=11,min=7) => {
@@ -165,20 +130,30 @@ export default function Screen1() {
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
-        <button onClick={createJSON}>Kreiraj JSON</button>
-        <button onClick={viewJSON}>Prikaži JSON</button>
-        <button onClick={exportJSON}>📤 Export JSON ZIP</button>
       </div>
+
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
         <div style={{height: startIndex*rowHeight}}></div>
+
         {visibleRows?.map((r,i)=>{
           const idx = startIndex+i;
           const isEditing = editing.row===idx;
           const isNew = r._new === true;
 
+          const shGoals = getTotalGoalsFromScore(r.sh);
+          const isSuspicious = (shGoals >= 5) && !r._confirmed;
+
           return (
-            <div key={idx} className="screen1-row" style={{height:rowHeight}}>
+            <div
+              key={idx}
+              className="screen1-row"
+              style={{
+                height: rowHeight,
+                backgroundColor: isSuspicious ? '#ffb3b3' : 'transparent'
+              }}
+            >
               <div className="col rb">{r.rb}</div>
+
               <div className="col info">
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='datum')) ?
@@ -190,11 +165,13 @@ export default function Screen1() {
                     <div className="info-text" onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
                   }
                 </div>
+
                 {(isNew || (isEditing && editing.col==='liga')) ?
                   <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
                   <div className="info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:getFontSize(r.liga,80)}}>{r.liga}</div>
                 }
               </div>
+
               <div className="col teams" style={{fontWeight:'bold', fontSize:getFontSize(`${r.home} - ${r.away}`,110)}}>
                 {(isNew || (isEditing && editing.col==='home')) ?
                   <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
@@ -206,6 +183,7 @@ export default function Screen1() {
                   <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
                 }
               </div>
+
               <div className="col results" style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='ht')) ?
@@ -218,15 +196,23 @@ export default function Screen1() {
                     <div className="results-text" onClick={()=>handleEditStart(idx,'sh')} style={{fontSize:9}}>{r.sh}</div>
                   }
                 </div>
+
                 {(isNew || (isEditing && editing.col==='ft')) ?
                   <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
                   <div className="results-center" onClick={()=>handleEditStart(idx,'ft')} style={{fontWeight:'bold', fontSize:12}}>{r.ft}</div>
                 }
               </div>
-              <div className="col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
+
+              <div className="col delete" style={{display:'flex', gap:'4px'}}>
+                {isSuspicious && (
+                  <button onClick={()=>confirmRow(idx)} title="Potvrdi da je rezultat tačan">✅</button>
+                )}
+                <button onClick={()=>deleteRow(idx)}>x</button>
+              </div>
             </div>
           );
         })}
+
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>

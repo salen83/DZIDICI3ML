@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useCallback } from "react";
 import { MatchesContext } from "../MatchesContext";
 import "./Screen9.css";
 
@@ -7,11 +7,13 @@ export default function Screen9() {
   const [activeTab, setActiveTab] = useState("otvoreni");
   const [selectedTicket, setSelectedTicket] = useState(null);
 
+  // JSON state
+  const [jsonFile, setJsonFile] = useState({ content: "", lastUpdated: null, totalMatches: 0, addedMatches: 0, prevCount: 0 });
+
   // ===============================
   // ONLINE / OFFLINE STATUS
   // ===============================
   const [online, setOnline] = useState(navigator.onLine);
-
   useEffect(() => {
     const updateOnlineStatus = () => setOnline(navigator.onLine);
     window.addEventListener("online", updateOnlineStatus);
@@ -84,7 +86,7 @@ export default function Screen9() {
 
       return { otvoreni: opened, dobitni: won, gubitni: lost };
     });
-  }, [rows, setTickets]); // <-- dodali setTickets ovde
+  }, [rows, setTickets]);
 
   // ===============================
   // DOBAVLJANJE TIKETA ZA TAB
@@ -113,6 +115,41 @@ export default function Screen9() {
     });
   };
 
+  // ===============================
+  // JSON FUNKCIJE
+  // ===============================
+  const createJSON = useCallback(() => {
+    if (!rows || rows.length === 0) return;
+    const content = JSON.stringify(rows, null, 2);
+    const now = new Date();
+    setJsonFile(prev => ({
+      content,
+      lastUpdated: now,
+      totalMatches: rows.length,
+      prevCount: prev.totalMatches,
+      addedMatches: rows.length - prev.totalMatches
+    }));
+  }, [rows]);
+
+  // automatsko osvežavanje kad se promeni screen1
+  useEffect(() => {
+    if (rows.length) createJSON();
+  }, [rows, createJSON]);
+
+  const copyJSON = () => {
+    if (!jsonFile.content) return;
+    navigator.clipboard.writeText(jsonFile.content).then(() => alert("JSON kopiran!"));
+  };
+
+  const previewMatches = () => {
+    if (!jsonFile.content) return [];
+    const arr = JSON.parse(jsonFile.content);
+    if (arr.length <= 6) return arr;
+    return [...arr.slice(0,3), ...arr.slice(-3)];
+  };
+
+  const formatDate = (d) => d ? new Date(d).toLocaleString() : "N/A";
+
   return (
     <div className="screen9-container">
       <div style={{ marginBottom: 10, fontWeight: "bold" }}>
@@ -120,32 +157,56 @@ export default function Screen9() {
         {online ? <span style={{ color: "green" }}>ONLINE 🌐</span> : <span style={{ color: "red" }}>OFFLINE 🚫</span>}
       </div>
 
-      <h2>Tiketi</h2>
+      <h2>Tiketi i JSON</h2>
+
       <div className="tabs">
-        {["otvoreni", "dobitni", "gubitni"].map((tab) => (
+        {["otvoreni", "dobitni", "gubitni", "JSON"].map((tab) => (
           <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
         ))}
       </div>
 
-      <div className="tab-content">
-        {tabTickets.map((ticket) => (
-          <div
-            key={ticket.id}
-            className="ticket-row"
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: ticketBg(ticket) }}
-          >
-            <span style={{ flexGrow: 1, cursor: "pointer" }} onClick={() => setSelectedTicket(ticket)}>
-              {ticket.name}
-            </span>
-            <button style={{ marginLeft: 5, padding: "2px 6px" }} onClick={() => deleteTicket(ticket.id, activeTab)}>
-              Obriši
-            </button>
+      {activeTab === "JSON" && (
+        <div className="tab-content" style={{ maxHeight: 500, overflowY: "auto", padding: 10 }}>
+          <div style={{ marginBottom: 10 }}>
+            <button onClick={createJSON} style={{ marginRight: 5 }}>Kreiraj JSON</button>
+            <button onClick={copyJSON}>Kopiraj JSON</button>
           </div>
-        ))}
-        {tabTickets.length === 0 && <div style={{ padding: 10 }}>Nema tiketa</div>}
-      </div>
+          {jsonFile.content ? (
+            <div>
+              <div style={{ marginBottom: 5, fontSize: 12, fontWeight: "bold" }}>
+                JSON fajl: poslednje osvežavanje: {formatDate(jsonFile.lastUpdated)}, ukupan broj mečeva: {jsonFile.totalMatches}, dodato: {jsonFile.addedMatches}, pre osvežavanja: {jsonFile.prevCount}
+              </div>
+              <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", userSelect: "text", backgroundColor: "#f5f5f5", padding: 8, borderRadius: 4 }}>
+                {previewMatches().map((m,i)=>(
+                  <div key={i}>{`${m.datum} | ${m.vreme} | ${m.liga} | ${m.home}-${m.away} | ${m.ft} | ${m.ht} | ${m.sh}`}</div>
+                ))}
+              </pre>
+            </div>
+          ) : <div>Nema JSON fajla</div>}
+        </div>
+      )}
+
+      {activeTab !== "JSON" && (
+        <div className="tab-content">
+          {tabTickets.map((ticket) => (
+            <div
+              key={ticket.id}
+              className="ticket-row"
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: ticketBg(ticket) }}
+            >
+              <span style={{ flexGrow: 1, cursor: "pointer" }} onClick={() => setSelectedTicket(ticket)}>
+                {ticket.name}
+              </span>
+              <button style={{ marginLeft: 5, padding: "2px 6px" }} onClick={() => deleteTicket(ticket.id, activeTab)}>
+                Obriši
+              </button>
+            </div>
+          ))}
+          {tabTickets.length === 0 && <div style={{ padding: 10 }}>Nema tiketa</div>}
+        </div>
+      )}
 
       {selectedTicket && (
         <div className="ticket-modal-overlay" onClick={() => setSelectedTicket(null)}>

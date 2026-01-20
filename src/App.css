@@ -4,7 +4,10 @@
   align-items: center;
   gap: 20px;
   margin: 0;
-  padding: 6px 0;
+
+  /* ovo spušta topbar ispod system status bara / notcha */
+  padding: calc(6px + env(safe-area-inset-top)) 0 6px 0;
+
   font-family: Arial, sans-serif;
   background-color: #87ceeb;
 }
@@ -33,6 +36,9 @@
 
 .screen-container {
   width: 100%;
-  height: calc(100vh - 60px);
+
+  /* oduzimamo i visinu topbara i safe-area vrh */
+  height: calc(100vh - 60px - env(safe-area-inset-top));
+
   overflow: hidden;
 }
