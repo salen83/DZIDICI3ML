@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.dzidici.app.ml"
+    namespace "com.dzidici.app.milioner"
     compileSdkVersion 36
 
     defaultConfig {
-        applicationId "com.dzidici.app.ml"
+        applicationId "com.dzidici.app.milioner"
         minSdkVersion 24
         targetSdkVersion 36
         versionCode 1
@@ -37,14 +37,12 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            // samo postavi signingConfig ako storeFile postoji
             if (signingConfigs.release.storeFile != null) {
                 signingConfig signingConfigs.release
             }
         }
     }
 
-    // 📦 Output APK ime i putanja, + ispis u konzolu (sigurno za AGP <8 i 8+)
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             def apkName = "${variant.name}.apk"
@@ -55,13 +53,11 @@ android {
                 output.outputFile = new File(output.outputFile.parent, apkName)
             }
 
-            // Ispis gde će APK fajl biti generisan
             println "📌 APK for variant '${variant.name}' will be generated at: ${output.outputFile}"
         }
     }
 }
 
-// ✅ Task da proveri da li postoji barem jedan APK ili AAB posle build-a
 tasks.register("checkOutputs") {
     doLast {
         def outputs = fileTree(dir: "${buildDir}/outputs").matching {

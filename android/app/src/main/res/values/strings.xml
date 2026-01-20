@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">DZIDICIML</string>
-    <string name="title_activity_main">DZIDICIML</string>
-    <string name="package_name">com.salen.dzidici</string>
-    <string name="custom_url_scheme">com.salen.dzidici</string>
+    <string name="app_name">MILIONER</string>
+    <string name="title_activity_main">MILIONER</string>
+    <string name="package_name">com.dzidici.app.milioner</string>
+    <string name="custom_url_scheme">com.dzidici.app.milioner</string>
 </resources>
