@@ -12,6 +12,7 @@ import Screen9 from "./screens/Screen9";
 import Screen10 from "./screens/Screen10";
 import Screen11 from "./screens/Screen11";
 import Screen12 from "./screens/Screen12";
+import ScreenJson from "./screens/ScreenJson";   // TAJNI SCREEN
 
 import { MatchesProvider } from "./MatchesContext";
 import TicketPanel from "./components/TicketPanel";
@@ -36,7 +37,11 @@ const screens = [
 export default function App() {
   const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
 
-  const renderScreen = () => {
+  // JSON MODE
+  const [jsonMode, setJsonMode] = useState(false);
+  const [prevScreenIndex, setPrevScreenIndex] = useState(0);
+
+  const renderNormalScreen = () => {
     switch (screens[currentScreenIndex].key) {
       case "screen1": return <Screen1 />;
       case "screen2": return <Screen2 />;
@@ -55,27 +60,49 @@ export default function App() {
     }
   };
 
+  const openJson = () => {
+    setPrevScreenIndex(currentScreenIndex);  // ZAPAMTI GDE SI BIO
+    setJsonMode(true);
+  };
+
+  const closeJson = () => {
+    setJsonMode(false);
+    setCurrentScreenIndex(prevScreenIndex); // VRATI SE TAČNO TU
+  };
+
   return (
     <MatchesProvider>
       <div>
         <div className="top-bar">
           <button
             onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
-            disabled={currentScreenIndex === 0}
+            disabled={currentScreenIndex === 0 || jsonMode}
           >
             ◀
           </button>
-          <span>{screens[currentScreenIndex].title}</span>
+
+          <span>
+            {jsonMode ? "JSON SCREEN" : screens[currentScreenIndex].title}
+          </span>
+
           <button
             onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
-            disabled={currentScreenIndex === screens.length - 1}
+            disabled={currentScreenIndex === screens.length - 1 || jsonMode}
           >
             ▶
+          </button>
+
+          <button
+            style={{ marginLeft: 10, backgroundColor: "#ffeb3b", fontWeight: "bold" }}
+            onClick={openJson}
+            disabled={jsonMode}
+          >
+            JSON
           </button>
         </div>
 
         <div className="screen-container">
-          {renderScreen()}
+          {jsonMode ? <ScreenJson onClose={closeJson} /> : renderNormalScreen()}
         </div>
 
         <TicketPanel />
