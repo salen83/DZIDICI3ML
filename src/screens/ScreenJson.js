@@ -3,17 +3,6 @@ import { MatchesContext } from "../MatchesContext";
 
 const API_KEY = "7e7b226a0c0dc938e011c0a10e02ba54";
 
-function normalizeName(str) {
-    if (!str) return "";
-    return str
-        .toLowerCase()
-        .replace(/[čć]/g, "c")
-        .replace(/š/g, "s")
-        .replace(/đ/g, "dj")
-        .replace(/ž/g, "z")
-        .replace(/[^a-z0-9]/g, "")
-        .replace(/fc|cf|sc|u19|u20|u21|women|reserves|reserve|ii|b/g, "");
-}
 
 function timeToMinutes(t) {
     if (!t) return null;
