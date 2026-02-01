@@ -44,12 +44,6 @@ export function MatchesProvider({ children }) {
   const [predictionsFinal, setPredictionsFinal] = useState([]);
   const [teamPoissonStats, setTeamPoissonStats] = useState([]);
 
-  // DEBUG
-  useEffect(() => {
-    console.log("ROWS[0]:", rows[0]);
-    console.log("ROWS COUNT:", rows.length);
-  }, [rows]);
-
   // --- Toggle meča u aktivnom tiketu ---
   const toggleMatchInActiveTicket = (match, tip, screen=null) => {
     setActiveTicket(prev => {
@@ -78,10 +72,7 @@ export function MatchesProvider({ children }) {
         m.tip===baseMatch.tip
       );
 
-      if(exists) {
-        return { ...prev, matches: prev.matches.filter(m=>m!==exists) };
-      }
-
+      if(exists) return { ...prev, matches: prev.matches.filter(m=>m!==exists) };
       return { ...prev, matches: [...prev.matches, baseMatch] };
     });
 
@@ -96,12 +87,7 @@ export function MatchesProvider({ children }) {
         );
 
         const updated = exists
-          ? existing.filter(m=>!(
-              m.home===match.home &&
-              m.away===match.away &&
-              m.datum===match.datum &&
-              m.vreme===match.vreme
-            ))
+          ? existing.filter(m=>!(m.home===match.home && m.away===match.away && m.datum===match.datum && m.vreme===match.vreme))
           : [...existing, match];
 
         return { ...prev, [screen]: updated };
@@ -121,12 +107,7 @@ export function MatchesProvider({ children }) {
       );
 
       const updated = exists
-        ? existing.filter(m=>!(
-            m.home===match.home &&
-            m.away===match.away &&
-            m.datum===match.datum &&
-            m.vreme===match.vreme
-          ))
+        ? existing.filter(m=>!(m.home===match.home && m.away===match.away && m.datum===match.datum && m.vreme===match.vreme))
         : [...existing, match];
 
       return { ...prev, [screen]: updated };
@@ -151,7 +132,6 @@ export function MatchesProvider({ children }) {
     }
 
     const teams = {};
-
     rows.forEach(r=>{
       if(!r.ft || !r.home || !r.away) return;
 
@@ -183,6 +163,115 @@ export function MatchesProvider({ children }) {
 
     setTeamPoissonStats(data);
   }, [rows]);
+
+  // --- Predikcije Poisson ---
+  useEffect(()=>{
+    if(!rows.length || !futureMatches.length){
+      setPredictionsPoisson([]);
+      return;
+    }
+    const model = buildPoissonModel(rows);
+    const poissonPreds = futureMatches.map(m=>{
+      const p = predictMatch(model, m.liga, m.home, m.away);
+      return { ...m, ...p };
+    });
+    setPredictionsPoisson(poissonPreds);
+  }, [rows, futureMatches]);
+
+  // --- Predikcije Hybrid ---
+  useEffect(() => {
+    if (!rows.length || !futureMatches.length) {
+      setPredictionsHybrid([]);
+      return;
+    }
+
+    const pct = (a,b,f=50)=> (!b||isNaN(a)||isNaN(b)?f:(a/b)*100);
+    const teamStats = {};
+    const leagueStats = {};
+    const h2hMap = {};
+
+    rows.forEach(r => {
+      if(!r.ft || !r.home || !r.away) return;
+      const [hg, ag] = r.ft.split(":").map(Number);
+      if(isNaN(hg) || isNaN(ag)) return;
+
+      if(!teamStats[r.home]) teamStats[r.home] = { games:0, gg:0, ng:0, over2:0, over7:0, goalsFor:0, goalsAgainst:0 };
+      if(!teamStats[r.away]) teamStats[r.away] = { games:0, gg:0, ng:0, over2:0, over7:0, goalsFor:0, goalsAgainst:0 };
+
+      teamStats[r.home].games++; teamStats[r.home].goalsFor+=hg; teamStats[r.home].goalsAgainst+=ag;
+      teamStats[r.away].games++; teamStats[r.away].goalsFor+=ag; teamStats[r.away].goalsAgainst+=hg;
+
+      if(hg>0 && ag>0){ teamStats[r.home].gg++; teamStats[r.away].gg++; }
+      else { teamStats[r.home].ng++; teamStats[r.away].ng++; }
+      if(hg+ag>=2){ teamStats[r.home].over2++; teamStats[r.away].over2++; }
+      if(hg+ag>=7){ teamStats[r.home].over7++; teamStats[r.away].over7++; }
+
+      if(!leagueStats[r.liga]) leagueStats[r.liga] = { games:0, gg:0, ng:0, over2:0, over7:0, goals:0 };
+      leagueStats[r.liga].games++; leagueStats[r.liga].goals += hg+ag;
+      if(hg>0 && ag>0) leagueStats[r.liga].gg++; else leagueStats[r.liga].ng++;
+      if(hg+ag>=2) leagueStats[r.liga].over2++; if(hg+ag>=7) leagueStats[r.liga].over7++;
+
+      if(!h2hMap[r.home]) h2hMap[r.home]={};
+      if(!h2hMap[r.away]) h2hMap[r.away]={};
+      if(!h2hMap[r.home][r.away]) h2hMap[r.home][r.away]=[];
+      if(!h2hMap[r.away][r.home]) h2hMap[r.away][r.home]=[];
+      h2hMap[r.home][r.away].push({ hg, ag });
+      h2hMap[r.away][r.home].push({ hg: ag, ag: hg });
+    });
+
+    const hybridPreds = futureMatches.map(m=>{
+      const home = teamStats[m.home]||{};
+      const away = teamStats[m.away]||{};
+      const league = leagueStats[m.liga]||{};
+      const h2h = h2hMap[m.home]?.[m.away];
+      const h2hGG = h2h ? pct(h2h.filter(x=>x.hg>0 && x.ag>0).length, h2h.length,50) : 50;
+
+      const wForm=0.5, wLeague=0.3, wH2H=0.2;
+
+      return {
+        ...m,
+        gg: Math.round(wForm*(pct(home.gg,home.games,50)+pct(away.gg,away.games,50))/2 + wLeague*pct(league.gg,league.games,50) + wH2H*h2hGG),
+        ng: Math.round(wForm*(pct(home.ng,home.games,50)+pct(away.ng,away.games,50))/2 + wLeague*pct(league.ng,league.games,50) + wH2H*(100-h2hGG)),
+        over2: Math.round(wForm*(pct(home.over2,home.games,60)+pct(away.over2,away.games,60))/2 + wLeague*pct(league.over2,league.games,60) + wH2H*50),
+        over7: Math.round(wForm*(pct(home.over7,home.games,5)+pct(away.over7,away.games,5))/2 + wLeague*pct(league.over7,league.games,5) + wH2H*5)
+      };
+    });
+
+    setPredictionsHybrid(hybridPreds);
+
+  }, [rows, futureMatches, tickets]);
+
+  // --- Predikcije Final ---
+  useEffect(()=>{
+    if(!predictionsPoisson.length || !predictionsHybrid.length) {
+      setPredictionsFinal([]);
+      return;
+    }
+
+    const tips = ["gg","ng","over2","over7"];
+    const ticketMap = calculateTicketInfluence(tickets);
+
+    const finalPreds = futureMatches.map(m=>{
+      const poisson = predictionsPoisson.find(p => p.home===m.home && p.away===m.away) || {};
+      const hybrid = predictionsHybrid.find(p => p.home===m.home && p.away===m.away) || {};
+      const tMapHome = ticketMap[m.home] || {};
+      const tMapAway = ticketMap[m.away] || {};
+      const final = {};
+
+      tips.forEach(tip=>{
+        const poissonVal = poisson[tip] ?? 50;
+        const hybridVal = hybrid[tip] ?? 50;
+        const ticketVal = (tMapHome[tip]||0) + (tMapAway[tip]||0);
+
+        final[tip] = Math.min(100, Math.max(0, 0.65*poissonVal + 0.35*hybridVal + ticketVal));
+      });
+
+      return { ...m, poisson, hybrid, ticketInfluence: {...tMapHome, ...tMapAway}, final };
+    });
+
+    setPredictionsFinal(finalPreds);
+
+  }, [predictionsPoisson, predictionsHybrid, futureMatches, tickets]);
 
   return (
     <MatchesContext.Provider value={{

@@ -61,6 +61,17 @@ export default function Screen1() {
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
+
+      // ===== SMES: update teamMap =====
+      allRows.forEach(r => {
+        const keyHome = `screen1||${r.home}`;
+        const keyAway = `screen1||${r.away}`;
+        const keyLeague = `screen1||${r.liga}`;
+        if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: r.home, source: "screen1" } }));
+        if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: r.away, source: "screen1" } }));
+        if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: r.liga, source: "screen1" } }));
+      });
+      // ===== kraj SMES =====
     };
     reader.readAsArrayBuffer(file);
   };
@@ -80,6 +91,21 @@ export default function Screen1() {
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
+
+    // ===== SMES: dodaj u teamMap =====
+    if (newRow.home) {
+      const keyHome = `screen1||${newRow.home}`;
+      if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: newRow.home, source: "screen1" } }));
+    }
+    if (newRow.away) {
+      const keyAway = `screen1||${newRow.away}`;
+      if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: newRow.away, source: "screen1" } }));
+    }
+    if (newRow.liga) {
+      const keyLeague = `screen1||${newRow.liga}`;
+      if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: newRow.liga, source: "screen1" } }));
+    }
+    // ===== kraj SMES =====
 
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);

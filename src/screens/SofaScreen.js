@@ -42,6 +42,12 @@ export default function SofaScreen({ onClose }) {
   });
   const [editing, setEditing] = useState({ row: null, col: null });
 
+  // ✅ minimalna funkcija za korišćenje setTeamMap
+  const addSofaTeamToMap = (teamName) => {
+    if (!teamName) return;
+    setTeamMap(prev => ({ ...prev, [`sofa||${teamName}`]: { type: "team", name1: teamName, name2: teamName } }));
+  };
+
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -74,6 +80,8 @@ export default function SofaScreen({ onClose }) {
 
   const deleteRow = (idx) => {
     const copy = [...sofaRows];
+    const teamName = copy[idx]?._data[columns[0]]; // uzima prvu kolonu kao tim
+    addSofaTeamToMap(teamName); // ✅ koristi setTeamMap
     copy.splice(idx, 1);
     setSofaRows(copy);
     saveSnapshot([], [], copy);

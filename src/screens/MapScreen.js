@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTeamMap } from "../TeamMapContext";
 import { useMatches } from "../MatchesContext";
 
@@ -6,36 +6,51 @@ export default function MapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useTeamMap();
   const { rows: screen1Rows } = useMatches();
 
-  // Screen1 timovi i lige
-  const screen1Teams = Array.from(new Set(
-    screen1Rows?.map(r => r.home)
-      .concat(screen1Rows?.map(r => r.away))
-      .filter(Boolean) || []
-  ));
-  const screen1Leagues = Array.from(new Set(
-    screen1Rows?.map(r => r.liga)
-      .filter(Boolean) || []
-  ));
+  // --- Memoizovani Screen1 timovi i lige ---
+  const screen1Teams = useMemo(() =>
+    Array.from(new Set(
+      screen1Rows?.map(r => r.home)
+        .concat(screen1Rows?.map(r => r.away))
+        .filter(Boolean)
+    )),
+    [screen1Rows]
+  );
 
-  // Sofa kandidati iz TeamMapContext
-  const sofaCandidates = Object.values(teamMap).filter(t => t.source === "sofa-candidate");
+  const screen1Leagues = useMemo(() =>
+    Array.from(new Set(screen1Rows?.map(r => r.liga).filter(Boolean))),
+    [screen1Rows]
+  );
 
-  // Timovi/lige koji su vec upareni
-  const pairedTeams = new Set(Object.values(teamMap).filter(t => t.type === "team").flatMap(t => [t.name1, t.name2]));
-  const pairedLeagues = new Set(Object.values(teamMap).filter(t => t.type === "league").flatMap(t => [t.name1, t.name2]));
+  // --- Sofa kandidati i parovi ---
+  const sofaCandidates = useMemo(() =>
+    Object.values(teamMap).filter(t => t.source === "sofa-candidate"),
+    [teamMap]
+  );
 
-  // Lokalno stanje za listu kandidata
+  const pairedTeams = useMemo(() =>
+    new Set(Object.values(teamMap).filter(t => t.type === "team").flatMap(t => [t.name1, t.name2])),
+    [teamMap]
+  );
+
+  const pairedLeagues = useMemo(() =>
+    new Set(Object.values(teamMap).filter(t => t.type === "league").flatMap(t => [t.name1, t.name2])),
+    [teamMap]
+  );
+
+  // --- Lokalno stanje za listu kandidata ---
   const [sofaTeams, setSofaTeams] = useState([]);
   const [sofaLeagues, setSofaLeagues] = useState([]);
 
+  // --- Prati promene u Screen1 i SofaScreen ---
   useEffect(() => {
     const allTeams = Array.from(new Set(sofaCandidates.map(t => t.sofa).filter(Boolean)));
     const allLeagues = Array.from(new Set(sofaCandidates.map(t => t.leagueSofa).filter(Boolean)));
 
     setSofaTeams(allTeams.filter(t => !pairedTeams.has(t)));
     setSofaLeagues(allLeagues.filter(l => !pairedLeagues.has(l)));
-  }, [teamMap]);
+  }, [sofaCandidates, pairedTeams, pairedLeagues, screen1Teams, screen1Leagues]);
 
+  // --- Selekcija timova i liga ---
   const [selectedTeam1, setSelectedTeam1] = useState(null);
   const [selectedTeam2, setSelectedTeam2] = useState(null);
   const [selectedLeague1, setSelectedLeague1] = useState(null);
@@ -53,10 +68,7 @@ export default function MapScreen({ onClose }) {
     if (window.confirm(`Da li zelite da uparite timove:\n"${t1}" sa "${t2}"?`)) {
       const key = `${t1}||${t2}`;
       setTeamMap(prev => ({ ...prev, [key]: { type: "team", name1: t1, name2: t2 } }));
-      
-      // ukloni odmah iz liste kandidata
       setSofaTeams(prev => prev.filter(t => t !== t1 && t !== t2));
-
       setSelectedTeam1(null);
       setSelectedTeam2(null);
     }
@@ -74,10 +86,7 @@ export default function MapScreen({ onClose }) {
     if (window.confirm(`Da li zelite da uparite lige:\n"${l1}" sa "${l2}"?`)) {
       const key = `league||${l1}||${l2}`;
       setTeamMap(prev => ({ ...prev, [key]: { type: "league", name1: l1, name2: l2 } }));
-
-      // ukloni odmah iz liste kandidata
       setSofaLeagues(prev => prev.filter(l => l !== l1 && l !== l2));
-
       setSelectedLeague1(null);
       setSelectedLeague2(null);
     }
