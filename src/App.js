@@ -12,9 +12,14 @@ import Screen9 from "./screens/Screen9";
 import Screen10 from "./screens/Screen10";
 import Screen11 from "./screens/Screen11";
 import Screen12 from "./screens/Screen12";
-import ScreenJson from "./screens/ScreenJson";   // TAJNI SCREEN
+import ScreenJson from "./screens/ScreenJson";
+import SofaScreen from "./screens/SofaScreen";
+import MapScreen from "./screens/MapScreen";
+import TeamMapScreen from "./screens/TeamMapScreen";
 
 import { MatchesProvider } from "./MatchesContext";
+import { TeamMapProvider } from "./TeamMapContext";
+import { SofaProvider } from "./SofaContext"; // ✅ dodato
 import TicketPanel from "./components/TicketPanel";
 import "./App.css";
 
@@ -37,9 +42,17 @@ const screens = [
 export default function App() {
   const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
 
-  // JSON MODE
   const [jsonMode, setJsonMode] = useState(false);
   const [prevScreenIndex, setPrevScreenIndex] = useState(0);
+
+  const [sofaMode, setSofaMode] = useState(false);
+  const [prevScreenSofa, setPrevScreenSofa] = useState(0);
+
+  const [mapMode, setMapMode] = useState(false);
+  const [prevScreenMap, setPrevScreenMap] = useState(0);
+
+  const [teamMapMode, setTeamMapMode] = useState(false);
+  const [prevScreenTeamMap, setPrevScreenTeamMap] = useState(0);
 
   const renderNormalScreen = () => {
     switch (screens[currentScreenIndex].key) {
@@ -60,53 +73,92 @@ export default function App() {
     }
   };
 
-  const openJson = () => {
-    setPrevScreenIndex(currentScreenIndex);  // ZAPAMTI GDE SI BIO
-    setJsonMode(true);
-  };
-
-  const closeJson = () => {
-    setJsonMode(false);
-    setCurrentScreenIndex(prevScreenIndex); // VRATI SE TAČNO TU
-  };
+  const openJson = () => { setPrevScreenIndex(currentScreenIndex); setJsonMode(true); };
+  const closeJson = () => { setJsonMode(false); setCurrentScreenIndex(prevScreenIndex); };
+  const openSofa = () => { setPrevScreenSofa(currentScreenIndex); setSofaMode(true); };
+  const closeSofa = () => { setSofaMode(false); setCurrentScreenIndex(prevScreenSofa); };
+  const openMap = () => { setPrevScreenMap(currentScreenIndex); setMapMode(true); };
+  const closeMap = () => { setMapMode(false); setCurrentScreenIndex(prevScreenMap); };
+  const openTeamMap = () => { setPrevScreenTeamMap(currentScreenIndex); setTeamMapMode(true); };
+  const closeTeamMap = () => { setTeamMapMode(false); setCurrentScreenIndex(prevScreenTeamMap); };
 
   return (
-    <MatchesProvider>
-      <div>
-        <div className="top-bar">
-          <button
-            onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
-            disabled={currentScreenIndex === 0 || jsonMode}
-          >
-            ◀
-          </button>
+    <SofaProvider>
+      <MatchesProvider>
+        <TeamMapProvider>
+          <div>
+            <div className="top-bar">
 
-          <span>
-            {jsonMode ? "JSON SCREEN" : screens[currentScreenIndex].title}
-          </span>
+              {/* MAP dugme */}
+              <button
+                style={{ marginRight: 5, backgroundColor: "#a5d6a7", fontWeight: "bold" }}
+                onClick={openMap}
+                disabled={mapMode || sofaMode || jsonMode || teamMapMode}
+              >
+                MAP
+              </button>
 
-          <button
-            onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
-            disabled={currentScreenIndex === screens.length - 1 || jsonMode}
-          >
-            ▶
-          </button>
+              {/* SOFA dugme */}
+              <button
+                style={{ marginRight: 5, backgroundColor: "#90caf9", fontWeight: "bold" }}
+                onClick={openSofa}
+                disabled={sofaMode || jsonMode || mapMode || teamMapMode}
+              >
+                SOFA
+              </button>
 
-          <button
-            style={{ marginLeft: 10, backgroundColor: "#ffeb3b", fontWeight: "bold" }}
-            onClick={openJson}
-            disabled={jsonMode}
-          >
-            JSON
-          </button>
-        </div>
+              {/* TEAM MAP dugme */}
+              <button
+                style={{ marginRight: 5, backgroundColor: "#ffab91", fontWeight: "bold" }}
+                onClick={openTeamMap}
+                disabled={teamMapMode || mapMode || sofaMode || jsonMode}
+              >
+                TEAM MAP
+              </button>
 
-        <div className="screen-container">
-          {jsonMode ? <ScreenJson onClose={closeJson} /> : renderNormalScreen()}
-        </div>
+              <button
+                onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
+                disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
+              >
+                ◀
+              </button>
 
-        <TicketPanel />
-      </div>
-    </MatchesProvider>
+              <span>
+                {teamMapMode ? "TEAM MAP SCREEN" :
+                 mapMode ? "MAP SCREEN" :
+                 sofaMode ? "SOFA SCREEN" :
+                 jsonMode ? "JSON SCREEN" :
+                 screens[currentScreenIndex].title}
+              </span>
+
+              <button
+                onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
+                disabled={currentScreenIndex === screens.length - 1 || sofaMode || jsonMode || mapMode || teamMapMode}
+              >
+                ▶
+              </button>
+
+              <button
+                style={{ marginLeft: 10, backgroundColor: "#ffeb3b", fontWeight: "bold" }}
+                onClick={openJson}
+                disabled={jsonMode || sofaMode || mapMode || teamMapMode}
+              >
+                JSON
+              </button>
+            </div>
+
+            <div className="screen-container">
+              {teamMapMode ? <TeamMapScreen onClose={closeTeamMap} /> :
+               mapMode ? <MapScreen onClose={closeMap} /> :
+               sofaMode ? <SofaScreen onClose={closeSofa} /> :
+               jsonMode ? <ScreenJson onClose={closeJson} /> :
+               renderNormalScreen()}
+            </div>
+
+            <TicketPanel />
+          </div>
+        </TeamMapProvider>
+      </MatchesProvider>
+    </SofaProvider>
   );
 }

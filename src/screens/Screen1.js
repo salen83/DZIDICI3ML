@@ -2,9 +2,11 @@ import React, { useState, useContext, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
+import { useTeamMap } from "../TeamMapContext"; // ✅ koristi hook umesto direktnog konteksta
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
+  const { teamMap, setTeamMap } = useTeamMap(); // ✅ pristup teamMap i setTeamMap
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
@@ -63,7 +65,6 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ Sabiranje golova iz "3:2"
   const getTotalGoalsFromScore = (score) => {
     if (!score || typeof score !== 'string' || !score.includes(':')) return 0;
     const parts = score.split(':');
@@ -80,9 +81,7 @@ export default function Screen1() {
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
 
-    if (tableWrapperRef.current) {
-      tableWrapperRef.current.scrollTop = 0;
-    }
+    if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);
   };
 
@@ -101,7 +100,7 @@ export default function Screen1() {
     const copy = [...rows];
     copy[rowIdx] = { ...copy[rowIdx], [key]: value };
     delete copy[rowIdx]._new;
-    copy[rowIdx]._confirmed = false; // ako menjaš rezultat -> opet postaje neproveren
+    copy[rowIdx]._confirmed = false;
 
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);

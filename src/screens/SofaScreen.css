@@ -1,0 +1,113 @@
+/* Kontejner cele stranice */
+.sofa-screen-container {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    background-color: #fafafa;
+    padding: 10px;
+}
+
+/* Top bar sa import dugmetom i dodavanjem meča */
+.sofa-screen-topbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Wrapper za scrollable tabelu */
+.sofa-screen-table-wrapper {
+    overflow: auto;
+    border: 1px solid #ccc;
+    background-color: #fff;
+}
+
+/* Pojedinačan red */
+.sofa-screen-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding: 2px 4px;
+}
+
+/* Obeležavanje sumnjivih redova (npr. šutevi >=5) */
+.sofa-screen-row.suspicious {
+    background-color: #ffe0e0;
+}
+
+/* Kolone */
+.sofa-screen-row .col {
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+/* Specifične širine i stilovi za svaku kolonu */
+.col-rb {
+    max-width: 20px;       /* maksimalna širina 20px */
+    font-weight: bold;     /* broj podebljan */
+    margin-right: 8px;     /* razmak prema sledećoj koloni */
+}
+
+.col-info {
+    width: 170px;
+    flex-direction: column;
+    margin-left: 8px;      /* mali razmak od rb */
+}
+
+.col-teams {
+    width: 190px;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+.col-results {
+    width: 110px;
+    flex-direction: column;
+    margin-left: 8px;
+}
+
+.col-delete {
+    width: 60px;
+    margin-left: 8px;
+}
+
+/* Input za editovanje */
+.edit-input {
+    width: 100%;
+    font-size: 11px;
+    padding: 2px 4px;
+    box-sizing: border-box;
+}
+
+/* Tekst prikazan u tabeli */
+.info-text, .info-center, .results-text, .results-center {
+    cursor: pointer;
+}
+
+/* Hover efekat za red */
+.sofa-screen-row:hover {
+    background-color: #f0f0f0;
+}
+
+/* Zaglavlje kolona */
+.sofa-screen-header {
+    display: flex;
+    font-weight: bold;
+    background-color: #e0e0e0;
+    border-bottom: 2px solid #ccc;
+    padding: 4px 0;
+}
+
+/* Horizontalni scroll ukoliko tabela prelazi širinu */
+.sofa-screen-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+.sofa-screen-table-wrapper::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+}
