@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useTeamMap } from "../TeamMapContext";
+import { FixedSizeList as List } from "react-window";
 
 function saveSnapshot(screen1Teams = [], screen1Leagues = [], sofaRows = []) {
   let snapshot = { screen1: { teams: [], leagues: [] }, sofa: { teams: [], leagues: [] }, teamMap: [], leagueMap: [] };
@@ -14,7 +15,7 @@ function saveSnapshot(screen1Teams = [], screen1Leagues = [], sofaRows = []) {
   const teams = new Set(snapshot.sofa.teams);
   const leagues = new Set(snapshot.sofa.leagues);
   sofaRows.forEach(r => {
-    Object.keys(r._data).forEach(k=>{
+    Object.keys(r._data).forEach(k => {
       const key = k.toLowerCase();
       const val = String(r._data[k] || "").trim();
       if (!val) return;
@@ -42,7 +43,6 @@ export default function SofaScreen({ onClose }) {
   });
   const [editing, setEditing] = useState({ row: null, col: null });
 
-  // ✅ minimalna funkcija za korišćenje setTeamMap
   const addSofaTeamToMap = (teamName) => {
     if (!teamName) return;
     setTeamMap(prev => ({ ...prev, [`sofa||${teamName}`]: { type: "team", name1: teamName, name2: teamName } }));
@@ -80,11 +80,32 @@ export default function SofaScreen({ onClose }) {
 
   const deleteRow = (idx) => {
     const copy = [...sofaRows];
-    const teamName = copy[idx]?._data[columns[0]]; // uzima prvu kolonu kao tim
-    addSofaTeamToMap(teamName); // ✅ koristi setTeamMap
+    const teamName = copy[idx]?._data[columns[0]]; 
+    addSofaTeamToMap(teamName); 
     copy.splice(idx, 1);
     setSofaRows(copy);
     saveSnapshot([], [], copy);
+  };
+
+  const Row = ({ index, style }) => {
+    const r = sofaRows[index];
+    return (
+      <tr style={style} key={r._id}>
+        {columns.map((col) => (
+          <td key={col}>
+            {editing.row === index && editing.col === col ? (
+              <input
+                value={r._data[col]}
+                onChange={(e) => handleCellChange(index, col, e.target.value)}
+                onBlur={() => setEditing({ row: null, col: null })}
+                autoFocus
+              />
+            ) : r._data[col]}
+          </td>
+        ))}
+        <td><button onClick={() => deleteRow(index)}>x</button></td>
+      </tr>
+    );
   };
 
   return (
@@ -104,18 +125,15 @@ export default function SofaScreen({ onClose }) {
             </tr>
           </thead>
           <tbody>
-            {sofaRows.map((r, idx) => (
-              <tr key={idx}>
-                {columns.map((col) => (
-                  <td key={col}>
-                    {editing.row === idx && editing.col === col ? (
-                      <input value={r._data[col]} onChange={(e)=>handleCellChange(idx, col, e.target.value)} onBlur={()=>setEditing({row:null,col:null})} autoFocus />
-                    ) : r._data[col]}
-                  </td>
-                ))}
-                <td><button onClick={()=>deleteRow(idx)}>x</button></td>
-              </tr>
-            ))}
+            <List
+              height={400}              // visina vidljivog dela tabele
+              itemCount={sofaRows.length}
+              itemSize={35}             // visina jednog reda
+              width="100%"
+              outerElementType="tbody"
+            >
+              {Row}
+            </List>
           </tbody>
         </table>
       </div>
