@@ -73,7 +73,7 @@ export default function SofaScreen({ onClose }) {
           {columns.map(c => (
             <div key={c} className="sofa-header-cell">{c}</div>
           ))}
-          <div className="sofa-header-cell">X</div>
+          <div className="sofa-header-cell delete-cell">X</div>
         </div>
 
         {sofaRows.map((row, idx) => (
@@ -93,7 +93,7 @@ export default function SofaScreen({ onClose }) {
                 )}
               </div>
             ))}
-            <div className="sofa-cell">
+            <div className="sofa-cell delete-cell">
               <button onClick={() => deleteRow(idx)}>x</button>
             </div>
           </div>
