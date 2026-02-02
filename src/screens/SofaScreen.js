@@ -138,18 +138,19 @@ export default function SofaScreen({ onClose }) {
   };
 
   /**
-   * Virtualizovani red – DIV layout (ispravno za react-window)
+   * Virtualizovani red – DIV layout
    */
   const Row = ({ index, style }) => {
     const r = sofaRows[index];
     if (!r) return null;
 
     return (
-      <div className="sofa-row" style={style}>
+      <div className="sofa-screen-row" style={style}>
         {columns.map(col => (
           <div className="sofa-cell" key={col}>
             {editing.row === index && editing.col === col ? (
               <input
+                className="edit-input"
                 value={r._data[col]}
                 onChange={(e) =>
                   handleCellChange(index, col, e.target.value)
@@ -170,14 +171,14 @@ export default function SofaScreen({ onClose }) {
   };
 
   return (
-    <div className="screen1-container">
-      <div className="screen1-topbar">
+    <div className="sofa-screen-container">
+      <div className="sofa-screen-topbar">
         <button onClick={onClose}>⬅ Izadji</button>
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
       </div>
 
       {/* Header */}
-      <div className="sofa-header">
+      <div className="sofa-screen-header">
         {columns.map(c => (
           <div className="sofa-cell sofa-header-cell" key={c}>
             {c}
@@ -187,11 +188,12 @@ export default function SofaScreen({ onClose }) {
       </div>
 
       {/* Virtualized list */}
-      <div className="screen1-table-wrapper" ref={tableWrapperRef}>
+      <div className="sofa-screen-table-wrapper" ref={tableWrapperRef}>
         <List
           height={400}
           itemCount={sofaRows.length}
           itemSize={36}
+          itemData={sofaRows}
           width="100%"
         >
           {Row}
