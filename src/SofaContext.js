@@ -5,7 +5,21 @@ const SofaContext = createContext();
 export const SofaProvider = ({ children }) => {
   const [sofaRows, setSofaRows] = useState(() => {
     const saved = localStorage.getItem("sofaRows");
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+
+      // Normalizacija imena kolona: Liga -> league, Domacin -> home, Gost -> away
+      return parsed.map(r => ({
+        league: r.Liga || r.league || "",
+        home: r.Domacin || r.home || "",
+        away: r.Gost || r.away || "",
+        ...r // ostale kolone ostaju iste
+      }));
+    } catch (e) {
+      console.error("Failed to parse sofaRows from localStorage", e);
+      return [];
+    }
   });
 
   useEffect(() => {
