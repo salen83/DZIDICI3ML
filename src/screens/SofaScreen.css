@@ -1,70 +1,100 @@
 .sofa-screen-container {
-  width: 100%;
-  max-width: 100%;
-  padding: 8px;
-  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
   font-family: Arial, sans-serif;
 }
 
+/* TOP BAR */
 .sofa-screen-topbar {
   display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-bottom: 4px;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
 }
 
+.sofa-screen-topbar input[type="file"],
 .sofa-screen-topbar button {
-  padding: 6px 12px;
+  padding: 2px 6px;
+  font-size: 11px;
+  height: 22px;
   cursor: pointer;
-}
-
-.sofa-screen-table-wrapper {
-  display: flex;
-  flex-direction: column;
-  overflow-x: auto;
   border: 1px solid #ccc;
+  background-color: #f0f0f0;
   border-radius: 4px;
 }
 
-.sofa-screen-header, .sofa-screen-row {
+.sofa-screen-topbar button:hover {
+  background-color: #e0e0e0;
+}
+
+/* TABELA */
+.sofa-screen-table-wrapper {
+  height: calc(100vh - 140px);
+  overflow-y: auto;
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px solid #ccc;
+}
+
+/* RED */
+.sofa-screen-row {
   display: flex;
-  width: max-content;
-  min-width: 100%;
-  border-bottom: 1px solid #eee;
+  align-items: center;
+  border-bottom: 1px solid transparent;
+  padding: 0;
+  font-size: 12px;
+  height: 28px;
 }
 
-.sofa-header-cell {
-  padding: 6px 10px;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-right: 1px solid #ddd;
-  min-width: 100px;
-  text-align: left;
-}
-
+/* KOLONE */
 .sofa-cell {
-  padding: 6px 10px;
-  border-right: 1px solid #eee;
-  min-width: 100px;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  font-size: 11px;
 }
 
-.sofa-cell span {
-  display: block;
-  cursor: pointer;
-}
+/* Specifične širine kolona */
+.sofa-cell.rb { width: 28px; font-size: 10px; }
+.sofa-cell.datum,
+.sofa-cell.vreme { width: 70px; }
+.sofa-cell.liga { width: 100px; font-weight: bold; }
+.sofa-cell.domacin,
+.sofa-cell.gost { width: 140px; font-weight: bold; justify-content: flex-start; }
+.sofa-cell.prvo,
+.sofa-cell.drugo,
+.sofa-cell.penali { width: 60px; justify-content: center; }
+.sofa-cell.delete-cell { width: 24px; text-align: center; }
 
+/* EDIT POLJA */
 .edit-input {
   width: 100%;
-  padding: 2px 4px;
+  height: 100%;
   box-sizing: border-box;
+  font-family: Arial, sans-serif;
+  font-size: inherit;
+  font-weight: inherit;
+  border: 1px solid #555;
+  padding: 0 2px;
+  background: #fff;
 }
 
-.delete-cell {
-  min-width: 40px;
-  text-align: center;
-}
-
+/* STRIPED REDOVI */
 .sofa-screen-row:nth-child(even) {
   background-color: #fafafa;
 }
+
+/* TEKST */
+.sofa-cell span {
+  display: block;
+  cursor: pointer;
+  line-height: 1.1;
+}
+
+/* ZOOM font prema širini (po potrebi u JS-u) */
