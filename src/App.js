@@ -19,8 +19,9 @@ import TeamMapScreen from "./screens/TeamMapScreen";
 
 import { MatchesProvider } from "./MatchesContext";
 import { TeamMapProvider } from "./TeamMapContext";
-import { SofaProvider } from "./SofaContext"; // ✅ dodato
-import TicketPanel from "./components/TicketPanel";
+import { SofaProvider } from "./SofaContext"; 
+import { LeagueMapProvider } from "./LeagueMapContext"; // ✅ dodato
+import TicketPanel from "./components/TicketPanel";                                         
 import "./App.css";
 
 const screens = [
@@ -86,77 +87,79 @@ export default function App() {
     <SofaProvider>
       <MatchesProvider>
         <TeamMapProvider>
-          <div>
-            <div className="top-bar">
+          <LeagueMapProvider> {/* ✅ obavijeno */}
+            <div>
+              <div className="top-bar">
 
-              {/* MAP dugme */}
-              <button
-                style={{ marginRight: 5, backgroundColor: "#a5d6a7", fontWeight: "bold" }}
-                onClick={openMap}
-                disabled={mapMode || sofaMode || jsonMode || teamMapMode}
-              >
-                MAP
-              </button>
+                {/* MAP dugme */}
+                <button
+                  style={{ marginRight: 5, backgroundColor: "#a5d6a7", fontWeight: "bold" }}
+                  onClick={openMap}
+                  disabled={mapMode || sofaMode || jsonMode || teamMapMode}
+                >
+                  MAP
+                </button>
 
-              {/* SOFA dugme */}
-              <button
-                style={{ marginRight: 5, backgroundColor: "#90caf9", fontWeight: "bold" }}
-                onClick={openSofa}
-                disabled={sofaMode || jsonMode || mapMode || teamMapMode}
-              >
-                SOFA
-              </button>
+                {/* SOFA dugme */}
+                <button
+                  style={{ marginRight: 5, backgroundColor: "#90caf9", fontWeight: "bold" }}
+                  onClick={openSofa}
+                  disabled={sofaMode || jsonMode || mapMode || teamMapMode}
+                >
+                  SOFA
+                </button>
 
-              {/* TEAM MAP dugme */}
-              <button
-                style={{ marginRight: 5, backgroundColor: "#ffab91", fontWeight: "bold" }}
-                onClick={openTeamMap}
-                disabled={teamMapMode || mapMode || sofaMode || jsonMode}
-              >
-                TEAM MAP
-              </button>
+                {/* TEAM MAP dugme */}
+                <button
+                  style={{ marginRight: 5, backgroundColor: "#ffab91", fontWeight: "bold" }}
+                  onClick={openTeamMap}
+                  disabled={teamMapMode || mapMode || sofaMode || jsonMode}
+                >
+                  TEAM MAP
+                </button>
 
-              <button
-                onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
-                disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
-              >
-                ◀
-              </button>
+                <button
+                  onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
+                  disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
+                >
+                  ◀
+                </button>
 
-              <span>
-                {teamMapMode ? "TEAM MAP SCREEN" :
-                 mapMode ? "MAP SCREEN" :
-                 sofaMode ? "SOFA SCREEN" :
-                 jsonMode ? "JSON SCREEN" :
-                 screens[currentScreenIndex].title}
-              </span>
+                <span>
+                  {teamMapMode ? "TEAM MAP SCREEN" :
+                   mapMode ? "MAP SCREEN" :
+                   sofaMode ? "SOFA SCREEN" :
+                   jsonMode ? "JSON SCREEN" :
+                   screens[currentScreenIndex].title}
+                </span>
 
-              <button
-                onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
-                disabled={currentScreenIndex === screens.length - 1 || sofaMode || jsonMode || mapMode || teamMapMode}
-              >
-                ▶
-              </button>
+                <button
+                  onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
+                  disabled={currentScreenIndex === screens.length - 1 || sofaMode || jsonMode || mapMode || teamMapMode}
+                >
+                  ▶
+                </button>
 
-              <button
-                style={{ marginLeft: 10, backgroundColor: "#ffeb3b", fontWeight: "bold" }}
-                onClick={openJson}
-                disabled={jsonMode || sofaMode || mapMode || teamMapMode}
-              >
-                JSON
-              </button>
+                <button
+                  style={{ marginLeft: 10, backgroundColor: "#ffeb3b", fontWeight: "bold" }}
+                  onClick={openJson}
+                  disabled={jsonMode || sofaMode || mapMode || teamMapMode}
+                >
+                  JSON
+                </button>
+              </div>
+
+              <div className="screen-container">
+                {teamMapMode ? <TeamMapScreen onClose={closeTeamMap} /> :
+                 mapMode ? <MapScreen onClose={closeMap} /> :
+                 sofaMode ? <SofaScreen onClose={closeSofa} /> :
+                 jsonMode ? <ScreenJson onClose={closeJson} /> :
+                 renderNormalScreen()}
+              </div>
+
+              <TicketPanel />
             </div>
-
-            <div className="screen-container">
-              {teamMapMode ? <TeamMapScreen onClose={closeTeamMap} /> :
-               mapMode ? <MapScreen onClose={closeMap} /> :
-               sofaMode ? <SofaScreen onClose={closeSofa} /> :
-               jsonMode ? <ScreenJson onClose={closeJson} /> :
-               renderNormalScreen()}
-            </div>
-
-            <TicketPanel />
-          </div>
+          </LeagueMapProvider>
         </TeamMapProvider>
       </MatchesProvider>
     </SofaProvider>

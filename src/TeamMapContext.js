@@ -3,33 +3,24 @@ import React, { createContext, useContext, useState } from "react";
 const TeamMapContext = createContext();
 
 export function TeamMapProvider({ children }) {
-  const [teamMap, setTeamMap] = useState({});
+  const [teamMap, setTeamMap] = useState({}); // ovde čuvamo uparene timove
 
-  // Dodaje timove i lige iz SofaScreen kao "sofa-candidate"
-  const addSofaCandidates = (teams = [], leagues = []) => {
+  const addTeamPair = (screen1Name, sofaName) => {
+    const key = `${screen1Name}||${sofaName}`;
+    setTeamMap(prev => ({ ...prev, [key]: { type: "team", name1: screen1Name, name2: sofaName } }));
+  };
+
+  const removeTeamPair = (screen1Name, sofaName) => {
+    const key = `${screen1Name}||${sofaName}`;
     setTeamMap(prev => {
-      const newMap = { ...prev };
-
-      teams.forEach(team => {
-        const key = `sofa-team||${team}`;
-        if (!newMap[key]) {
-          newMap[key] = { type: "team", sofa: team, source: "sofa-candidate" };
-        }
-      });
-
-      leagues.forEach(league => {
-        const key = `sofa-league||${league}`;
-        if (!newMap[key]) {
-          newMap[key] = { type: "league", leagueSofa: league, source: "sofa-candidate" };
-        }
-      });
-
-      return newMap;
+      const copy = { ...prev };
+      delete copy[key];
+      return copy;
     });
   };
 
   return (
-    <TeamMapContext.Provider value={{ teamMap, setTeamMap, addSofaCandidates }}>
+    <TeamMapContext.Provider value={{ teamMap, setTeamMap, addTeamPair, removeTeamPair }}>
       {children}
     </TeamMapContext.Provider>
   );

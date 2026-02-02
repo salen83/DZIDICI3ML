@@ -1,0 +1,26 @@
+{
+  "name": "Fast Codespace",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.gpuAcceleration": "off",
+        "terminal.integrated.scrollback": 1000,
+        "editor.minimap.enabled": false,
+        "editor.wordWrap": "off",
+        "files.autoSave": "off",
+        "git.autofetch": false
+      }
+    }
+  },
+  "postCreateCommand": "npm install",
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  }
+}
