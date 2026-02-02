@@ -62,11 +62,11 @@ export default function MapScreen({ onClose }) {
   const pairedLeagues = useMemo(
     () =>
       new Set(
-        Object.values(teamMap)
-          .filter((t) => t.type === "league")
-          .flatMap((t) => [t.name1, t.name2])
+        Object.values(leagueMap)
+          .filter((l) => l.type === "league")
+          .flatMap((l) => [l.name1, l.name2])
       ),
-    [teamMap]
+    [leagueMap]
   );
 
   const [sofaTeams, setSofaTeams] = useState([]);
@@ -115,7 +115,7 @@ export default function MapScreen({ onClose }) {
   const confirmLeaguePair = (l1, l2) => {
     if (window.confirm(`Da li zelite da uparite lige:\n"${l1}" sa "${l2}"?`)) {
       const key = `league||${l1}||${l2}`;
-      setTeamMap((prev) => ({ ...prev, [key]: { type: "league", name1: l1, name2: l2 } }));
+      setLeagueMap((prev) => ({ ...prev, [key]: { type: "league", name1: l1, name2: l2 } }));
       setSofaLeagues((prev) => prev.filter((l) => l !== l1 && l !== l2));
       setSelectedLeague1(null);
       setSelectedLeague2(null);
@@ -168,7 +168,7 @@ export default function MapScreen({ onClose }) {
       </div>
 
       <div style={{ marginTop: 20, fontSize: 12, background: "#f5f5f5", padding: 10 }}>
-        <pre>{JSON.stringify(teamMap, null, 2)}</pre>
+        <pre>{JSON.stringify({ teamMap, leagueMap }, null, 2)}</pre>
       </div>
     </div>
   );
