@@ -1,29 +1,35 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 const LeagueMapContext = createContext();
 
+const STORAGE_KEY = "LEAGUE_MAP_V1";
+
 export function LeagueMapProvider({ children }) {
-  const [leagueMap, setLeagueMap] = useState({}); // ovde čuvamo uparene lige
+  const [leagueMap, setLeagueMap] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.error("Failed to load leagueMap from localStorage", e);
+      return {};
+    }
+  });
 
-  const addLeaguePair = (screen1Name, sofaName) => {
-    const key = `league||${screen1Name}||${sofaName}`;
-    setLeagueMap(prev => ({ ...prev, [key]: { type: "league", name1: screen1Name, name2: sofaName } }));
-  };
-
-  const removeLeaguePair = (screen1Name, sofaName) => {
-    const key = `league||${screen1Name}||${sofaName}`;
-    setLeagueMap(prev => {
-      const copy = { ...prev };
-      delete copy[key];
-      return copy;
-    });
-  };
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(leagueMap));
+    } catch (e) {
+      console.error("Failed to save leagueMap to localStorage", e);
+    }
+  }, [leagueMap]);
 
   return (
-    <LeagueMapContext.Provider value={{ leagueMap, setLeagueMap, addLeaguePair, removeLeaguePair }}>
+    <LeagueMapContext.Provider value={{ leagueMap, setLeagueMap }}>
       {children}
     </LeagueMapContext.Provider>
   );
 }
 
-export const useLeagueMap = () => useContext(LeagueMapContext);
+export function useLeagueMap() {
+  return useContext(LeagueMapContext);
+}

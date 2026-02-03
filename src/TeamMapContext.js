@@ -1,29 +1,35 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 const TeamMapContext = createContext();
 
+const STORAGE_KEY = "TEAM_MAP_V1";
+
 export function TeamMapProvider({ children }) {
-  const [teamMap, setTeamMap] = useState({}); // ovde čuvamo uparene timove
+  const [teamMap, setTeamMap] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.error("Failed to load teamMap from localStorage", e);
+      return {};
+    }
+  });
 
-  const addTeamPair = (screen1Name, sofaName) => {
-    const key = `${screen1Name}||${sofaName}`;
-    setTeamMap(prev => ({ ...prev, [key]: { type: "team", name1: screen1Name, name2: sofaName } }));
-  };
-
-  const removeTeamPair = (screen1Name, sofaName) => {
-    const key = `${screen1Name}||${sofaName}`;
-    setTeamMap(prev => {
-      const copy = { ...prev };
-      delete copy[key];
-      return copy;
-    });
-  };
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(teamMap));
+    } catch (e) {
+      console.error("Failed to save teamMap to localStorage", e);
+    }
+  }, [teamMap]);
 
   return (
-    <TeamMapContext.Provider value={{ teamMap, setTeamMap, addTeamPair, removeTeamPair }}>
+    <TeamMapContext.Provider value={{ teamMap, setTeamMap }}>
       {children}
     </TeamMapContext.Provider>
   );
 }
 
-export const useTeamMap = () => useContext(TeamMapContext);
+export function useTeamMap() {
+  return useContext(TeamMapContext);
+}

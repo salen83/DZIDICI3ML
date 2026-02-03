@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTeamMap } from "../TeamMapContext";
+import LeagueMapScreen from "./LeagueMapScreen";
 
 export default function TeamMapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useTeamMap();
+  const [showLeagueMap, setShowLeagueMap] = useState(false);
 
   const handleNormalizedChange = (key, value) => {
     setTeamMap(prev => ({
@@ -14,28 +16,47 @@ export default function TeamMapScreen({ onClose }) {
     }));
   };
 
+  const handleDelete = (key) => {
+    if (window.confirm("Da li želiš da izbrišeš normalizovano ime i vrati tim u MapScreen?")) {
+      setTeamMap(prev => {
+        const newMap = { ...prev };
+        delete newMap[key]; // briše iz teamMap
+        return newMap;
+      });
+    }
+  };
+
   const teams = Object.entries(teamMap || {});
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>🗂 Team Map Screen</h2>
+      <h2>🗂 Team Map (normalizovani timovi)</h2>
 
-      <button onClick={onClose} style={{ marginBottom: 15 }}>
-        ⬅ Nazad
+      <button onClick={onClose}>⬅ Nazad</button>
+      <button
+        onClick={() => setShowLeagueMap(true)}
+        style={{ marginLeft: 10 }}
+      >
+        🏆 League Map
       </button>
 
       {teams.length === 0 ? (
-        <div style={{ color: "gray", fontStyle: "italic" }}>
-          Nema trenutno uparenih timova.
+        <div style={{ marginTop: 20, color: "gray", fontStyle: "italic" }}>
+          Nema trenutno normalizovanih timova.
         </div>
       ) : (
-        <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
+        <table
+          border="1"
+          cellPadding="6"
+          style={{ marginTop: 15, borderCollapse: "collapse", width: "100%" }}
+        >
+          <thead style={{ background: "#f0f0f0" }}>
             <tr>
               <th>#</th>
-              <th>Normalized Name</th>
-              <th>Mozzart Name</th>
-              <th>SofaScore Name</th>
+              <th>Normalized name</th>
+              <th>Screen1 (Mozzart)</th>
+              <th>SofaScore</th>
+              <th>Akcija</th>
             </tr>
           </thead>
           <tbody>
@@ -46,20 +67,29 @@ export default function TeamMapScreen({ onClose }) {
                   <input
                     value={t.normalized || ""}
                     onChange={e => handleNormalizedChange(key, e.target.value)}
+                    placeholder="npr. Manchester United"
                     style={{ width: "100%" }}
                   />
                 </td>
-                <td>{t.mozzart || "-"}</td>
-                <td>{t.sofa || "-"}</td>
+                <td>{t.name1 || "-"}</td>
+                <td>{t.name2 || "-"}</td>
+                <td>
+                  <button
+                    onClick={() => handleDelete(key)}
+                    style={{ background: "#ff6666", color: "white", cursor: "pointer" }}
+                  >
+                    Izbriši
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      <pre style={{ marginTop: 20, fontSize: 12, background: "#f5f5f5", padding: 10 }}>
-        {JSON.stringify(teamMap, null, 2)}
-      </pre>
+      {showLeagueMap && (
+        <LeagueMapScreen onClose={() => setShowLeagueMap(false)} />
+      )}
     </div>
   );
 }
