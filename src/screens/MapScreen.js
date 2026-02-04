@@ -19,7 +19,7 @@ export default function MapScreen({ onClose }) {
       new Set(
         screen1Rows.flatMap(r => [r.Home || r.home, r.Away || r.away].filter(Boolean))
       )
-    );
+    ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
   const sofaTeamsAll = useMemo(() => {
@@ -28,21 +28,21 @@ export default function MapScreen({ onClose }) {
       new Set(
         sofaRows.flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean))
       )
-    );
+    ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
 
   const screen1LeaguesAll = useMemo(() => {
     if (!screen1Rows) return [];
     return Array.from(
       new Set(screen1Rows.map(r => r.Liga || r.liga).filter(Boolean))
-    );
+    ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
   const sofaLeaguesAll = useMemo(() => {
     if (!sofaRows) return [];
     return Array.from(
       new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
-    );
+    ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
 
   // =====================
