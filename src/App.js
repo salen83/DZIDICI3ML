@@ -19,9 +19,9 @@ import TeamMapScreen from "./screens/TeamMapScreen";
 
 import { MatchesProvider } from "./MatchesContext";
 import { TeamMapProvider } from "./TeamMapContext";
-import { SofaProvider } from "./SofaContext"; 
+import { SofaProvider } from "./SofaContext";
 import { LeagueMapProvider } from "./LeagueMapContext"; // ✅ dodato
-import TicketPanel from "./components/TicketPanel";                                         
+import TicketPanel from "./components/TicketPanel";
 import "./App.css";
 
 const screens = [
@@ -109,6 +109,23 @@ export default function App() {
                   SOFA
                 </button>
 
+                {/* LEVO strelica za navigaciju */}
+                <button
+                  onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
+                  disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
+                >
+                  ◀
+                </button>
+
+                {/* DUGME ZA SINHRONIZACIJU REZULTATA */}
+                <button
+                  style={{ margin: "0 5px", backgroundColor: "#fff176", fontWeight: "bold" }}
+                  onClick={() => console.log("Sync Results clicked!")}
+                  disabled={mapMode || sofaMode || jsonMode || teamMapMode}
+                >
+                  SYNC
+                </button>
+
                 {/* TEAM MAP dugme */}
                 <button
                   style={{ marginRight: 5, backgroundColor: "#ffab91", fontWeight: "bold" }}
@@ -116,13 +133,6 @@ export default function App() {
                   disabled={teamMapMode || mapMode || sofaMode || jsonMode}
                 >
                   TEAM MAP
-                </button>
-
-                <button
-                  onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
-                  disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
-                >
-                  ◀
                 </button>
 
                 <span>
@@ -133,6 +143,7 @@ export default function App() {
                    screens[currentScreenIndex].title}
                 </span>
 
+                {/* DESNA strelica za navigaciju */}
                 <button
                   onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
                   disabled={currentScreenIndex === screens.length - 1 || sofaMode || jsonMode || mapMode || teamMapMode}
