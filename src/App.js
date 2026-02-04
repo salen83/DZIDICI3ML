@@ -20,7 +20,7 @@ import TeamMapScreen from "./screens/TeamMapScreen";
 import { MatchesProvider } from "./MatchesContext";
 import { TeamMapProvider } from "./TeamMapContext";
 import { SofaProvider } from "./SofaContext";
-import { LeagueMapProvider } from "./LeagueMapContext"; // ✅ dodato
+import { LeagueMapProvider } from "./LeagueMapContext";
 import TicketPanel from "./components/TicketPanel";
 import "./App.css";
 
@@ -87,11 +87,10 @@ export default function App() {
     <SofaProvider>
       <MatchesProvider>
         <TeamMapProvider>
-          <LeagueMapProvider> {/* ✅ obavijeno */}
+          <LeagueMapProvider>
             <div>
               <div className="top-bar">
 
-                {/* MAP dugme */}
                 <button
                   style={{ marginRight: 5, backgroundColor: "#a5d6a7", fontWeight: "bold" }}
                   onClick={openMap}
@@ -100,7 +99,6 @@ export default function App() {
                   MAP
                 </button>
 
-                {/* SOFA dugme */}
                 <button
                   style={{ marginRight: 5, backgroundColor: "#90caf9", fontWeight: "bold" }}
                   onClick={openSofa}
@@ -109,7 +107,6 @@ export default function App() {
                   SOFA
                 </button>
 
-                {/* LEVO strelica za navigaciju */}
                 <button
                   onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
                   disabled={currentScreenIndex === 0 || sofaMode || jsonMode || mapMode || teamMapMode}
@@ -117,16 +114,8 @@ export default function App() {
                   ◀
                 </button>
 
-                {/* DUGME ZA SINHRONIZACIJU REZULTATA */}
-                <button
-                  style={{ margin: "0 5px", backgroundColor: "#fff176", fontWeight: "bold" }}
-                  onClick={() => console.log("Sync Results clicked!")}
-                  disabled={mapMode || sofaMode || jsonMode || teamMapMode}
-                >
-                  SYNC
-                </button>
+                {/* dugme SYNC uklonjeno */}
 
-                {/* TEAM MAP dugme */}
                 <button
                   style={{ marginRight: 5, backgroundColor: "#ffab91", fontWeight: "bold" }}
                   onClick={openTeamMap}
@@ -143,7 +132,6 @@ export default function App() {
                    screens[currentScreenIndex].title}
                 </span>
 
-                {/* DESNA strelica za navigaciju */}
                 <button
                   onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
                   disabled={currentScreenIndex === screens.length - 1 || sofaMode || jsonMode || mapMode || teamMapMode}

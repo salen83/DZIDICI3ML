@@ -76,6 +76,45 @@ export default function Screen1() {
     reader.readAsArrayBuffer(file);
   };
 
+  const syncWithSofaScreen = async () => {
+    try {
+      // 🔹 placeholder fetch - ovde ubaci svoj endpoint ili JSON fajl
+      const response = await fetch('/sofascreen-results.json'); 
+      const sofaRows = await response.json();
+
+      const newRows = sofaRows.map((r,i)=>({
+        rb: (rows?.length || 0) + i + 1,
+        datum: normalizeDate(r['datum'] ?? ''),
+        vreme: String(r['vreme'] ?? ''),
+        liga: r['liga'] ?? '',
+        home: r['home'] ?? '',
+        away: r['away'] ?? '',
+        ft: r['ft'] ?? '',
+        ht: r['ht'] ?? '',
+        sh: r['sh'] ?? '',
+        _confirmed: false
+      }));
+
+      const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
+      allRows.forEach((r,i)=>r.rb=i+1);
+      setRows(allRows);
+      localStorage.setItem('rows', JSON.stringify(allRows));
+
+      // ===== SMES: update teamMap =====
+      allRows.forEach(r => {
+        const keyHome = `screen1||${r.home}`;
+        const keyAway = `screen1||${r.away}`;
+        const keyLeague = `screen1||${r.liga}`;
+        if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: r.home, source: "sofascreen" } }));
+        if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: r.away, source: "sofascreen" } }));
+        if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: r.liga, source: "sofascreen" } }));
+      });
+      // ===== kraj SMES =====
+    } catch (err) {
+      console.error('Sync SofaScreen failed:', err);
+    }
+  };
+
   const getTotalGoalsFromScore = (score) => {
     if (!score || typeof score !== 'string' || !score.includes(':')) return 0;
     const parts = score.split(':');
@@ -155,6 +194,7 @@ export default function Screen1() {
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
+        <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
       </div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
