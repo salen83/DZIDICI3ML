@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useTeamMap } from "../TeamMapContext";
 import LeagueMapScreen from "./LeagueMapScreen";
 
-export default function TeamMapScreen({ onClose }) {
+export default function TeamMapScreen({ onClose, openLeagueMap }) {
   const { teamMap, setTeamMap } = useTeamMap();
   const [showLeagueMap, setShowLeagueMap] = useState(false);
 
@@ -26,7 +26,19 @@ export default function TeamMapScreen({ onClose }) {
     }
   };
 
+  // Funkcija za brisanje svih timova
+  const handleDeleteAll = () => {
+    if (window.confirm("Da li želiš da izbrišeš SVE normalizovane timove i vrati ih u MapScreen?")) {
+      setTeamMap({});
+    }
+  };
+
   const teams = Object.entries(teamMap || {});
+
+  // Ako showLeagueMap true, vraća LeagueMapScreen i prekida render TeamMapScreen
+  if (showLeagueMap) {
+    return <LeagueMapScreen onClose={() => setShowLeagueMap(false)} />;
+  }
 
   return (
     <div style={{ padding: 20 }}>
@@ -39,6 +51,14 @@ export default function TeamMapScreen({ onClose }) {
       >
         🏆 League Map
       </button>
+      {teams.length > 0 && (
+        <button
+          onClick={handleDeleteAll}
+          style={{ marginLeft: 10, background: "#ff4444", color: "white", cursor: "pointer" }}
+        >
+          Izbriši sve
+        </button>
+      )}
 
       {teams.length === 0 ? (
         <div style={{ marginTop: 20, color: "gray", fontStyle: "italic" }}>
@@ -85,10 +105,6 @@ export default function TeamMapScreen({ onClose }) {
             ))}
           </tbody>
         </table>
-      )}
-
-      {showLeagueMap && (
-        <LeagueMapScreen onClose={() => setShowLeagueMap(false)} />
       )}
     </div>
   );
