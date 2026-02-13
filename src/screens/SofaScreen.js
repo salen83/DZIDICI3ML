@@ -1,12 +1,15 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useTeamMap } from "../TeamMapContext";
+import { useLeagueTeam } from "../LeagueTeamContext";
 
 export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
   const { setTeamMap } = useTeamMap();
+  // eslint-disable-next-line no-unused-vars
+  const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
 
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -114,6 +117,51 @@ export default function SofaScreen({ onClose }) {
     localStorage.removeItem("sofaRows");
   };
 
+  /* ================= PUNI LEAGUE TEAM SCREEN ================= */
+  useEffect(() => {
+    if (!sofaRows || sofaRows.length === 0) return;
+
+    setLeagueTeamData(prev => {
+      const updated = { ...prev };
+
+      sofaRows.forEach(r => {
+        const liga = r.liga?.trim() || r.league?.trim();
+        const domacin = r.domacin?.trim() || r.home?.trim();
+        const gost = r.gost?.trim() || r.away?.trim();
+
+        if (!liga) return;
+
+        if (!updated[liga]) {
+          updated[liga] = {
+            screen1: "",
+            sofa: liga,
+            screen1Teams: [],
+            sofaTeams: [],
+          };
+        }
+
+        updated[liga].sofa = liga;
+
+        [domacin, gost].forEach(team => {
+          if (team && !updated[liga].sofaTeams.includes(team)) {
+            updated[liga].sofaTeams.push(team);
+          }
+        });
+      });
+
+      return updated;
+    });
+  }, [sofaRows, setLeagueTeamData]);
+
+  /* ================= INIT EXISTING ROWS ================= */
+  useEffect(() => {
+    const stored = localStorage.getItem("sofaRows");
+    if (stored) {
+      const rows = JSON.parse(stored);
+      if (rows.length) setSofaRows(rows);
+    }
+  }, [setSofaRows]);
+
   /* ================= RENDER ================= */
   return (
     <div className="sofa-screen-container">
@@ -149,7 +197,6 @@ export default function SofaScreen({ onClose }) {
           return (
             <div key={idx} className="sofa-screen-row" style={{ height: rowHeight }}>
               <div className="col rb">{r.rb}</div>
-
               <div
                 className="col info"
                 onMouseDown={() => infoLongPress.start(idx)}
@@ -208,7 +255,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={domacinLongPress.clear}
                 onMouseLeave={domacinLongPress.clear}
                 onTouchStart={() => domacinLongPress.start(idx)}
-                onTouchEnd={domacinLongPress.clear}
+                onTouchEnd={() => domacinLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "domacin" ? (
                   <input
@@ -230,7 +277,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={gostLongPress.clear}
                 onMouseLeave={gostLongPress.clear}
                 onTouchStart={() => gostLongPress.start(idx)}
-                onTouchEnd={gostLongPress.clear}
+                onTouchEnd={() => gostLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "gost" ? (
                   <input
@@ -252,7 +299,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={ftLongPress.clear}
                 onMouseLeave={ftLongPress.clear}
                 onTouchStart={() => ftLongPress.start(idx)}
-                onTouchEnd={ftLongPress.clear}
+                onTouchEnd={() => ftLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "ft" ? (
                   <input
@@ -280,7 +327,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={prvoLongPress.clear}
                 onMouseLeave={prvoLongPress.clear}
                 onTouchStart={() => prvoLongPress.start(idx)}
-                onTouchEnd={prvoLongPress.clear}
+                onTouchEnd={() => prvoLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "prvo" ? (
                   <input
@@ -302,7 +349,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={drugoLongPress.clear}
                 onMouseLeave={drugoLongPress.clear}
                 onTouchStart={() => drugoLongPress.start(idx)}
-                onTouchEnd={drugoLongPress.clear}
+                onTouchEnd={() => drugoLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "drugo" ? (
                   <input
@@ -324,7 +371,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={produzeciLongPress.clear}
                 onMouseLeave={produzeciLongPress.clear}
                 onTouchStart={() => produzeciLongPress.start(idx)}
-                onTouchEnd={produzeciLongPress.clear}
+                onTouchEnd={() => produzeciLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "produzeci" ? (
                   <input
@@ -346,7 +393,7 @@ export default function SofaScreen({ onClose }) {
                 onMouseUp={penaliLongPress.clear}
                 onMouseLeave={penaliLongPress.clear}
                 onTouchStart={() => penaliLongPress.start(idx)}
-                onTouchEnd={penaliLongPress.clear}
+                onTouchEnd={() => penaliLongPress.clear}
               >
                 {editing?.idx === idx && editing.field === "penali" ? (
                   <input

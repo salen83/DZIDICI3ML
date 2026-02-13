@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { useTeamMap } from "../TeamMapContext";
 import LeagueMapScreen from "./LeagueMapScreen";
+import LeagueTeamScreen from "./LeagueTeamScreen"; // ✅ import novog screen-a
 
 export default function TeamMapScreen({ onClose, openLeagueMap }) {
   const { teamMap, setTeamMap } = useTeamMap();
   const [showLeagueMap, setShowLeagueMap] = useState(false);
+  const [showLeagueTeams, setShowLeagueTeams] = useState(null); // ✅ stanje za novi screen
 
   const handleNormalizedChange = (key, value) => {
     setTeamMap(prev => ({
@@ -20,13 +22,12 @@ export default function TeamMapScreen({ onClose, openLeagueMap }) {
     if (window.confirm("Da li želiš da izbrišeš normalizovano ime i vrati tim u MapScreen?")) {
       setTeamMap(prev => {
         const newMap = { ...prev };
-        delete newMap[key]; // briše iz teamMap
+        delete newMap[key];
         return newMap;
       });
     }
   };
 
-  // Funkcija za brisanje svih timova
   const handleDeleteAll = () => {
     if (window.confirm("Da li želiš da izbrišeš SVE normalizovane timove i vrati ih u MapScreen?")) {
       setTeamMap({});
@@ -35,9 +36,23 @@ export default function TeamMapScreen({ onClose, openLeagueMap }) {
 
   const teams = Object.entries(teamMap || {});
 
-  // Ako showLeagueMap true, vraća LeagueMapScreen i prekida render TeamMapScreen
+  // ✅ Ako showLeagueTeams true, prikazuje LeagueTeamScreen i prekida render TeamMapScreen
+  if (showLeagueTeams) {
+    return (
+      <LeagueTeamScreen
+        leagueKey={showLeagueTeams}
+        onClose={() => setShowLeagueTeams(null)}
+      />
+    );
+  }
+
   if (showLeagueMap) {
-    return <LeagueMapScreen onClose={() => setShowLeagueMap(false)} />;
+    return (
+      <LeagueMapScreen
+        onClose={() => setShowLeagueMap(false)}
+        openLeagueTeams={(key) => setShowLeagueTeams(key)} // ✅ prosleđuje key novom screen-u
+      />
+    );
   }
 
   return (

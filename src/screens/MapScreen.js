@@ -50,13 +50,13 @@ export default function MapScreen({ onClose }) {
   // =====================
   const pairedTeams = useMemo(() => {
     return new Set(
-      Object.values(teamMap || {}).flatMap(t => [t.name1, t.name2])
+      Object.values(teamMap || {}).flatMap(t => [t.screen1, t.sofa])
     );
   }, [teamMap]);
 
   const pairedLeagues = useMemo(() => {
     return new Set(
-      Object.values(leagueMap || {}).flatMap(l => [l.name1, l.name2])
+      Object.values(leagueMap || {}).flatMap(l => [l.screen1, l.sofa])
     );
   }, [leagueMap]);
 
@@ -93,7 +93,7 @@ export default function MapScreen({ onClose }) {
       const key = `${t1}||${t2}`;
       setTeamMap(prev => ({
         ...prev,
-        [key]: { name1: t1, name2: t2, normalized: t1 }
+        [key]: { screen1: t1, sofa: t2, normalized: t1 }
       }));
       setSelectedTeam1(null);
       setSelectedTeam2(null);
@@ -116,7 +116,7 @@ export default function MapScreen({ onClose }) {
       const key = `league||${l1}||${l2}`;
       setLeagueMap(prev => ({
         ...prev,
-        [key]: { name1: l1, name2: l2, normalized: l1 }
+        [key]: { screen1: l1, sofa: l2, normalized: l1 }
       }));
       setSelectedLeague1(null);
       setSelectedLeague2(null);

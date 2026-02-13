@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLeagueMap } from "../LeagueMapContext";
 
-export default function LeagueMapScreen({ onClose }) {
+export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
   const { leagueMap, setLeagueMap } = useLeagueMap();
-  const [selectedLeagueTeams, setSelectedLeagueTeams] = useState(null); 
-  // { type: "screen1" | "sofa", leagueKey: string, teams: [] }
-
-  const popupRef = useRef(null);
+  const [openLists, setOpenLists] = useState({});
+  const wrapperRef = useRef(null);
 
   const handleNormalizedChange = (key, value) => {
     setLeagueMap(prev => ({
@@ -26,30 +24,29 @@ export default function LeagueMapScreen({ onClose }) {
     });
   };
 
-  const handleShowTeams = (key, type) => {
-    const league = leagueMap[key];
-    if (!league) return;
-    const teams = type === "screen1" ? league.screen1Teams || [] : league.sofaTeams || [];
-    setSelectedLeagueTeams({ type, leagueKey: key, teams });
+  const toggleList = (leagueKey, type) => {
+    const id = `${leagueKey}||${type}`;
+    setOpenLists(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
-  const handleClickOutside = (event) => {
-    if (popupRef.current && !popupRef.current.contains(event.target)) {
-      setSelectedLeagueTeams(null);
-    }
-  };
-
+  // klik van liste zatvara sve
   useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpenLists({});
+      }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const leagues = Object.entries(leagueMap || {});
 
   return (
-    <div style={{ padding: 20, position: "relative" }}>
+    <div style={{ padding: 20 }} ref={wrapperRef}>
       <h2>🏆 League Map Screen</h2>
 
       <button onClick={onClose} style={{ marginBottom: 15 }}>
@@ -76,78 +73,88 @@ export default function LeagueMapScreen({ onClose }) {
             </tr>
           </thead>
           <tbody>
-            {leagues.map(([key, l], i) => (
-              <tr key={key}>
-                <td>{i + 1}</td>
-                <td>
-                  <input
-                    value={l.normalized || ""}
-                    onChange={e => handleNormalizedChange(key, e.target.value)}
-                    placeholder="npr. Premier League"
-                    style={{ width: "100%" }}
-                  />
-                </td>
-                <td>
-                  <span
-                    style={{ color: "blue", cursor: "pointer", textDecoration: "underline" }}
-                    onClick={() => handleShowTeams(key, "screen1")}
-                  >
-                    {l.screen1 || "-"}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    style={{ color: "blue", cursor: "pointer", textDecoration: "underline" }}
-                    onClick={() => handleShowTeams(key, "sofa")}
-                  >
-                    {l.sofa || "-"}
-                  </span>
-                </td>
-                <td>
-                  <button
-                    onClick={() => handleDeleteLeague(key)}
+            {leagues.map(([key, l], i) => {
+              const screen1Open = openLists[`${key}||screen1`];
+              const sofaOpen = openLists[`${key}||sofa`];
+
+              return (
+                <tr key={key} style={{ verticalAlign: "top" }}>
+                  <td>{i + 1}</td>
+
+                  <td>
+                    <input
+                      value={l.normalized || ""}
+                      onChange={e => handleNormalizedChange(key, e.target.value)}
+                      placeholder="npr. Premier League"
+                      style={{ width: "100%" }}
+                    />
+                  </td>
+
+                  <td
                     style={{ cursor: "pointer" }}
+                    onClick={() => toggleList(key, "screen1")}
                   >
-                    Izbriši
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    <div style={{ fontWeight: "bold" }}>{l.screen1 || "-"}</div>
+
+                    {screen1Open && (
+                      <div style={{
+                        marginTop: 6,
+                        background: "#fafafa",
+                        border: "1px solid #ccc",
+                        padding: 6,
+                        maxHeight: 200,
+                        overflowY: "auto"
+                      }}>
+                        {(l.screen1Teams || []).length === 0 ? (
+                          <div style={{ color: "gray", fontStyle: "italic" }}>
+                            Nema timova
+                          </div>
+                        ) : (
+                          l.screen1Teams.map((t, idx) => (
+                            <div key={idx}>• {t}</div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  <td
+                    style={{ cursor: "pointer" }}
+                    onClick={() => toggleList(key, "sofa")}
+                  >
+                    <div style={{ fontWeight: "bold" }}>{l.sofa || "-"}</div>
+
+                    {sofaOpen && (
+                      <div style={{
+                        marginTop: 6,
+                        background: "#f7f7ff",
+                        border: "1px solid #ccc",
+                        padding: 6,
+                        maxHeight: 200,
+                        overflowY: "auto"
+                      }}>
+                        {(l.sofaTeams || []).length === 0 ? (
+                          <div style={{ color: "gray", fontStyle: "italic" }}>
+                            Nema timova
+                          </div>
+                        ) : (
+                          l.sofaTeams.map((t, idx) => (
+                            <div key={idx}>• {t}</div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  <td style={{ display: "flex", gap: 5 }}>
+                    <button onClick={() => openLeagueTeams?.(key)}>Timovi</button>
+                    <button onClick={() => handleDeleteLeague(key)}>Izbriši</button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-      )}
-
-      {selectedLeagueTeams && (
-        <div
-          ref={popupRef}
-          style={{
-            position: "absolute",
-            top: 50,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#fff",
-            border: "1px solid #ccc",
-            padding: 15,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            zIndex: 1000,
-            maxHeight: 300,
-            overflowY: "auto",
-            minWidth: 250
-          }}
-        >
-          <h4 style={{ margin: "0 0 10px 0" }}>
-            {selectedLeagueTeams.type === "screen1" ? "Screen1 Teams" : "SofaScore Teams"}
-          </h4>
-          {selectedLeagueTeams.teams.length === 0 ? (
-            <div style={{ color: "gray", fontStyle: "italic" }}>Nema timova</div>
-          ) : (
-            <ul style={{ paddingLeft: 20, margin: 0 }}>
-              {selectedLeagueTeams.teams.map((t, idx) => (
-                <li key={idx}>{t}</li>
-              ))}
-            </ul>
-          )}
-        </div>
       )}
     </div>
   );

@@ -1,12 +1,19 @@
-import React, { useState, useContext, useRef, useCallback } from 'react';
+import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';        
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
-import { useTeamMap } from "../TeamMapContext"; // ✅ koristi hook umesto direktnog konteksta
+import { useTeamMap } from "../TeamMapContext";
+import { useLeagueMap } from "../LeagueMapContext";
+import { useMapScreen } from "../MapScreenContext";
+import { useLeagueTeam } from "../LeagueTeamContext";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
-  const { teamMap, setTeamMap } = useTeamMap(); // ✅ pristup teamMap i setTeamMap
+  const { teamMap, setTeamMap } = useTeamMap();
+  // eslint-disable-next-line
+  const { setLeagueMap } = useLeagueMap();
+  const { setMapData } = useMapScreen();
+  const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
@@ -36,6 +43,60 @@ export default function Screen1() {
     return dateB.localeCompare(dateA);
   });
 
+  // =========================
+  // 🔥 puni MapScreen i LeagueTeamScreen
+  // =========================
+  const updateMapAndLeagueTeam = (allRows) => {
+    // 1️⃣ MapScreen
+    setMapData(prev => {
+      const next = { ...prev };
+      allRows.forEach(r => {
+        if (!r.liga) return;
+        const key = r.liga.toLowerCase().trim();
+        if (!next[key]) {
+          next[key] = {
+            screen1: r.liga,
+            sofa: "",
+            screen1Teams: [],
+            sofaTeams: []
+          };
+        }
+        if (r.home && !next[key].screen1Teams.includes(r.home)) next[key].screen1Teams.push(r.home);
+        if (r.away && !next[key].screen1Teams.includes(r.away)) next[key].screen1Teams.push(r.away);
+      });
+      return next;
+    });
+
+    // 2️⃣ LeagueTeamScreen sa screen1 i sofa kolonom
+    const newLeagueData = { ...leagueTeamData };
+    allRows.forEach(r => {
+      if (!r.liga) return;
+      const key = r.liga.toLowerCase().trim();
+      if (!newLeagueData[key]) {
+        newLeagueData[key] = {
+          screen1: r.liga,
+          sofa: "",
+          screen1Teams: [],
+          sofaTeams: []
+        };
+      }
+      if (r.home && !newLeagueData[key].screen1Teams.includes(r.home))
+        newLeagueData[key].screen1Teams.push(r.home);
+      if (r.away && !newLeagueData[key].screen1Teams.includes(r.away))
+        newLeagueData[key].screen1Teams.push(r.away);
+    });
+    setLeagueTeamData(newLeagueData);
+  };
+
+  // =========================
+  // 🔥 AUTOMATSKI prati svaku promenu u Screen1
+  // =========================
+  useEffect(() => {
+    if (!rows) return;
+    updateMapAndLeagueTeam(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -62,7 +123,6 @@ export default function Screen1() {
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
 
-      // ===== SMES: update teamMap =====
       allRows.forEach(r => {
         const keyHome = `screen1||${r.home}`;
         const keyAway = `screen1||${r.away}`;
@@ -71,15 +131,15 @@ export default function Screen1() {
         if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: r.away, source: "screen1" } }));
         if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: r.liga, source: "screen1" } }));
       });
-      // ===== kraj SMES =====
+
+      updateMapAndLeagueTeam(allRows);
     };
     reader.readAsArrayBuffer(file);
   };
 
   const syncWithSofaScreen = async () => {
     try {
-      // 🔹 placeholder fetch - ovde ubaci svoj endpoint ili JSON fajl
-      const response = await fetch('/sofascreen-results.json'); 
+      const response = await fetch('/sofascreen-results.json');
       const sofaRows = await response.json();
 
       const newRows = sofaRows.map((r,i)=>({
@@ -100,16 +160,7 @@ export default function Screen1() {
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
 
-      // ===== SMES: update teamMap =====
-      allRows.forEach(r => {
-        const keyHome = `screen1||${r.home}`;
-        const keyAway = `screen1||${r.away}`;
-        const keyLeague = `screen1||${r.liga}`;
-        if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: r.home, source: "sofascreen" } }));
-        if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: r.away, source: "sofascreen" } }));
-        if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: r.liga, source: "sofascreen" } }));
-      });
-      // ===== kraj SMES =====
+      updateMapAndLeagueTeam(allRows);
     } catch (err) {
       console.error('Sync SofaScreen failed:', err);
     }
@@ -131,7 +182,6 @@ export default function Screen1() {
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
 
-    // ===== SMES: dodaj u teamMap =====
     if (newRow.home) {
       const keyHome = `screen1||${newRow.home}`;
       if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: newRow.home, source: "screen1" } }));
@@ -144,7 +194,8 @@ export default function Screen1() {
       const keyLeague = `screen1||${newRow.liga}`;
       if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: newRow.liga, source: "screen1" } }));
     }
-    // ===== kraj SMES =====
+
+    updateMapAndLeagueTeam(newRows);
 
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);
@@ -209,14 +260,7 @@ export default function Screen1() {
           const isSuspicious = (shGoals >= 5) && !r._confirmed;
 
           return (
-            <div
-              key={idx}
-              className="screen1-row"
-              style={{
-                height: rowHeight,
-                backgroundColor: isSuspicious ? '#ffb3b3' : 'transparent'
-              }}
-            >
+            <div key={idx} className="screen1-row" style={{height: rowHeight, backgroundColor: isSuspicious ? '#ffb3b3' : 'transparent'}}>
               <div className="col rb">{r.rb}</div>
 
               <div className="col info">
@@ -269,15 +313,12 @@ export default function Screen1() {
               </div>
 
               <div className="col delete" style={{display:'flex', gap:'4px'}}>
-                {isSuspicious && (
-                  <button onClick={()=>confirmRow(idx)} title="Potvrdi da je rezultat tačan">✅</button>
-                )}
+                {isSuspicious && <button onClick={()=>confirmRow(idx)} title="Potvrdi da je rezultat tačan">✅</button>}
                 <button onClick={()=>deleteRow(idx)}>x</button>
               </div>
             </div>
           );
         })}
-
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
     </div>
