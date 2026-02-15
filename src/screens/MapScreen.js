@@ -5,28 +5,49 @@ import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 
 export default function MapScreen({ onClose }) {
+
   const { teamMap, setTeamMap } = useTeamMap();
   const { leagueMap, setLeagueMap } = useLeagueMap();
   const { rows: screen1Rows } = useMatches();
   const { sofaRows } = useSofa();
 
   // =====================
-  // SVI TIMOVI I LIGE
+  // STORAGE – OBRISANE LIGE I TIMOVI
+  // =====================
+  const [deletedSofaLeagues, setDeletedSofaLeagues] = useState(() => {
+    const saved = localStorage.getItem("deletedSofaLeagues");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [deletedSofaTeams, setDeletedSofaTeams] = useState(() => {
+    const saved = localStorage.getItem("deletedSofaTeams");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // =====================
+  // SVI TIMOVI
   // =====================
   const screen1TeamsAll = useMemo(() => {
     if (!screen1Rows) return [];
     return Array.from(
-      new Set(screen1Rows.flatMap(r => [r.Home || r.home, r.Away || r.away].filter(Boolean)))
+      new Set(screen1Rows.flatMap(r =>
+        [r.Home || r.home, r.Away || r.away].filter(Boolean)
+      ))
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
   const sofaTeamsAll = useMemo(() => {
     if (!sofaRows) return [];
     return Array.from(
-      new Set(sofaRows.flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean)))
+      new Set(sofaRows.flatMap(r =>
+        [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean)
+      ))
     ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
 
+  // =====================
+  // SVE LIGE
+  // =====================
   const screen1LeaguesAll = useMemo(() => {
     if (!screen1Rows) return [];
     return Array.from(
@@ -34,7 +55,7 @@ export default function MapScreen({ onClose }) {
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
-  const sofaLeaguesAllInitial = useMemo(() => {
+  const sofaLeaguesAll = useMemo(() => {
     if (!sofaRows) return [];
     return Array.from(
       new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
@@ -42,12 +63,18 @@ export default function MapScreen({ onClose }) {
   }, [sofaRows]);
 
   // =====================
-  // STATE ZA DINAMICKO UPRAVLJANJE SOFA LIGAMA
+  // FILTRIRANJE OBRISANIH
   // =====================
-  const [sofaLeagues, setSofaLeagues] = useState(sofaLeaguesAllInitial);
+  const sofaLeaguesBase = sofaLeaguesAll.filter(
+    l => !deletedSofaLeagues.includes(l)
+  );
+
+  const sofaTeamsBase = sofaTeamsAll.filter(
+    t => !deletedSofaTeams.includes(t)
+  );
 
   // =====================
-  // VEC UPAARENI (ZA FILTER)
+  // UPAARENI
   // =====================
   const pairedTeams = useMemo(() => {
     return new Set(
@@ -61,13 +88,10 @@ export default function MapScreen({ onClose }) {
     );
   }, [leagueMap]);
 
-  // =====================
-  // FILTRIRANI PRIKAZ
-  // =====================
   const screen1Teams = screen1TeamsAll.filter(t => !pairedTeams.has(t));
-  const sofaTeams = sofaTeamsAll.filter(t => !pairedTeams.has(t));
-
+  const sofaTeams = sofaTeamsBase.filter(t => !pairedTeams.has(t));
   const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
+  const sofaLeagues = sofaLeaguesBase.filter(l => !pairedLeagues.has(l));
 
   // =====================
   // SELEKCIJA
@@ -80,14 +104,6 @@ export default function MapScreen({ onClose }) {
   // =====================
   // UPAARIVANJE TIMOVA
   // =====================
-  const handleTeamClick = (source, value) => {
-    if (source === "screen1") setSelectedTeam1(value === selectedTeam1 ? null : value);
-    if (source === "sofa") setSelectedTeam2(value === selectedTeam2 ? null : value);
-
-    if (source === "screen1" && selectedTeam2) confirmTeamPair(value, selectedTeam2);
-    if (source === "sofa" && selectedTeam1) confirmTeamPair(selectedTeam1, value);
-  };
-
   const confirmTeamPair = (t1, t2) => {
     if (window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) {
       const key = `${t1}||${t2}`;
@@ -100,17 +116,20 @@ export default function MapScreen({ onClose }) {
     }
   };
 
-  // =====================
-  // UPAARIVANJE LIGA (Samo uklanja ligu iz kolone, timovi ostaju)
-  // =====================
-  const handleLeagueClick = (source, value) => {
-    if (source === "screen1") setSelectedLeague1(value === selectedLeague1 ? null : value);
-    if (source === "sofa") setSelectedLeague2(value === selectedLeague2 ? null : value);
-
-    if (source === "screen1" && selectedLeague2) confirmLeaguePair(value, selectedLeague2);
-    if (source === "sofa" && selectedLeague1) confirmLeaguePair(selectedLeague1, value);
+  const handleTeamClick = (source, value) => {
+    if (source === "screen1") {
+      if (selectedTeam2) confirmTeamPair(value, selectedTeam2);
+      else setSelectedTeam1(value);
+    }
+    if (source === "sofa") {
+      if (selectedTeam1) confirmTeamPair(selectedTeam1, value);
+      else setSelectedTeam2(value);
+    }
   };
 
+  // =====================
+  // UPAARIVANJE LIGA
+  // =====================
   const confirmLeaguePair = (l1, l2) => {
     if (window.confirm(`Upariti lige:\n${l1} ↔ ${l2}?`)) {
       const key = `league||${l1}||${l2}`;
@@ -120,41 +139,55 @@ export default function MapScreen({ onClose }) {
       }));
       setSelectedLeague1(null);
       setSelectedLeague2(null);
+    }
+  };
 
-      // ✅ ukloni ligu iz kolone Sofa za uparivanje, timovi ostaju
-      setSofaLeagues(prev => prev.filter(l => l !== l2));
+  const handleLeagueClick = (source, value) => {
+    if (source === "screen1") {
+      if (selectedLeague2) confirmLeaguePair(value, selectedLeague2);
+      else setSelectedLeague1(value);
+    }
+    if (source === "sofa") {
+      if (selectedLeague1) confirmLeaguePair(selectedLeague1, value);
+      else setSelectedLeague2(value);
     }
   };
 
   // =====================
-  // BRISANJE LIGE I TIMOVA RUČNO
+  // TRAJNO BRISANJE LIGE + TIMOVA
   // =====================
   const handleDeleteSofaLeague = (liga) => {
-    if (!window.confirm(`Obrisati ligu ${liga} i sve njene timove iz kolone za uparivanje?`)) return;
+    if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
 
-    // ukloni ligu
-    setSofaLeagues(prev => prev.filter(l => l !== liga));
+    // 1️⃣ liga u storage
+    const updatedLeagues = [...deletedSofaLeagues, liga];
+    setDeletedSofaLeagues(updatedLeagues);
+    localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
 
-    // ukloni sve timove koji pripadaju toj ligi
-    const teamsToRemove = sofaRows
+    // 2️⃣ timovi iz te lige
+    const teamsToDelete = sofaRows
       .filter(r => (r.Liga || r.liga || "").trim() === liga)
       .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
       .filter(Boolean);
 
-    teamsToRemove.forEach(t => {
-      setSelectedTeam2(null);
-      setTeamMap(prev => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach(key => {
-          if (updated[key].sofa === t) delete updated[key];
-        });
-        return updated;
+    const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
+    setDeletedSofaTeams(updatedTeams);
+    localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
+
+    // 3️⃣ ukloni mapiranja tih timova
+    setTeamMap(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        if (teamsToDelete.includes(next[key].sofa)) {
+          delete next[key];
+        }
       });
+      return next;
     });
   };
 
   // =====================
-  // RENDER KOLONE
+  // RENDER
   // =====================
   const renderColumn = (title, items, selected, onClick, renderDelete=false) => (
     <div style={{ flex: 1, margin: 5 }}>
@@ -174,7 +207,9 @@ export default function MapScreen({ onClose }) {
               {item}
             </div>
             {renderDelete && (
-              <button onClick={() => handleDeleteSofaLeague(item)} style={{ marginLeft: 5 }}>🗑</button>
+              <button onClick={() => handleDeleteSofaLeague(item)} style={{ marginLeft: 5 }}>
+                🗑
+              </button>
             )}
           </div>
         ))}
