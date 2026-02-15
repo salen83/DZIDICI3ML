@@ -16,18 +16,14 @@ export default function MapScreen({ onClose }) {
   const screen1TeamsAll = useMemo(() => {
     if (!screen1Rows) return [];
     return Array.from(
-      new Set(
-        screen1Rows.flatMap(r => [r.Home || r.home, r.Away || r.away].filter(Boolean))
-      )
+      new Set(screen1Rows.flatMap(r => [r.Home || r.home, r.Away || r.away].filter(Boolean)))
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
   const sofaTeamsAll = useMemo(() => {
     if (!sofaRows) return [];
     return Array.from(
-      new Set(
-        sofaRows.flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean))
-      )
+      new Set(sofaRows.flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean)))
     ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
 
@@ -38,12 +34,17 @@ export default function MapScreen({ onClose }) {
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
-  const sofaLeaguesAll = useMemo(() => {
+  const sofaLeaguesAllInitial = useMemo(() => {
     if (!sofaRows) return [];
     return Array.from(
       new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
+
+  // =====================
+  // STATE ZA DINAMICKO UPRAVLJANJE SOFA LIGAMA
+  // =====================
+  const [sofaLeagues, setSofaLeagues] = useState(sofaLeaguesAllInitial);
 
   // =====================
   // VEC UPAARENI (ZA FILTER)
@@ -67,7 +68,6 @@ export default function MapScreen({ onClose }) {
   const sofaTeams = sofaTeamsAll.filter(t => !pairedTeams.has(t));
 
   const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
-  const sofaLeagues = sofaLeaguesAll.filter(l => !pairedLeagues.has(l));
 
   // =====================
   // SELEKCIJA
@@ -101,7 +101,7 @@ export default function MapScreen({ onClose }) {
   };
 
   // =====================
-  // UPAARIVANJE LIGA
+  // UPAARIVANJE LIGA (Samo uklanja ligu iz kolone, timovi ostaju)
   // =====================
   const handleLeagueClick = (source, value) => {
     if (source === "screen1") setSelectedLeague1(value === selectedLeague1 ? null : value);
@@ -120,28 +120,62 @@ export default function MapScreen({ onClose }) {
       }));
       setSelectedLeague1(null);
       setSelectedLeague2(null);
+
+      // ✅ ukloni ligu iz kolone Sofa za uparivanje, timovi ostaju
+      setSofaLeagues(prev => prev.filter(l => l !== l2));
     }
+  };
+
+  // =====================
+  // BRISANJE LIGE I TIMOVA RUČNO
+  // =====================
+  const handleDeleteSofaLeague = (liga) => {
+    if (!window.confirm(`Obrisati ligu ${liga} i sve njene timove iz kolone za uparivanje?`)) return;
+
+    // ukloni ligu
+    setSofaLeagues(prev => prev.filter(l => l !== liga));
+
+    // ukloni sve timove koji pripadaju toj ligi
+    const teamsToRemove = sofaRows
+      .filter(r => (r.Liga || r.liga || "").trim() === liga)
+      .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
+      .filter(Boolean);
+
+    teamsToRemove.forEach(t => {
+      setSelectedTeam2(null);
+      setTeamMap(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(key => {
+          if (updated[key].sofa === t) delete updated[key];
+        });
+        return updated;
+      });
+    });
   };
 
   // =====================
   // RENDER KOLONE
   // =====================
-  const renderColumn = (title, items, selected, onClick) => (
+  const renderColumn = (title, items, selected, onClick, renderDelete=false) => (
     <div style={{ flex: 1, margin: 5 }}>
       <h3>{title}</h3>
       <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #ccc", padding: 5 }}>
         {items.map((item, i) => (
-          <div
-            key={i}
-            onClick={() => onClick(item)}
-            style={{
-              padding: "4px 8px",
-              margin: "2px 0",
-              cursor: "pointer",
-              backgroundColor: selected === item ? "#ffcc80" : "#f0f0f0"
-            }}
-          >
-            {item}
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
+            <div
+              onClick={() => onClick(item)}
+              style={{
+                padding: "4px 8px",
+                cursor: "pointer",
+                backgroundColor: selected === item ? "#ffcc80" : "#f0f0f0",
+                flex: 1
+              }}
+            >
+              {item}
+            </div>
+            {renderDelete && (
+              <button onClick={() => handleDeleteSofaLeague(item)} style={{ marginLeft: 5 }}>🗑</button>
+            )}
           </div>
         ))}
       </div>
@@ -160,7 +194,7 @@ export default function MapScreen({ onClose }) {
         {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
         {renderColumn("Timovi Sofa", sofaTeams, selectedTeam2, v => handleTeamClick("sofa", v))}
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
-        {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v))}
+        {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v), true)}
       </div>
     </div>
   );

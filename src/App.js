@@ -93,7 +93,6 @@ export default function App() {
               <MapScreenProvider>
                 <div>
                   <div className="top-bar">
-
                     <button
                       style={{ marginRight: 5, backgroundColor: "#a5d6a7", fontWeight: "bold" }}
                       onClick={() => openMode(setMapMode)}
