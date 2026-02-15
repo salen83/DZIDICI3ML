@@ -47,13 +47,14 @@
   background: #3a3a3a;
 }
 
+/* ⚡ Izmenjeno da accordion-body može da se širi i prikaže timove */
 .accordion-body {
   background: #111;
   margin-top: 5px;
   border-radius: 6px;
   padding: 8px;
-  max-height: 250px;
-  overflow-y: auto;
+  max-height: none;      /* više nema ograničenja visine */
+  overflow-y: auto;      /* scrollbar ako je sadržaj veći od panela */
 }
 
 .team {
