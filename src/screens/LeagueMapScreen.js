@@ -6,21 +6,34 @@ export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
   const [openLists, setOpenLists] = useState({});
   const wrapperRef = useRef(null);
 
+  // =====================
+  // UCITAVANJE IZ LOCALSTORAGE
+  // =====================
+  useEffect(() => {
+    const saved = localStorage.getItem("leagueMap");
+    if (saved) setLeagueMap(JSON.parse(saved));
+  }, [setLeagueMap]);
+
   const handleNormalizedChange = (key, value) => {
-    setLeagueMap(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        normalized: value
-      }
-    }));
+    setLeagueMap(prev => {
+      const next = {
+        ...prev,
+        [key]: {
+          ...prev[key],
+          normalized: value
+        }
+      };
+      localStorage.setItem("leagueMap", JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleDeleteLeague = (key) => {
     setLeagueMap(prev => {
-      const newMap = { ...prev };
-      delete newMap[key];
-      return newMap;
+      const next = { ...prev };
+      delete next[key];
+      localStorage.setItem("leagueMap", JSON.stringify(next));
+      return next;
     });
   };
 
@@ -83,7 +96,7 @@ export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
 
                   <td>
                     <input
-                      value={l.normalized || ""}
+                      value={l.normalized || l.screen1 || ""}
                       onChange={e => handleNormalizedChange(key, e.target.value)}
                       placeholder="npr. Premier League"
                       style={{ width: "100%" }}

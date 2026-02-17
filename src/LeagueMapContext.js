@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 /*
   leagueMap struktura:
@@ -17,19 +17,24 @@ import React, { createContext, useContext, useState } from "react";
 const LeagueMapContext = createContext();
 
 export function LeagueMapProvider({ children }) {
-  const [leagueMap, setLeagueMap] = useState({});
+
+  // ✅ UČITAJ TRAJNO SAČUVANE LIGE
+  const [leagueMap, setLeagueMap] = useState(() => {
+    const saved = localStorage.getItem("normalisedLeagues");
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // ✅ AUTOMATSKO TRAJNO ČUVANJE
+  useEffect(() => {
+    localStorage.setItem("normalisedLeagues", JSON.stringify(leagueMap));
+  }, [leagueMap]);
 
   // ======== CORE FUNKCIJA ========
-  // source: "screen1" | "sofa"
-  // leagueName: originalno ime lige
-  // teams: niz timova koji se pojavljuju u toj ligi
   const registerLeague = (source, leagueName, teams = []) => {
     if (!leagueName) return;
 
     setLeagueMap(prev => {
       const next = { ...prev };
-
-      // ključ za LeagueTeamScreen: koristi samo originalno ime lige
       const key = leagueName;
 
       if (!next[key]) {
@@ -42,7 +47,6 @@ export function LeagueMapProvider({ children }) {
         };
       }
 
-      // postavi originalno ime lige za source
       if (source === "screen1" && !next[key].screen1) {
         next[key].screen1 = leagueName;
       }
@@ -51,6 +55,7 @@ export function LeagueMapProvider({ children }) {
       }
 
       const teamField = source === "screen1" ? "screen1Teams" : "sofaTeams";
+
       teams.forEach(t => {
         if (t && !next[key][teamField].includes(t)) {
           next[key][teamField].push(t);
@@ -61,27 +66,30 @@ export function LeagueMapProvider({ children }) {
     });
   };
 
-  // ======== MAP SCREEN POMOC ========
-  // povezivanje screen1 i sofa liga pod jednim normalizovanim imenom
+  // ======== POVEZIVANJE LIGA ========
   const linkLeagues = (screen1Key, sofaKey, normalizedName) => {
     setLeagueMap(prev => {
       const next = { ...prev };
       if (!next[screen1Key] || !next[sofaKey]) return prev;
+
       next[screen1Key].normalized = normalizedName;
       next[sofaKey].normalized = normalizedName;
+
       return next;
     });
   };
 
   // ======== UKLANJANJE TIMA ========
-  // source: "screen1" | "sofa"
   const removeTeam = (leagueKey, source, teamName) => {
     setLeagueMap(prev => {
       const next = { ...prev };
       const field = source === "screen1" ? "screen1Teams" : "sofaTeams";
+
       if (next[leagueKey]) {
-        next[leagueKey][field] = next[leagueKey][field].filter(t => t !== teamName);
+        next[leagueKey][field] =
+          next[leagueKey][field].filter(t => t !== teamName);
       }
+
       return next;
     });
   };

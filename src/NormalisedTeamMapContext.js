@@ -4,27 +4,22 @@ const NormalisedTeamMapContext = createContext();
 
 export const NormalisedTeamMapProvider = ({ children }) => {
 
-  // PRIVREMENA MAPA (proces normalizacije)
-  const [teamMap, setTeamMap] = useState({});
-
-  // TRAJNO NORMALIZOVANI TIMOVI
-  const [normalisedTeams, setNormalisedTeams] = useState(() => {
+  // JEDINI IZVOR ISTINE – trajno normalizovani timovi
+  const [teamMap, setTeamMap] = useState(() => {
     const saved = localStorage.getItem("normalisedTeams");
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Automatsko čuvanje u localStorage
+  // Automatsko trajno čuvanje
   useEffect(() => {
-    localStorage.setItem("normalisedTeams", JSON.stringify(normalisedTeams));
-  }, [normalisedTeams]);
+    localStorage.setItem("normalisedTeams", JSON.stringify(teamMap));
+  }, [teamMap]);
 
   return (
     <NormalisedTeamMapContext.Provider
       value={{
         teamMap,
-        setTeamMap,
-        normalisedTeams,
-        setNormalisedTeams
+        setTeamMap
       }}
     >
       {children}

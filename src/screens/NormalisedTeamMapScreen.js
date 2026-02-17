@@ -1,10 +1,27 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import LeagueTeamScreen from "./LeagueTeamScreen";
 
 export default function NormalisedTeamMapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useNormalisedTeamMap();
   const [showLeagueTeams, setShowLeagueTeams] = useState(null);
+
+  // ✅ AUTOMATSKI postavi normalized = screen1 ako ne postoji
+  useEffect(() => {
+    const updated = { ...teamMap };
+    let changed = false;
+
+    Object.keys(updated).forEach(key => {
+      if (!updated[key].normalized && updated[key].screen1) {
+        updated[key].normalized = updated[key].screen1;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      setTeamMap(updated);
+    }
+  }, [teamMap, setTeamMap]);
 
   const handleNormalizedChange = (key, value) => {
     setTeamMap(prev => ({
@@ -17,7 +34,7 @@ export default function NormalisedTeamMapScreen({ onClose }) {
   };
 
   const handleDelete = (key) => {
-    if (window.confirm("Da li želiš da izbrišeš normalizovano ime i vrati tim u MapScreen?")) {
+    if (window.confirm("Da li želiš da izbrišeš normalizovani tim?")) {
       setTeamMap(prev => {
         const newMap = { ...prev };
         delete newMap[key];
@@ -27,18 +44,15 @@ export default function NormalisedTeamMapScreen({ onClose }) {
   };
 
   const handleDeleteAll = () => {
-    if (window.confirm("Da li želiš da izbrišeš SVE normalizovane timove i vrati ih u MapScreen?")) {
+    if (window.confirm("Da li želiš da izbrišeš SVE normalizovane timove?")) {
       setTeamMap({});
     }
   };
 
-  const teams = Object.entries(teamMap || {}).map(([key, t]) => {
-    // ⚡ Automatski inicijalno postavi normalized ime na screen1 ime ako još nije postavljeno
-    if (!t.normalized) {
-      t.normalized = t.screen1 || "";
-    }
-    return [key, t];
-  });
+  const teams = Object.entries(teamMap || {}).map(([key, t]) => ({
+    key,
+    ...t
+  }));
 
   if (showLeagueTeams) {
     return (
@@ -84,22 +98,21 @@ export default function NormalisedTeamMapScreen({ onClose }) {
             </tr>
           </thead>
           <tbody>
-            {teams.map(([key, t], i) => (
-              <tr key={key}>
+            {teams.map((t, i) => (
+              <tr key={t.key}>
                 <td>{i + 1}</td>
                 <td>
                   <input
                     value={t.normalized || ""}
-                    onChange={e => handleNormalizedChange(key, e.target.value)}
-                    placeholder="Klikni i upiši normalizovano ime"
+                    onChange={e => handleNormalizedChange(t.key, e.target.value)}
                     style={{ width: "100%" }}
                   />
                 </td>
-                <td>{t.screen1 || ""}</td>
-                <td>{t.sofa || ""}</td>
+                <td>{t.screen1 || "-"}</td>
+                <td>{t.sofa || "-"}</td>
                 <td>
                   <button
-                    onClick={() => handleDelete(key)}
+                    onClick={() => handleDelete(t.key)}
                     style={{ background: "#ff6666", color: "white", cursor: "pointer" }}
                   >
                     Izbriši
