@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { useTeamMap } from "../TeamMapContext";
-import LeagueMapScreen from "./LeagueMapScreen";
-import LeagueTeamScreen from "./LeagueTeamScreen"; // ✅ import novog screen-a
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
+import LeagueTeamScreen from "./LeagueTeamScreen";
 
-export default function TeamMapScreen({ onClose, openLeagueMap }) {
-  const { teamMap, setTeamMap } = useTeamMap();
-  const [showLeagueMap, setShowLeagueMap] = useState(false);
-  const [showLeagueTeams, setShowLeagueTeams] = useState(null); // ✅ stanje za novi screen
+export default function NormalisedTeamMapScreen({ onClose }) {
+  const { teamMap, setTeamMap } = useNormalisedTeamMap();
+  const [showLeagueTeams, setShowLeagueTeams] = useState(null);
 
   const handleNormalizedChange = (key, value) => {
     setTeamMap(prev => ({
@@ -36,7 +34,6 @@ export default function TeamMapScreen({ onClose, openLeagueMap }) {
 
   const teams = Object.entries(teamMap || {});
 
-  // ✅ Ako showLeagueTeams true, prikazuje LeagueTeamScreen i prekida render TeamMapScreen
   if (showLeagueTeams) {
     return (
       <LeagueTeamScreen
@@ -46,26 +43,12 @@ export default function TeamMapScreen({ onClose, openLeagueMap }) {
     );
   }
 
-  if (showLeagueMap) {
-    return (
-      <LeagueMapScreen
-        onClose={() => setShowLeagueMap(false)}
-        openLeagueTeams={(key) => setShowLeagueTeams(key)} // ✅ prosleđuje key novom screen-u
-      />
-    );
-  }
-
   return (
     <div style={{ padding: 20 }}>
-      <h2>🗂 Team Map (normalizovani timovi)</h2>
+      <h2>🗂 Normalised Team Map</h2>
 
       <button onClick={onClose}>⬅ Nazad</button>
-      <button
-        onClick={() => setShowLeagueMap(true)}
-        style={{ marginLeft: 10 }}
-      >
-        🏆 League Map
-      </button>
+
       {teams.length > 0 && (
         <button
           onClick={handleDeleteAll}
@@ -106,8 +89,8 @@ export default function TeamMapScreen({ onClose, openLeagueMap }) {
                     style={{ width: "100%" }}
                   />
                 </td>
-                <td>{t.name1 || "-"}</td>
-                <td>{t.name2 || "-"}</td>
+                <td>{t.screen1 || "-"}</td>
+                <td>{t.sofa || "-"}</td>
                 <td>
                   <button
                     onClick={() => handleDelete(key)}

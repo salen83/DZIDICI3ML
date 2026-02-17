@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { useTeamMap } from "../TeamMapContext";
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 
 export default function MapScreen({ onClose }) {
 
-  const { teamMap, setTeamMap } = useTeamMap();
+  const { teamMap, setTeamMap, normalisedTeams } = useNormalisedTeamMap();
   const { leagueMap, setLeagueMap } = useLeagueMap();
   const { rows: screen1Rows } = useMatches();
   const { sofaRows } = useSofa();
@@ -74,7 +74,7 @@ export default function MapScreen({ onClose }) {
   );
 
   // =====================
-  // UPAARENI
+  // UPAARENI (samo privremeni teamMap)
   // =====================
   const pairedTeams = useMemo(() => {
     return new Set(
@@ -102,7 +102,7 @@ export default function MapScreen({ onClose }) {
   const [selectedLeague2, setSelectedLeague2] = useState(null);
 
   // =====================
-  // UPAARIVANJE TIMOVA
+  // UPAARIVANJE TIMOVA (privremeno)
   // =====================
   const confirmTeamPair = (t1, t2) => {
     if (window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) {
@@ -154,27 +154,35 @@ export default function MapScreen({ onClose }) {
   };
 
   // =====================
-  // TRAJNO BRISANJE LIGE + TIMOVA
+  // TRAJNO BRISANJE LIGE (ZAŠTITA NORMALIZOVANIH)
   // =====================
   const handleDeleteSofaLeague = (liga) => {
     if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
 
-    // 1️⃣ liga u storage
+    // 1️⃣ sacuvaj ligu kao obrisanu
     const updatedLeagues = [...deletedSofaLeagues, liga];
     setDeletedSofaLeagues(updatedLeagues);
     localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
 
-    // 2️⃣ timovi iz te lige
-    const teamsToDelete = sofaRows
+    // 2️⃣ svi timovi iz te lige
+    const teamsFromLeague = sofaRows
       .filter(r => (r.Liga || r.liga || "").trim() === liga)
       .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
       .filter(Boolean);
 
+    // 3️⃣ filtriraj — NE diraj trajno normalizovane
+    const teamsToDelete = teamsFromLeague.filter(team =>
+      !Object.values(normalisedTeams || {}).some(
+        n => n.sofa === team || n.screen1 === team
+      )
+    );
+
+    // 4️⃣ upisi samo nenormalizovane u deletedSofaTeams
     const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
     setDeletedSofaTeams(updatedTeams);
     localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
 
-    // 3️⃣ ukloni mapiranja tih timova
+    // 5️⃣ ukloni iz PRIVREMENE mape samo nenormalizovane
     setTeamMap(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(key => {

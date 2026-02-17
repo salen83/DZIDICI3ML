@@ -2,14 +2,14 @@ import React, { useState, useContext, useRef, useCallback, useEffect } from 'rea
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
-import { useTeamMap } from "../TeamMapContext";
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMapScreen } from "../MapScreenContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
-  const { teamMap, setTeamMap } = useTeamMap();
+  const { teamMap, setTeamMap } = useNormalisedTeamMap();
   // eslint-disable-next-line
   const { setLeagueMap } = useLeagueMap();
   const { setMapData } = useMapScreen();

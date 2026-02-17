@@ -2,12 +2,12 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
-import { useTeamMap } from "../TeamMapContext";
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 
 export default function SofaScreen({ onClose }) {
 const { sofaRows, setSofaRows } = useSofa();
-const { setTeamMap } = useTeamMap();
+const { setTeamMap } = useNormalisedTeamMap();
 const { setLeagueTeamData } = useLeagueTeam();
 
 const tableWrapperRef = useRef(null);
