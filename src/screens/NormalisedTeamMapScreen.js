@@ -32,7 +32,13 @@ export default function NormalisedTeamMapScreen({ onClose }) {
     }
   };
 
-  const teams = Object.entries(teamMap || {});
+  const teams = Object.entries(teamMap || {}).map(([key, t]) => {
+    // ⚡ Automatski inicijalno postavi normalized ime na screen1 ime ako još nije postavljeno
+    if (!t.normalized) {
+      t.normalized = t.screen1 || "";
+    }
+    return [key, t];
+  });
 
   if (showLeagueTeams) {
     return (
@@ -85,12 +91,12 @@ export default function NormalisedTeamMapScreen({ onClose }) {
                   <input
                     value={t.normalized || ""}
                     onChange={e => handleNormalizedChange(key, e.target.value)}
-                    placeholder="npr. Manchester United"
+                    placeholder="Klikni i upiši normalizovano ime"
                     style={{ width: "100%" }}
                   />
                 </td>
-                <td>{t.screen1 || "-"}</td>
-                <td>{t.sofa || "-"}</td>
+                <td>{t.screen1 || ""}</td>
+                <td>{t.sofa || ""}</td>
                 <td>
                   <button
                     onClick={() => handleDelete(key)}

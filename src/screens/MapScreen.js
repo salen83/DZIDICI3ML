@@ -5,111 +5,71 @@ import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 
 export default function MapScreen({ onClose }) {
-
-  const { teamMap, setTeamMap, normalisedTeams } = useNormalisedTeamMap();
+  const { teamMap, setTeamMap } = useNormalisedTeamMap();
   const { leagueMap, setLeagueMap } = useLeagueMap();
   const { rows: screen1Rows } = useMatches();
   const { sofaRows } = useSofa();
 
-  // =====================
-  // STORAGE – OBRISANE LIGE I TIMOVI
-  // =====================
   const [deletedSofaLeagues, setDeletedSofaLeagues] = useState(() => {
     const saved = localStorage.getItem("deletedSofaLeagues");
     return saved ? JSON.parse(saved) : [];
   });
-
   const [deletedSofaTeams, setDeletedSofaTeams] = useState(() => {
     const saved = localStorage.getItem("deletedSofaTeams");
     return saved ? JSON.parse(saved) : [];
   });
 
   // =====================
-  // SVI TIMOVI
+  // SVI TIMOVI I LIGE
   // =====================
-  const screen1TeamsAll = useMemo(() => {
-    if (!screen1Rows) return [];
-    return Array.from(
-      new Set(screen1Rows.flatMap(r =>
-        [r.Home || r.home, r.Away || r.away].filter(Boolean)
-      ))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [screen1Rows]);
+  const screen1TeamsAll = useMemo(() => Array.from(
+    new Set(screen1Rows?.flatMap(r => [r.Home || r.home, r.Away || r.away].filter(Boolean))
+  )).sort((a,b)=>a.localeCompare(b)), [screen1Rows]);
 
-  const sofaTeamsAll = useMemo(() => {
-    if (!sofaRows) return [];
-    return Array.from(
-      new Set(sofaRows.flatMap(r =>
-        [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean)
-      ))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sofaRows]);
+  const sofaTeamsAll = useMemo(() => Array.from(
+    new Set(sofaRows?.flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean))
+  )).sort((a,b)=>a.localeCompare(b)), [sofaRows]);
 
-  // =====================
-  // SVE LIGE
-  // =====================
-  const screen1LeaguesAll = useMemo(() => {
-    if (!screen1Rows) return [];
-    return Array.from(
-      new Set(screen1Rows.map(r => r.Liga || r.liga).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [screen1Rows]);
+  const screen1LeaguesAll = useMemo(() => Array.from(
+    new Set(screen1Rows?.map(r => r.Liga || r.liga).filter(Boolean))
+  ).sort((a,b)=>a.localeCompare(b)), [screen1Rows]);
 
-  const sofaLeaguesAll = useMemo(() => {
-    if (!sofaRows) return [];
-    return Array.from(
-      new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sofaRows]);
+  const sofaLeaguesAll = useMemo(() => Array.from(
+    new Set(sofaRows?.map(r => r.Liga || r.liga).filter(Boolean))
+  ).sort((a,b)=>a.localeCompare(b)), [sofaRows]);
 
   // =====================
   // FILTRIRANJE OBRISANIH
   // =====================
-  const sofaLeaguesBase = sofaLeaguesAll.filter(
-    l => !deletedSofaLeagues.includes(l)
-  );
-
-  const sofaTeamsBase = sofaTeamsAll.filter(
-    t => !deletedSofaTeams.includes(t)
-  );
+  const sofaLeaguesBase = sofaLeaguesAll.filter(l => !deletedSofaLeagues.includes(l));
+  const sofaTeamsBase = sofaTeamsAll.filter(t => !deletedSofaTeams.includes(t));
 
   // =====================
-  // UPAARENI (samo privremeni teamMap)
+  // UPAARENI
   // =====================
-  const pairedTeams = useMemo(() => {
-    return new Set(
-      Object.values(teamMap || {}).flatMap(t => [t.screen1, t.sofa])
-    );
-  }, [teamMap]);
-
-  const pairedLeagues = useMemo(() => {
-    return new Set(
-      Object.values(leagueMap || {}).flatMap(l => [l.screen1, l.sofa])
-    );
-  }, [leagueMap]);
+  const pairedTeams = useMemo(() => new Set(Object.values(teamMap || {}).flatMap(t => [t.screen1, t.sofa])), [teamMap]);
+  const pairedLeagues = useMemo(() => new Set(Object.values(leagueMap || {}).flatMap(l => [l.screen1, l.sofa])), [leagueMap]);
 
   const screen1Teams = screen1TeamsAll.filter(t => !pairedTeams.has(t));
   const sofaTeams = sofaTeamsBase.filter(t => !pairedTeams.has(t));
   const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
   const sofaLeagues = sofaLeaguesBase.filter(l => !pairedLeagues.has(l));
 
-  // =====================
-  // SELEKCIJA
-  // =====================
   const [selectedTeam1, setSelectedTeam1] = useState(null);
   const [selectedTeam2, setSelectedTeam2] = useState(null);
   const [selectedLeague1, setSelectedLeague1] = useState(null);
   const [selectedLeague2, setSelectedLeague2] = useState(null);
 
   // =====================
-  // UPAARIVANJE TIMOVA (privremeno)
+  // UPAARIVANJE TIMOVA
   // =====================
   const confirmTeamPair = (t1, t2) => {
     if (window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) {
       const key = `${t1}||${t2}`;
+      // ✅ SAMO kreira mapu, ne postavlja više normalized
       setTeamMap(prev => ({
         ...prev,
-        [key]: { screen1: t1, sofa: t2, normalized: t1 }
+        [key]: { screen1: t1, sofa: t2 }
       }));
       setSelectedTeam1(null);
       setSelectedTeam2(null);
@@ -154,49 +114,28 @@ export default function MapScreen({ onClose }) {
   };
 
   // =====================
-  // TRAJNO BRISANJE LIGE (ZAŠTITA NORMALIZOVANIH)
+  // TRAJNO BRISANJE LIGE + TIMOVA (NE DIRAJ NORMALIZOVANE)
   // =====================
   const handleDeleteSofaLeague = (liga) => {
-    if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
+    if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove koji nisu normalizovani?`)) return;
 
-    // 1️⃣ sacuvaj ligu kao obrisanu
+    const teamsToDelete = sofaRows
+      .filter(r => (r.Liga || r.liga || "").trim() === liga)
+      .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
+      .filter(Boolean)
+      .filter(t => !Object.values(teamMap || {}).some(tm => tm.sofa === t));
+
+    if (teamsToDelete.length === 0) return;
+
     const updatedLeagues = [...deletedSofaLeagues, liga];
     setDeletedSofaLeagues(updatedLeagues);
     localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
 
-    // 2️⃣ svi timovi iz te lige
-    const teamsFromLeague = sofaRows
-      .filter(r => (r.Liga || r.liga || "").trim() === liga)
-      .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
-      .filter(Boolean);
-
-    // 3️⃣ filtriraj — NE diraj trajno normalizovane
-    const teamsToDelete = teamsFromLeague.filter(team =>
-      !Object.values(normalisedTeams || {}).some(
-        n => n.sofa === team || n.screen1 === team
-      )
-    );
-
-    // 4️⃣ upisi samo nenormalizovane u deletedSofaTeams
     const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
     setDeletedSofaTeams(updatedTeams);
     localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
-
-    // 5️⃣ ukloni iz PRIVREMENE mape samo nenormalizovane
-    setTeamMap(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(key => {
-        if (teamsToDelete.includes(next[key].sofa)) {
-          delete next[key];
-        }
-      });
-      return next;
-    });
   };
 
-  // =====================
-  // RENDER
-  // =====================
   const renderColumn = (title, items, selected, onClick, renderDelete=false) => (
     <div style={{ flex: 1, margin: 5 }}>
       <h3>{title}</h3>
@@ -228,11 +167,9 @@ export default function MapScreen({ onClose }) {
   return (
     <div style={{ padding: 20 }}>
       <h2>🗺 Mapiranje timova i liga</h2>
-
       <button onClick={onClose} style={{ marginBottom: 15 }}>
         ⬅ Nazad
       </button>
-
       <div style={{ display: "flex", gap: 10 }}>
         {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
         {renderColumn("Timovi Sofa", sofaTeams, selectedTeam2, v => handleTeamClick("sofa", v))}
