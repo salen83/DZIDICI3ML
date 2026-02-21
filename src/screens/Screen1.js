@@ -2,18 +2,17 @@ import React, { useState, useContext, useRef, useCallback, useEffect } from 'rea
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
-import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
-import { useLeagueMap } from "../LeagueMapContext";
 import { useMapScreen } from "../MapScreenContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
+import { useLeagueMap } from "../LeagueMapContext";
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
-  const { teamMap, setTeamMap } = useNormalisedTeamMap();
-  // eslint-disable-next-line
-  const { setLeagueMap } = useLeagueMap();
   const { setMapData } = useMapScreen();
   const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
+  const { leagueMap } = useLeagueMap();
+const { teamMap } = useNormalisedTeamMap();
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
@@ -116,84 +115,107 @@ export default function Screen1() {
         ft: r['FT'] ?? '',
         ht: r['HT'] ?? '',
         sh: r['SH'] ?? '',
-        _confirmed: false
       }));
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
 
-      allRows.forEach(r => {
-        const keyHome = `screen1||${r.home}`;
-        const keyAway = `screen1||${r.away}`;
-        const keyLeague = `screen1||${r.liga}`;
-        if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: r.home, source: "screen1" } }));
-        if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: r.away, source: "screen1" } }));
-        if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: r.liga, source: "screen1" } }));
-      });
-
-      updateMapAndLeagueTeam(allRows);
-    };
     reader.readAsArrayBuffer(file);
+  };
   };
 
   const syncWithSofaScreen = async () => {
-    try {
-      const response = await fetch('/sofascreen-results.json');
-      const sofaRows = await response.json();
+  try {
+    const response = await fetch('/sofascreen-results.json');
+    const sofaRows = await response.json();
 
-      const newRows = sofaRows.map((r,i)=>({
-        rb: (rows?.length || 0) + i + 1,
-        datum: normalizeDate(r['datum'] ?? ''),
-        vreme: String(r['vreme'] ?? ''),
-        liga: r['liga'] ?? '',
-        home: r['home'] ?? '',
-        away: r['away'] ?? '',
-        ft: r['ft'] ?? '',
-        ht: r['ht'] ?? '',
-        sh: r['sh'] ?? '',
-        _confirmed: false
-      }));
+    const updatedRows = rows.map(row => {
 
-      const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
-      allRows.forEach((r,i)=>r.rb=i+1);
-      setRows(allRows);
-      localStorage.setItem('rows', JSON.stringify(allRows));
+      // 🔹 pronađi normalizovanu ligu za screen1
+      const leagueEntry = Object.values(leagueMap || {})
+        .find(l => l.screen1 === row.liga);
 
-      updateMapAndLeagueTeam(allRows);
-    } catch (err) {
-      console.error('Sync SofaScreen failed:', err);
-    }
+      if (!leagueEntry?.normalized) return row;
+
+      // 🔹 pronađi normalizovane timove za screen1
+      const homeEntry = Object.values(teamMap || {})
+        .find(t => t.screen1 === row.home);
+
+      const awayEntry = Object.values(teamMap || {})
+        .find(t => t.screen1 === row.away);
+
+      if (!homeEntry?.normalized || !awayEntry?.normalized)
+        return row;
+
+      const match = sofaRows.find(s => {
+
+        const sofaLeagueEntry = Object.values(leagueMap || {})
+          .find(l => l.sofa === s.liga);
+
+        const sofaHomeEntry = Object.values(teamMap || {})
+          .find(t => t.sofa === s.home);
+
+        const sofaAwayEntry = Object.values(teamMap || {})
+          .find(t => t.sofa === s.away);
+
+        if (
+          !sofaLeagueEntry?.normalized ||
+          !sofaHomeEntry?.normalized ||
+          !sofaAwayEntry?.normalized
+        ) return false;
+
+        return (
+          normalizeDate(s.datum) === row.datum &&
+          String(s.vreme) === String(row.vreme) &&
+          sofaLeagueEntry.normalized === leagueEntry.normalized &&
+          sofaHomeEntry.normalized === homeEntry.normalized &&
+          sofaAwayEntry.normalized === awayEntry.normalized
+        );
+      });
+
+      if (!match) return row;
+
+      const sofaFT = match.ft ?? '';
+      const sofaSH = match.sh ?? '';
+
+      if (row.ft === sofaFT && row.sh === sofaSH)
+        return { ...row, _syncedChanged: false };
+
+      return {
+        ...row,
+        ft: sofaFT,
+        sh: sofaSH,
+        _syncedChanged: true
+      };
+
+    });
+
+    setRows(updatedRows);
+    localStorage.setItem('rows', JSON.stringify(updatedRows));
+
+  } catch (err) {
+    console.error('Sync SofaScreen failed:', err);
+  }
+};
+  const isRowComplete = (row) => {
+    return (
+      row.datum &&
+      row.vreme &&
+      row.liga &&
+      row.home &&
+      row.away &&
+      row.ft &&
+      row.ht &&
+      row.sh
+    );
   };
-
-  const getTotalGoalsFromScore = (score) => {
-    if (!score || typeof score !== 'string' || !score.includes(':')) return 0;
-    const parts = score.split(':');
-    const a = parseInt(parts[0], 10);
-    const b = parseInt(parts[1], 10);
-    if (isNaN(a) || isNaN(b)) return 0;
-    return a + b;
-  };
-
   const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true, _confirmed:false };
+  const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
     localStorage.setItem('rows', JSON.stringify(newRows));
-
-    if (newRow.home) {
-      const keyHome = `screen1||${newRow.home}`;
-      if (!teamMap[keyHome]) setTeamMap(prev => ({ ...prev, [keyHome]: { sofa: newRow.home, source: "screen1" } }));
-    }
-    if (newRow.away) {
-      const keyAway = `screen1||${newRow.away}`;
-      if (!teamMap[keyAway]) setTeamMap(prev => ({ ...prev, [keyAway]: { sofa: newRow.away, source: "screen1" } }));
-    }
-    if (newRow.liga) {
-      const keyLeague = `screen1||${newRow.liga}`;
-      if (!teamMap[keyLeague]) setTeamMap(prev => ({ ...prev, [keyLeague]: { sofa: newRow.liga, source: "screen1" } }));
-    }
 
     updateMapAndLeagueTeam(newRows);
 
@@ -214,22 +236,24 @@ export default function Screen1() {
 
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...rows];
-    copy[rowIdx] = { ...copy[rowIdx], [key]: value };
-    delete copy[rowIdx]._new;
-    copy[rowIdx]._confirmed = false;
+    copy[rowIdx] = { ...copy[rowIdx], [key]: value};
 
-    const sorted = sortRowsByDateDesc(copy);
-    sorted.forEach((r,i)=>r.rb=i+1);
-    setRows(sorted);
-    localStorage.setItem('rows', JSON.stringify(sorted));
+    const editedRow = copy[rowIdx];
+
+    if (isRowComplete(editedRow)) {
+      delete editedRow._new;
+
+      const sorted = sortRowsByDateDesc(copy);
+      sorted.forEach((r,i)=>r.rb=i+1);
+
+      setRows(sorted);
+      localStorage.setItem('rows', JSON.stringify(sorted));
+    } else {
+      setRows(copy);
+      localStorage.setItem('rows', JSON.stringify(copy));
+    }
   };
 
-  const confirmRow = (idx) => {
-    const copy = [...rows];
-    copy[idx] = { ...copy[idx], _confirmed: true };
-    setRows(copy);
-    localStorage.setItem('rows', JSON.stringify(copy));
-  };
 
   const getFontSize = (text,maxWidth,base=11,min=7) => {
     let size = base;
@@ -256,12 +280,9 @@ export default function Screen1() {
           const isEditing = editing.row===idx;
           const isNew = r._new === true;
 
-          const shGoals = getTotalGoalsFromScore(r.sh);
-          const isSuspicious = (shGoals >= 5) && !r._confirmed;
 
           return (
-            <div key={idx} className="screen1-row" style={{height: rowHeight, backgroundColor: isSuspicious ? '#ffb3b3' : 'transparent'}}>
-              <div className="col rb">{r.rb}</div>
+<div key={idx} className="screen1-row" style={{ height: rowHeight, backgroundColor: r._syncedChanged ? 'yellow' : 'transparent' }}>
 
               <div className="col info">
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
@@ -313,7 +334,6 @@ export default function Screen1() {
               </div>
 
               <div className="col delete" style={{display:'flex', gap:'4px'}}>
-                {isSuspicious && <button onClick={()=>confirmRow(idx)} title="Potvrdi da je rezultat tačan">✅</button>}
                 <button onClick={()=>deleteRow(idx)}>x</button>
               </div>
             </div>
