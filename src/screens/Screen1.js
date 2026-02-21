@@ -105,17 +105,31 @@ const { teamMap } = useNormalisedTeamMap();
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-      const newRows = dataRows.map((r,i)=>({
-        rb: (rows?.length || 0) + i + 1,
-        datum: normalizeDate(r['Datum'] ?? ''),
-        vreme: String(r['Time'] ?? ''),
-        liga: r['Liga'] ?? '',
-        home: r['Home'] ?? '',
-        away: r['Away'] ?? '',
-        ft: r['FT'] ?? '',
-        ht: r['HT'] ?? '',
-        sh: r['SH'] ?? '',
-      }));
+    const newRows = dataRows.reduce((acc, r) => {
+  const datum = normalizeDate(r['Datum'] ?? '');
+  const vreme = String(r['Time'] ?? '');
+  const liga = r['Liga'] ?? '';
+  const home = r['Home'] ?? '';
+  const away = r['Away'] ?? '';
+  const ft = r['FT'] ?? '';
+  const ht = r['HT'] ?? '';
+  const sh = r['SH'] ?? '';
+
+  // provera da li vec postoji isti mec
+  const exists = rows?.some(existing =>
+    existing.datum === datum &&
+    String(existing.vreme) === vreme &&
+    existing.liga?.toLowerCase().trim() === liga?.toLowerCase().trim() &&
+    existing.home?.toLowerCase().trim() === home?.toLowerCase().trim() &&
+    existing.away?.toLowerCase().trim() === away?.toLowerCase().trim()
+  );
+
+  if (!exists) {
+    acc.push({ rb: 0, datum, vreme, liga, home, away, ft, ht, sh });
+  }
+
+  return acc;
+}, []);
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
