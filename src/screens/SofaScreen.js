@@ -2,440 +2,297 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
-import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 
 export default function SofaScreen({ onClose }) {
-const { sofaRows, setSofaRows } = useSofa();
-const { setTeamMap } = useNormalisedTeamMap();
-const { setLeagueTeamData } = useLeagueTeam();
 
-const tableWrapperRef = useRef(null);
-const [scrollTop, setScrollTop] = useState(0);
-const [editing, setEditing] = useState(null);
-const editRef = useRef(null);
+  const { sofaRows, setSofaRows } = useSofa();
+  const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
 
-const rowHeight = 28;
-const buffer = 15;
-const containerHeight = 600;
+  const tableWrapperRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [editing, setEditing] = useState({ row: null, col: null });
 
-/* ================= VIRTUALIZACIJA ================= */
-const totalRows = sofaRows?.length || 0;
-const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
-const endIndex = Math.min(
-totalRows,
-Math.ceil((scrollTop + containerHeight) / rowHeight) + buffer
-);
-const visibleRows = sofaRows.slice(startIndex, endIndex);
+  const rowHeight = 28;
+  const buffer = 15;
+  const containerHeight = 600;
 
-const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
+  const totalRows = sofaRows?.length || 0;
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / rowHeight) + buffer);
+  const visibleRows = sofaRows?.slice(startIndex, endIndex);
 
-const setValue = (idx, field, value) => {
-const copy = [...sofaRows];
-copy[idx][field] = value;
-setSofaRows(copy);
-};
+  const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
 
-/* ================= LONG PRESS HOOK ================= */
-const useLongPress = (callback, ms = 800) => {
-const timer = useRef();
-const start = (idx) => {
-timer.current = setTimeout(() => callback(idx), ms);
-};
-const clear = () => clearTimeout(timer.current);
-return { start, clear };
-};
+  /* ================= DATE SISTEM ISTI KAO SCREEN1 ================= */
 
-const infoLongPress = useLongPress((idx) => setEditing({ idx, field: "info" }), 800);
-const domacinLongPress = useLongPress((idx) => setEditing({ idx, field: "domacin" }), 800);
-const gostLongPress = useLongPress((idx) => setEditing({ idx, field: "gost" }), 800);
-const prvoLongPress = useLongPress((idx) => setEditing({ idx, field: "prvo" }), 800);
-const drugoLongPress = useLongPress((idx) => setEditing({ idx, field: "drugo" }), 800);
-const ftLongPress = useLongPress((idx) => setEditing({ idx, field: "ft" }), 800);
-const produzeciLongPress = useLongPress((idx) => setEditing({ idx, field: "produzeci" }), 800);
-const penaliLongPress = useLongPress((idx) => setEditing({ idx, field: "penali" }), 800);
-
-/* ================= DATE PARSER ================= */
-const parseDate = (d) => {
-if (!d) return new Date(0);
-const parts = d.split("/");
-if (parts.length !== 3) return new Date(0);
-
-const day = parseInt(parts[0], 10);
-const month = parseInt(parts[1], 10) - 1;
-let year = parseInt(parts[2], 10);
-
-if (year < 100) year += 2000;
-
-return new Date(year, month, day);
-};
-
-/* ================= IMPORT ================= */
-const importExcel = (event) => {
-const file = event.target.files?.[0];
-if (!file) return;
-
-const reader = new FileReader();
-reader.onload = (e) => {
-  const data = new Uint8Array(e.target.result);
-  const wb = XLSX.read(data, { type: "array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-  const currentRows = [...sofaRows];
-
-  const newRows = json.map((r, i) => ({
-    rb: currentRows.length + i + 1,
-    datum: r["Datum"] || "",
-    vreme: r["Vreme"] || "",
-    liga: r["Liga"] || "",
-    domacin: r["Domacin"] || "",
-    gost: r["Gost"] || "",
-    ft: r["Ft"] || "",
-    prvo: r["Prvo poluvreme"] || "",
-    drugo: r["Drugo poluvreme"] || "",
-    produzeci: r["Produžeci"] || "",
-    penali: r["Penali"] || "",
-  }));
-
-  const combined = [...currentRows, ...newRows];
-
-  combined.sort((a, b) => {
-    return parseDate(b.datum) - parseDate(a.datum);
-  });
-
-  combined.forEach((r, i) => (r.rb = i + 1));
-
-  setSofaRows(combined);
-  localStorage.setItem("sofaRows", JSON.stringify(combined));
-};
-reader.readAsArrayBuffer(file);
-};
-
-/* ================= BRISANJE ================= */
-const deleteRow = (idx) => {
-const copy = [...sofaRows];
-const team = copy[idx]?.domacin;
-if (team) {
-setTeamMap((prev) => ({
-...prev,
-[`sofa||${team}`]: { type: "team", name1: team, name2: team },
-}));
-}
-copy.splice(idx, 1);
-copy.forEach((r, i) => (r.rb = i + 1));
-setSofaRows(copy);
-localStorage.setItem("sofaRows", JSON.stringify(copy));
-};
-
-const deleteAll = () => {
-sofaRows.forEach((r) => {
-if (r.domacin) {
-setTeamMap((prev) => ({
-...prev,
-[`sofa||${r.domacin}`]: { type: "team", name1: r.domacin, name2: r.domacin },
-}));
-}
-});
-setSofaRows([]);
-localStorage.removeItem("sofaRows");
-};
-
-/* ================= PUNI LEAGUE TEAM SCREEN ================= */
-useEffect(() => {
-if (!sofaRows || sofaRows.length === 0) return;
-
-setLeagueTeamData((prev) => {
-  const updated = { ...prev };
-  sofaRows.forEach((r) => {
-    const liga = r.liga?.trim() || r.league?.trim();
-    const domacin = r.domacin?.trim() || r.home?.trim();
-    const gost = r.gost?.trim() || r.away?.trim();
-
-    if (!liga) return;
-    if (!updated[liga]) {
-      updated[liga] = {
-        screen1: "",
-        sofa: liga,
-        screen1Teams: [],
-        sofaTeams: [],
-      };
+  const normalizeDate = (val) => {
+    if (!val) return '';
+    if (!isNaN(val)) {
+      const date = new Date((val - 25569) * 86400 * 1000);
+      return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).padStart(2,'0')}.${date.getFullYear()}`;
     }
+    return String(val);
+  };
 
-    updated[liga].sofa = liga;
-
-    [domacin, gost].forEach((team) => {
-      if (team && !updated[liga].sofaTeams.includes(team)) {
-        updated[liga].sofaTeams.push(team);
-      }
-    });
+  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
+    const dateA = a.datum.split('.').reverse().join('-');
+    const dateB = b.datum.split('.').reverse().join('-');
+    return dateB.localeCompare(dateA);
   });
 
-  return updated;
-});
-}, [sofaRows, setLeagueTeamData]);
+  const isRowComplete = (row) => {
+    return (
+      row.datum &&
+      row.vreme &&
+      row.liga &&
+      row.home &&
+      row.away &&
+      row.ft &&
+      row.ht &&
+      row.sh
+    );
+  };
 
-/* ================= INIT EXISTING ROWS ================= */
-useEffect(() => {
-const stored = localStorage.getItem("sofaRows");
-if (stored) {
-const rows = JSON.parse(stored);
-if (rows.length) setSofaRows(rows);
-}
-}, [setSofaRows]);
+  /* ================= MAP / LEAGUE TEAM (BEZ NORMALIZACIJE) ================= */
 
-/* ================= RENDER ================= */
-return (
-<div className="sofa-screen-container">
-<div className="sofa-screen-topbar">
-<button onClick={onClose}>⬅ Izadji</button>
-<input type="file" accept=".xls,.xlsx" onChange={importExcel} />
-<button onClick={deleteAll}>Obriši sve</button>
-</div>
+  const updateLeagueTeam = (allRows) => {
+    const newLeagueData = { ...leagueTeamData };
 
-<div
-className="sofa-screen-table-wrapper"
-style={{ height: containerHeight, overflowY: "auto" }}
-ref={tableWrapperRef}
-onScroll={handleScroll}
->
-<div className="sofa-screen-row sofa-header" style={{ height: rowHeight }}>
-<div className="col rb">Rb</div>
-<div className="col info">Datum / Vreme / Liga</div>
-<div className="col team">Domaćin</div>
-<div className="col team">Gost</div>
-<div className="col res">Ft</div>
-<div className="col res">1P</div>
-<div className="col res">2P</div>
-<div className="col res">PR</div>
-<div className="col res">PEN</div>
-<div className="col del"></div>
-</div>
+    allRows.forEach(r => {
+      if (!r.liga) return;
+      const key = r.liga.toLowerCase().trim();
 
-<div style={{ height: startIndex * rowHeight }} />
-{visibleRows.map((r, i) => {
-const idx = startIndex + i;
-return (
-<div key={idx} className="sofa-screen-row" style={{ height: rowHeight }}>
-<div className="col rb">{r.rb}</div>
+      if (!newLeagueData[key]) {
+        newLeagueData[key] = {
+          screen1: "",
+          sofa: r.liga,
+          screen1Teams: [],
+          sofaTeams: []
+        };
+      }
 
-<div
-className="col info"
-onMouseDown={() => infoLongPress.start(idx)}
-onMouseUp={infoLongPress.clear}
-onMouseLeave={infoLongPress.clear}
-onTouchStart={() => infoLongPress.start(idx)}
-onTouchEnd={infoLongPress.clear}
->
-{editing?.idx === idx && editing.field === "info" ? (
-<div ref={editRef} style={{ display: "flex", flexDirection: "column" }}>
-<div style={{ display: "flex", gap: "3px" }}>
-<input
-autoFocus
-className="inline-edit"
-value={r.datum}
-onChange={(e) => setValue(idx, "datum", e.target.value)}
-onBlur={(e) => {
-if (!editRef.current.contains(e.relatedTarget)) setEditing(null);
-}}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-<input
-className="inline-edit"
-value={r.vreme}
-onChange={(e) => setValue(idx, "vreme", e.target.value)}
-onBlur={(e) => {
-if (!editRef.current.contains(e.relatedTarget)) setEditing(null);
-}}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-</div>
-<input
-className="inline-edit"
-value={r.liga}
-onChange={(e) => setValue(idx, "liga", e.target.value)}
-onBlur={(e) => {
-if (!editRef.current.contains(e.relatedTarget)) setEditing(null);
-}}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-</div>
-) : (
-<>
-<div className="info-top">
-<span>{r.datum}</span> <span>{r.vreme}</span>
-</div>
-<div className="info-league">{r.liga}</div>
-</>
-)}
-</div>
+      if (r.home && !newLeagueData[key].sofaTeams.includes(r.home))
+        newLeagueData[key].sofaTeams.push(r.home);
 
-<div
-className="col team bold"
-onMouseDown={() => domacinLongPress.start(idx)}
-onMouseUp={domacinLongPress.clear}
-onMouseLeave={domacinLongPress.clear}
-onTouchStart={() => domacinLongPress.start(idx)}
-onTouchEnd={domacinLongPress.clear}
->
-{editing?.idx === idx && editing.field === "domacin" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.domacin}
-onChange={(e) => setValue(idx, "domacin", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.domacin
-)}
-</div>
+      if (r.away && !newLeagueData[key].sofaTeams.includes(r.away))
+        newLeagueData[key].sofaTeams.push(r.away);
+    });
 
-<div
-className="col team bold"
-onMouseDown={() => gostLongPress.start(idx)}
-onMouseUp={gostLongPress.clear}
-onMouseLeave={gostLongPress.clear}
-onTouchStart={() => gostLongPress.start(idx)}
-onTouchEnd={gostLongPress.clear}
->
-{editing?.idx === idx && editing.field === "gost" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.gost}
-onChange={(e) => setValue(idx, "gost", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.gost
-)}
-</div>
+    setLeagueTeamData(newLeagueData);
+  };
 
-<div
-className="col res"
-onMouseDown={() => ftLongPress.start(idx)}
-onMouseUp={ftLongPress.clear}
-onMouseLeave={ftLongPress.clear}
-onTouchStart={() => ftLongPress.start(idx)}
-onTouchEnd={ftLongPress.clear}
->
-{editing?.idx === idx && editing.field === "ft" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.ft}
-onChange={(e) => setValue(idx, "ft", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (() => {
-if (!r.prvo || !r.drugo) return r.ft;
-const [h1, g1] = r.prvo.split(" - ").map(Number);
-const [h2, g2] = r.drugo.split(" - ").map(Number);
-if ([h1, g1, h2, g2].some(isNaN)) return r.ft;
-return `${h1 + h2}-${g1 + g2}`;
-})()}
+  useEffect(() => {
+    if (!sofaRows) return;
+    updateLeagueTeam(sofaRows);
+    // eslint-disable-next-line
+  }, [sofaRows]);
+
+  /* ================= IMPORT ================= */
+
+  const importExcel = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+      const newRows = dataRows.map(r => ({
+        rb: 0,
+        datum: normalizeDate(r['Datum'] ?? ''),
+        vreme: String(r['Time'] ?? r['Vreme'] ?? ''),
+        liga: r['Liga'] ?? '',
+home: r['Domacin'] ?? '',
+away: r['Gost'] ?? '',
+ft: r['Ft'] ?? '',
+ht: r['Prvo poluvreme'] ?? '',
+sh: r['Drugo poluvreme'] ?? '',
+et: r['Produzeci'] ?? '',
+pen: r['Penali'] ?? ''
+      }));
+
+      const allRows = sortRowsByDateDesc([...(sofaRows || []), ...newRows]);
+      allRows.forEach((r,i)=>r.rb=i+1);
+
+      setSofaRows(allRows);
+      localStorage.setItem('sofaRows', JSON.stringify(allRows));
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  /* ================= EDIT SISTEM ISTI KAO SCREEN1 ================= */
+
+  const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
+  const handleEditEnd = () => setEditing({row:null, col:null});
+
+  const handleCellChange = (rowIdx,key,value) => {
+
+    const copy = [...sofaRows];
+    copy[rowIdx] = { ...copy[rowIdx], [key]: value };
+
+    const editedRow = copy[rowIdx];
+
+    if (isRowComplete(editedRow)) {
+      delete editedRow._new;
+      const sorted = sortRowsByDateDesc(copy);
+      sorted.forEach((r,i)=>r.rb=i+1);
+      setSofaRows(sorted);
+      localStorage.setItem('sofaRows', JSON.stringify(sorted));
+    } else {
+      setSofaRows(copy);
+      localStorage.setItem('sofaRows', JSON.stringify(copy));
+    }
+  };
+
+  const addNewRow = () => {
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', et:'', pen:'', _new:true };
+    const newRows = [newRow, ...(sofaRows||[])];
+    newRows.forEach((r,i)=>r.rb=i+1);
+    setSofaRows(newRows);
+    localStorage.setItem('sofaRows', JSON.stringify(newRows));
+
+    if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
+    setScrollTop(0);
+  };
+
+  const deleteRow = (index) => {
+    const copy = [...sofaRows];
+    copy.splice(index,1);
+    copy.forEach((r,i)=>r.rb=i+1);
+    setSofaRows(copy);
+    localStorage.setItem('sofaRows', JSON.stringify(copy));
+  };
+
+  const deleteAllRows = () => {
+    setSofaRows([]);
+    localStorage.removeItem('sofaRows');
+  };
+
+  /* ================= RENDER ================= */
+
+  return (
+    <div className="screen1-container">
+
+      <button onClick={onClose}>⬅ Izadji</button>
+      <button onClick={deleteAllRows}>Izbrisi sve</button>
+
+      <div className="screen1-topbar">
+        <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
+        <button onClick={addNewRow}>Dodaj novi mec</button>
+      </div>
+
+      <div
+        className="screen1-table-wrapper"
+        style={{height:containerHeight, overflowY:'auto'}}
+        ref={tableWrapperRef}
+        onScroll={handleScroll}
+      >
+
+        <div style={{height: startIndex*rowHeight}}></div>
+       <div className="screen1-row header">
+  <div className="col info">Datum / Vreme / Liga</div>
+  <div className="col teams">Timovi</div>
+  <div className="col small">HT</div>
+  <div className="col small">SH</div>
+  <div className="col small">FT</div>
+  <div className="col small">ET</div>
+  <div className="col small">PEN</div>
+  <div className="col delete">X</div>
 </div>
 
-<div
-className="col res"
-onMouseDown={() => prvoLongPress.start(idx)}
-onMouseUp={prvoLongPress.clear}
-onMouseLeave={prvoLongPress.clear}
-onTouchStart={() => prvoLongPress.start(idx)}
-onTouchEnd={prvoLongPress.clear}
->
-{editing?.idx === idx && editing.field === "prvo" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.prvo}
-onChange={(e) => setValue(idx, "prvo", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.prvo
-)}
+        {visibleRows?.map((r,i)=>{
+          const idx = startIndex+i;
+          const isEditing = editing.row===idx;
+          const isNew = r._new === true;
+
+          return (
+            <div key={idx} className="screen1-row" style={{ height: rowHeight }}>
+
+              <div className="col info">
+
+                <div style={{display:'flex', gap:'3px'}}>
+                  {(isNew || (isEditing && editing.col==='datum')) ?
+                    <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
+                    <div onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
+                  }
+
+                  {(isNew || (isEditing && editing.col==='vreme')) ?
+                    <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
+                    <div onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
+                  }
+                </div>
+
+                {(isNew || (isEditing && editing.col==='liga')) ?
+                  <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
+                  <div onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold'}}>{r.liga}</div>
+                }
+
+              </div>
+
+              <div className="col teams">
+                {(isNew || (isEditing && editing.col==='home')) ?
+                  <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
+                }
+                <span> - </span>
+                {(isNew || (isEditing && editing.col==='away')) ?
+                  <input className="edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
+                }
+              </div>
+
+<div className="col small">
+  {(isNew || (isEditing && editing.col==='ht')) ?
+    <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
+    <span onClick={()=>handleEditStart(idx,'ht')}>{r.ht}</span>
+  }
 </div>
 
-<div
-className="col res"
-onMouseDown={() => drugoLongPress.start(idx)}
-onMouseUp={drugoLongPress.clear}
-onMouseLeave={drugoLongPress.clear}
-onTouchStart={() => drugoLongPress.start(idx)}
-onTouchEnd={drugoLongPress.clear}
->
-{editing?.idx === idx && editing.field === "drugo" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.drugo}
-onChange={(e) => setValue(idx, "drugo", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.drugo
-)}
+<div className="col small">
+  {(isNew || (isEditing && editing.col==='sh')) ?
+    <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
+    <span onClick={()=>handleEditStart(idx,'sh')}>{r.sh}</span>
+  }
 </div>
 
-<div
-className="col res"
-onMouseDown={() => produzeciLongPress.start(idx)}
-onMouseUp={produzeciLongPress.clear}
-onMouseLeave={produzeciLongPress.clear}
-onTouchStart={() => produzeciLongPress.start(idx)}
-onTouchEnd={produzeciLongPress.clear}
->
-{editing?.idx === idx && editing.field === "produzeci" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.produzeci}
-onChange={(e) => setValue(idx, "produzeci", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.produzeci
-)}
+<div className="col small">
+  {(isNew || (isEditing && editing.col==='ft')) ?
+    <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
+    <strong onClick={()=>handleEditStart(idx,'ft')}>{r.ft}</strong>
+  }
 </div>
 
-<div
-className="col res"
-onMouseDown={() => penaliLongPress.start(idx)}
-onMouseUp={penaliLongPress.clear}
-onMouseLeave={penaliLongPress.clear}
-onTouchStart={() => penaliLongPress.start(idx)}
-onTouchEnd={penaliLongPress.clear}
->
-{editing?.idx === idx && editing.field === "penali" ? (
-<input
-autoFocus
-className="inline-edit"
-value={r.penali}
-onChange={(e) => setValue(idx, "penali", e.target.value)}
-onBlur={() => setEditing(null)}
-onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
-/>
-) : (
-r.penali
-)}
+<div className="col small">
+  {(isNew || (isEditing && editing.col==='et')) ?
+    <input className="edit-input" value={r.et} onChange={e=>handleCellChange(idx,'et',e.target.value)} onBlur={handleEditEnd} /> :
+    <span onClick={()=>handleEditStart(idx,'et')}>{r.et}</span>
+  }
 </div>
 
-<div className="col del">
-<button onClick={() => deleteRow(idx)}>x</button>
+<div className="col small">
+  {(isNew || (isEditing && editing.col==='pen')) ?
+    <input className="edit-input" value={r.pen} onChange={e=>handleCellChange(idx,'pen',e.target.value)} onBlur={handleEditEnd} /> :
+    <span onClick={()=>handleEditStart(idx,'pen')}>{r.pen}</span>
+  }
 </div>
-</div>
-);
-})}
-<div style={{ height: (totalRows - endIndex) * rowHeight }} />
-</div>
-</div>
-);
+
+              <div className="col delete">
+                <button onClick={()=>deleteRow(idx)}>x</button>
+              </div>
+
+            </div>
+          );
+        })}
+
+        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
+
+      </div>
+    </div>
+  );
 }
