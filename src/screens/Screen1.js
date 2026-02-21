@@ -135,10 +135,9 @@ const { teamMap } = useNormalisedTeamMap();
       setRows(allRows);
       localStorage.setItem('rows', JSON.stringify(allRows));
 
+  };
     reader.readAsArrayBuffer(file);
   };
-  };
-
   const syncWithSofaScreen = async () => {
   try {
     const response = await fetch('/sofascreen-results.json');
@@ -244,6 +243,10 @@ const { teamMap } = useNormalisedTeamMap();
     setRows(copy);
     localStorage.setItem('rows', JSON.stringify(copy));
   };
+  const deleteAllRows = () => {
+    setRows([]);
+    localStorage.removeItem('rows');
+  };
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
@@ -280,7 +283,8 @@ const { teamMap } = useNormalisedTeamMap();
 
   return (
     <div className="screen1-container">
-      <div className="screen1-topbar">
+    <button onClick={deleteAllRows}>Izbrisi sve</button>
+  <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
         <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
