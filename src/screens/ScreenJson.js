@@ -4,30 +4,56 @@ import { useSofa } from "../SofaContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 
+// ==========================================
+// RAW funkcija za korišćenje van komponente
+// ==========================================
+export function convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap) {
+  return sofaRows.map((r, index) => {
+    const normalizedHome =
+      Object.values(teamMap).find(t => t.sofa === (r.home?.name || r.home))?.normalized ||
+      (r.home?.name || r.home);
 
-function timeToMinutes(t) {
-if (!t) return null;
-const [h, m] = t.split(":").map(Number);
-return h * 60 + m;
+    const normalizedAway =
+      Object.values(teamMap).find(t => t.sofa === (r.away?.name || r.away))?.normalized ||
+      (r.away?.name || r.away);
+
+    const normalizedLeague =
+      Object.values(leagueMap).find(l => l.sofa === r.liga)?.normalized ||
+      r.liga;
+
+    const [day, month, year] = r.datum.split("/");
+    const fullYear = year.length === 2 ? "20" + year : year;
+    const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+    return {
+      rb: index + 1,
+      datum,
+      vreme: r.vreme,
+      liga: normalizedLeague,
+      home: normalizedHome,
+      away: normalizedAway,
+      ft: r.ft?.replace(/\s/g, "").replace("-", ":") || null,
+      ht: r.ht?.replace(/\s/g, "").replace("-", ":") || null,
+      sh: r.sh?.replace(/\s/g, "").replace("-", ":") || null,
+    };
+  });
 }
+
 
 export default function ScreenJson({ onClose }) {
 const { rows } = useContext(MatchesContext);
 const { sofaRows } = useSofa();
 const [activeTab, setActiveTab] = useState("moj");
 
-const [selectedMy, setSelectedMy] = useState(null);  
-const [selectedApi, setSelectedApi] = useState(null);  
 
-const [mappedTeams, setMappedTeams] = useState([]);  
 
 const [jsonFile, setJsonFile] = useState({ content: "", lastUpdated: null, totalMatches: 0, addedMatches: 0, prevCount: 0 });  
-const [apiData, setApiData] = useState(null);  
 const [apiStatus, setApiStatus] = useState("");  
 const [apiError, setApiError] = useState("");  
 const [sofaJsonFile, setSofaJsonFile] = useState({ content: "", lastUpdated: null, totalMatches: 0, addedMatches: 0, prevCount: 0 });
 const { leagueMap } = useLeagueMap();
 const { teamMap } = useNormalisedTeamMap();
+const [logs, setLogs] = useState([]); // za prikaz logova u tabu
 
 const createJSON = useCallback(() => {  
     if (!rows || rows.length === 0) return;  
@@ -53,33 +79,43 @@ const createSofaJSON = useCallback(() => {
         addedMatches: sofaRows.length - (prev?.totalMatches || 0)
     }));
 }, [sofaRows]);
-const convertSofaToSyncJSON = (sofaRows) => {
-  return sofaRows
-    .map((r, index) => {
-      const normalizedHome = teamMap[r.home];
-      const normalizedAway = teamMap[r.away];
-      const normalizedLeague = leagueMap[r.liga];
+const convertSofaToSyncJSON = useCallback((sofaRows) => {
+  const newLogs = [];
+  newLogs.push("=== POČINJEM KONVERZIJU SofaRows ===");
+  newLogs.push(`sofaRows: ${JSON.stringify(sofaRows, null, 2)}`);
+  newLogs.push(`teamMap: ${JSON.stringify(teamMap, null, 2)}`);
+  newLogs.push(`leagueMap: ${JSON.stringify(leagueMap, null, 2)}`);
 
-      if (!normalizedHome || !normalizedAway || !normalizedLeague) return null;
+  const syncJson = sofaRows.map((r, index) => {
+       const normalizedHome = Object.values(teamMap).find(t => t.sofa === (r.home?.name || r.home))?.normalized || (r.home?.name || r.home);
+const normalizedAway = Object.values(teamMap).find(t => t.sofa === (r.away?.name || r.away))?.normalized || (r.away?.name || r.away);
+const normalizedLeague = Object.values(leagueMap).find(l => l.sofa === r.liga)?.normalized || r.liga;
 
-      const [day, month, year] = r.datum.split("/");
-      const fullYear = year.length === 2 ? "20" + year : year;
-      const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    newLogs.push(`Meč #${index + 1}:`);
+    newLogs.push(`  Original home: ${r.home} => Normalized: ${normalizedHome}`);
+    newLogs.push(`  Original away: ${r.away} => Normalized: ${normalizedAway}`);
+    newLogs.push(`  Original liga: ${r.liga} => Normalized: ${normalizedLeague}`);
+    newLogs.push(`  Datum/vreme: ${r.datum} ${r.vreme}`);
 
-      return {
-        rb: index + 1,
-        datum,
-        vreme: r.vreme,
-        liga: normalizedLeague,
-        home: normalizedHome,
-        away: normalizedAway,
-        ft: r.ft,
-        ht: r.ht,
-        sh: r.sh
-      };
-    })
-    .filter(Boolean);
-};
+    const [day, month, year] = r.datum.split("/");
+    const fullYear = year.length === 2 ? "20" + year : year;
+    const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+    return {
+      rb: index + 1,
+      datum,
+      vreme: r.vreme,
+      liga: normalizedLeague,
+      home: normalizedHome,
+      away: normalizedAway,
+      ft: r.ft?.replace(/\s/g, "").replace("-", ":") || null,
+      ht: r.ht?.replace(/\s/g, "").replace("-", ":") || null,
+      sh: r.sh?.replace(/\s/g, "").replace("-", ":") || null,
+    };
+  });
+
+  return { syncJson, logs: newLogs }; // vrati logove umesto da setuješ state
+}, [teamMap, leagueMap]);
 
 useEffect(() => {  
     if (rows.length) createJSON();  
@@ -87,6 +123,14 @@ useEffect(() => {
 useEffect(() => {
     if (sofaRows.length) createSofaJSON();
 }, [sofaRows, createSofaJSON]);
+useEffect(() => {
+  if (!sofaRows || sofaRows.length === 0) {
+    setLogs([]);
+    return;
+  }
+  const { logs: newLogs } = convertSofaToSyncJSON(sofaRows);
+  setLogs(newLogs);
+}, [sofaRows, convertSofaToSyncJSON]);
 
 const copyJSON = () => {  
     if (!jsonFile.content) return;  
@@ -97,28 +141,6 @@ const copySofaJSON = () => {
     navigator.clipboard.writeText(sofaJsonFile.content).then(() => alert("SofaScreen JSON kopiran!"));
 };
 
-// ===============================  
-// RUČNO UVEZIVANJE sa uklanjanjem iz liste  
-// ===============================  
-const addManualPair = () => {  
-    if (!selectedMy || !selectedApi) return;  
-
-    setMappedTeams(prev => [  
-        ...prev,  
-        { my: selectedMy, api: selectedApi }  
-    ]);  
-
-    // ukloni iz lista  
-    setJsonFile(prev => {  
-        const myList = JSON.parse(prev.content);  
-        const filtered = myList.filter(m => m !== selectedMy);  
-        return { ...prev, content: JSON.stringify(filtered, null, 2) };  
-    });  
-    setApiData(prev => prev.filter(a => a !== selectedApi));  
-
-    setSelectedMy(null);  
-    setSelectedApi(null);  
-};  
 
 // ===============================
 // SAMO OVAJ DEO JE IZMENJEN
@@ -146,7 +168,6 @@ const handleFileUpload = async (event) => {
             status: e.status?.description || ""  
         }));  
 
-        setApiData(normalized);  
         setApiStatus(`✅ Učitano ${normalized.length} mečeva iz fajla`);  
     } catch(err) {  
         setApiError("❌ Greška: " + err.message);  
@@ -155,66 +176,34 @@ const handleFileUpload = async (event) => {
 };
 // ===============================
 
-const renderCompare = () => {  
-    if (!jsonFile.content || !apiData) return <div>Prvo učitaj oba JSON-a.</div>;  
+const renderCompare = () => {
+  if (!sofaRows || sofaRows.length === 0) return <div>Nema SofaScreen mečeva za prikaz.</div>;
 
-    let my = JSON.parse(jsonFile.content);  
-    let api = apiData;  
+const { syncJson } = convertSofaToSyncJSON(sofaRows);
 
-    my.sort((a,b) => timeToMinutes(a.vreme) - timeToMinutes(b.vreme));  
-    api.sort((a,b) => a.fixture.date.localeCompare(b.fixture.date));  
 
-    const handleSelect = (match, type) => {  
-        if (type === "my") setSelectedMy(match === selectedMy ? null : match);  
-        else setSelectedApi(match === selectedApi ? null : match);  
-    };  
+  return (
+    <div>
+      <h3>Sync JSON iz SofaScreen sa normalizovanim imenima</h3>
+      <button
+        onClick={() => navigator.clipboard.writeText(JSON.stringify(syncJson, null, 2))}
+        style={{ marginBottom: 10, padding: 8, fontWeight: "bold" }}
+      >
+        📋 Kopiraj Sync JSON
+      </button>
 
-    return (  
-        <div>  
-            <div style={{ marginBottom: 10, fontWeight: "bold" }}>  
-                MOJ: {my.length} | SOFA: {api.length} | Upareno: {mappedTeams.length}  
-            </div>  
+      <div style={{ display: "flex", gap: 10 }}>
+        <pre style={{ flex: 1, maxHeight: 500, overflowY: "auto", background: "#f5f5f5", padding: 10 }}>
+          {JSON.stringify(syncJson, null, 2)}
+        </pre>
 
-            <button onClick={addManualPair} style={{ margin: "10px 0", padding: 8, fontWeight: "bold" }}>  
-                🔗 UVEŽI IZABRANE  
-            </button>  
-
-            <div style={{ display: "flex", gap: 10 }}>  
-                {/* MOJ JSON kolona */}  
-                <div style={{ flex: 1, maxHeight: 500, overflowY: "auto", border: "1px solid #ccc" }}>  
-                    {my.map((m, i) => (  
-                        <div key={i}  
-                            onClick={() => handleSelect(m, "my")}  
-                            style={{  
-                                padding: 4,  
-                                cursor: "pointer",  
-                                background: selectedMy === m ? "#d4edda" : "white",  
-                                borderBottom: "1px solid #eee"  
-                            }}>  
-                            {m.datum} {m.vreme} | {m.home} - {m.away}  
-                        </div>  
-                    ))}  
-                </div>  
-
-                {/* SOFASCORE kolona */}  
-                <div style={{ flex: 1, maxHeight: 500, overflowY: "auto", border: "1px solid #ccc" }}>  
-                    {api.map((m, i) => (  
-                        <div key={i}  
-                            onClick={() => handleSelect(m, "api")}  
-                            style={{  
-                                padding: 4,  
-                                cursor: "pointer",  
-                                background: selectedApi === m ? "#d4edda" : "white",  
-                                borderBottom: "1px solid #eee"  
-                            }}>  
-                            {m.fixture.date.split("T")[0]} {m.fixture.date.split("T")[1]?.substring(0,5)} | {m.teams.home.name} - {m.teams.away.name}  
-                        </div>  
-                    ))}  
-                </div>  
-            </div>  
-        </div>  
-    );  
-};  
+        <pre style={{ flex: 1, maxHeight: 500, overflowY: "auto", background: "#fff3cd", padding: 10 }}>
+          {logs.join("\n")}
+        </pre>
+      </div>
+    </div>
+  );
+};
 
 const renderTab = () => {  
     if (activeTab === "moj") {  

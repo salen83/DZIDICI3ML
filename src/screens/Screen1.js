@@ -6,6 +6,8 @@ import { useMapScreen } from "../MapScreenContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
+import { convertSofaToSyncJSONRaw } from "./ScreenJson";
+import { useSofa } from "../SofaContext";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
@@ -13,10 +15,17 @@ export default function Screen1() {
   const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
   const { leagueMap } = useLeagueMap();
 const { teamMap } = useNormalisedTeamMap();
+const { sofaRows } = useSofa();
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
-  const rowHeight = 28;
+  const [debugLogs, setDebugLogs] = useState([]);
+
+const addLog = (msg) => {
+  setDebugLogs(prev => [...prev, msg]);
+  console.log(msg); // i dalje ide i u browser konzolu
+};
+const rowHeight = 28;
   const buffer = 15;
   const containerHeight = 600;
 
@@ -138,77 +147,45 @@ const { teamMap } = useNormalisedTeamMap();
   };
     reader.readAsArrayBuffer(file);
   };
-  const syncWithSofaScreen = async () => {
+const syncWithSofaScreen = async () => {
   try {
-    const response = await fetch('/sofascreen-results.json');
-    const sofaRows = await response.json();
+    addLog("🔹 Pokrenut syncWithSofaScreen");
+
+const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
+addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
     const updatedRows = rows.map(row => {
+      const match = syncJson.find(s =>
+        s.datum === row.datum &&
+        String(s.vreme) === String(row.vreme) &&
+        s.liga === row.liga &&
+        s.home === row.home &&
+        s.away === row.away
+      );
 
-      // 🔹 pronađi normalizovanu ligu za screen1
-      const leagueEntry = Object.values(leagueMap || {})
-        .find(l => l.screen1 === row.liga);
-
-      if (!leagueEntry?.normalized) return row;
-
-      // 🔹 pronađi normalizovane timove za screen1
-      const homeEntry = Object.values(teamMap || {})
-        .find(t => t.screen1 === row.home);
-
-      const awayEntry = Object.values(teamMap || {})
-        .find(t => t.screen1 === row.away);
-
-      if (!homeEntry?.normalized || !awayEntry?.normalized)
+      if (!match) {
+        addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
         return row;
-
-      const match = sofaRows.find(s => {
-
-        const sofaLeagueEntry = Object.values(leagueMap || {})
-          .find(l => l.sofa === s.liga);
-
-        const sofaHomeEntry = Object.values(teamMap || {})
-          .find(t => t.sofa === s.home);
-
-        const sofaAwayEntry = Object.values(teamMap || {})
-          .find(t => t.sofa === s.away);
-
-        if (
-          !sofaLeagueEntry?.normalized ||
-          !sofaHomeEntry?.normalized ||
-          !sofaAwayEntry?.normalized
-        ) return false;
-
-        return (
-          normalizeDate(s.datum) === row.datum &&
-          String(s.vreme) === String(row.vreme) &&
-          sofaLeagueEntry.normalized === leagueEntry.normalized &&
-          sofaHomeEntry.normalized === homeEntry.normalized &&
-          sofaAwayEntry.normalized === awayEntry.normalized
-        );
-      });
-
-      if (!match) return row;
+      }
 
       const sofaFT = match.ft ?? '';
       const sofaSH = match.sh ?? '';
 
-      if (row.ft === sofaFT && row.sh === sofaSH)
+      if (row.ft === sofaFT && row.sh === sofaSH) {
+        addLog(`✅ Rezultati isti za: ${row.home} - ${row.away}`);
         return { ...row, _syncedChanged: false };
+      }
 
-      return {
-        ...row,
-        ft: sofaFT,
-        sh: sofaSH,
-        _syncedChanged: true
-      };
-
+      addLog(`⚠️ Rezultati se razlikuju za: ${row.home} - ${row.away}, update na ${sofaFT}:${sofaSH}`);
+      return { ...row, ft: sofaFT, sh: sofaSH, _syncedChanged: true };
     });
 
     setRows(updatedRows);
     localStorage.setItem('rows', JSON.stringify(updatedRows));
+    addLog("🔹 Sync završen");
 
   } catch (err) {
-    console.error('Sync SofaScreen failed:', err);
+    addLog(`❌ Greška u sync: ${err}`);
   }
 };
   const isRowComplete = (row) => {
@@ -288,7 +265,8 @@ const { teamMap } = useNormalisedTeamMap();
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
         <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
-      </div>
+        <button onClick={() => console.log(debugLogs)}>Prikaži debug log</button>
+</div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
         <div style={{height: startIndex*rowHeight}}></div>
@@ -359,6 +337,9 @@ const { teamMap } = useNormalisedTeamMap();
         })}
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
+      <div style={{ maxHeight: 200, overflowY: 'auto', background: '#eee', marginTop: 10, padding: 5 }}>
+  {debugLogs.map((l, i) => <div key={i}>{l}</div>)}
+</div>
     </div>
   );
 }

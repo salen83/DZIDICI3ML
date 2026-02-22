@@ -11,6 +11,8 @@
 .columns {
   display: flex;
   gap: 20px;
+  overflow-x: auto;    /* horizontalni scroll ako je potrebno */
+  max-height: 500px;   /* visina po želji, za vertikalni scroll */
 }
 
 .panel {
@@ -19,6 +21,8 @@
   border-radius: 10px;
   padding: 15px;
   color: white;
+  max-height: 500px;    /* visina po želji */
+  overflow-y: auto;     /* vertikalni scroll unutar panela */
 }
 
 .panel-title {
