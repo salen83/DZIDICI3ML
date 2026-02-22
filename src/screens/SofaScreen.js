@@ -57,30 +57,28 @@ export default function SofaScreen({ onClose }) {
   /* ================= MAP / LEAGUE TEAM (BEZ NORMALIZACIJE) ================= */
 
   const updateLeagueTeam = (allRows) => {
-    const newLeagueData = { ...leagueTeamData };
+  const newLeagueData = { ...leagueTeamData };
 
-    allRows.forEach(r => {
-      if (!r.liga) return;
-      const key = r.liga.toLowerCase().trim();
+  allRows.forEach(r => {
+    if (!r.liga) return;
+    const key = r.liga.toLowerCase().trim();
 
-      if (!newLeagueData[key]) {
-        newLeagueData[key] = {
-          screen1: "",
-          sofa: r.liga,
-          screen1Teams: [],
-          sofaTeams: []
-        };
-      }
+    if (!newLeagueData[key]) {
+      newLeagueData[key] = {
+        screen1: "",
+        sofa: r.liga,
+        screen1Teams: [],
+        sofaTeams: []
+      };
+    }
 
-      if (r.home && !newLeagueData[key].sofaTeams.includes(r.home))
-        newLeagueData[key].sofaTeams.push(r.home);
+    // Minimalna promena: u sofaTeams ubaci direktno home i away
+    if (r.home) newLeagueData[key].sofaTeams.push(r.home);
+    if (r.away) newLeagueData[key].sofaTeams.push(r.away);
+  });
 
-      if (r.away && !newLeagueData[key].sofaTeams.includes(r.away))
-        newLeagueData[key].sofaTeams.push(r.away);
-    });
-
-    setLeagueTeamData(newLeagueData);
-  };
+  setLeagueTeamData(newLeagueData);
+};
 
   useEffect(() => {
     if (!sofaRows) return;

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback, useContext } from "react";
 import { MatchesContext } from "../MatchesContext";
+import { useSofa } from "../SofaContext";
+import { useLeagueMap } from "../LeagueMapContext";
+import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
+
 
 function timeToMinutes(t) {
 if (!t) return null;
@@ -9,6 +13,7 @@ return h * 60 + m;
 
 export default function ScreenJson({ onClose }) {
 const { rows } = useContext(MatchesContext);
+const { sofaRows } = useSofa();
 const [activeTab, setActiveTab] = useState("moj");
 
 const [selectedMy, setSelectedMy] = useState(null);  
@@ -20,6 +25,9 @@ const [jsonFile, setJsonFile] = useState({ content: "", lastUpdated: null, total
 const [apiData, setApiData] = useState(null);  
 const [apiStatus, setApiStatus] = useState("");  
 const [apiError, setApiError] = useState("");  
+const [sofaJsonFile, setSofaJsonFile] = useState({ content: "", lastUpdated: null, totalMatches: 0, addedMatches: 0, prevCount: 0 });
+const { leagueMap } = useLeagueMap();
+const { teamMap } = useNormalisedTeamMap();
 
 const createJSON = useCallback(() => {  
     if (!rows || rows.length === 0) return;  
@@ -33,15 +41,61 @@ const createJSON = useCallback(() => {
         addedMatches: rows.length - prev.totalMatches  
     }));  
 }, [rows]);  
+const createSofaJSON = useCallback(() => {
+    if (!sofaRows || sofaRows.length === 0) return;
+    const content = JSON.stringify(sofaRows, null, 2);
+    const now = new Date();
+    setSofaJsonFile(prev => ({
+        content,
+        lastUpdated: now,
+        totalMatches: sofaRows.length,
+        prevCount: prev?.totalMatches || 0,
+        addedMatches: sofaRows.length - (prev?.totalMatches || 0)
+    }));
+}, [sofaRows]);
+const convertSofaToSyncJSON = (sofaRows) => {
+  return sofaRows
+    .map((r, index) => {
+      const normalizedHome = teamMap[r.home];
+      const normalizedAway = teamMap[r.away];
+      const normalizedLeague = leagueMap[r.liga];
+
+      if (!normalizedHome || !normalizedAway || !normalizedLeague) return null;
+
+      const [day, month, year] = r.datum.split("/");
+      const fullYear = year.length === 2 ? "20" + year : year;
+      const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+      return {
+        rb: index + 1,
+        datum,
+        vreme: r.vreme,
+        liga: normalizedLeague,
+        home: normalizedHome,
+        away: normalizedAway,
+        ft: r.ft,
+        ht: r.ht,
+        sh: r.sh
+      };
+    })
+    .filter(Boolean);
+};
 
 useEffect(() => {  
     if (rows.length) createJSON();  
 }, [rows, createJSON]);  
+useEffect(() => {
+    if (sofaRows.length) createSofaJSON();
+}, [sofaRows, createSofaJSON]);
 
 const copyJSON = () => {  
     if (!jsonFile.content) return;  
     navigator.clipboard.writeText(jsonFile.content).then(() => alert("JSON kopiran!"));  
 };  
+const copySofaJSON = () => {
+    if (!sofaJsonFile.content) return;
+    navigator.clipboard.writeText(sofaJsonFile.content).then(() => alert("SofaScreen JSON kopiran!"));
+};
 
 // ===============================  
 // RUČNO UVEZIVANJE sa uklanjanjem iz liste  
@@ -175,16 +229,35 @@ const renderTab = () => {
         );  
     }  
 
-    if (activeTab === "provera") {  
-        return (  
-            <div>  
-                <h3>SOFASCORE JSON</h3>  
-                <input type="file" accept=".json" onChange={handleFileUpload} style={{ marginBottom: 10 }} />  
-                {apiStatus && <div style={{ marginTop: 10, color: "green", fontWeight: "bold" }}>{apiStatus}</div>}  
-                {apiError && <div style={{ marginTop: 10, color: "red", fontWeight: "bold" }}>{apiError}</div>}  
-            </div>  
-        );  
-    }  
+    if (activeTab === "provera") {
+    return (
+        <div>
+            <h3>SOFASCREEN JSON</h3>
+            <div style={{ marginBottom: 10 }}>
+                <button onClick={createSofaJSON} style={{ marginRight: 5 }}>Kreiraj JSON</button>
+                <button onClick={copySofaJSON}>Kopiraj JSON</button>
+                <button
+  onClick={() => {
+    const syncJson = convertSofaToSyncJSON(sofaRows);
+    setSofaJsonFile(prev => ({
+      content: JSON.stringify(syncJson, null, 2),
+      lastUpdated: new Date(),
+      totalMatches: syncJson.length,
+      prevCount: prev?.totalMatches || 0,
+      addedMatches: syncJson.length - (prev?.totalMatches || 0)
+    }));
+  }}
+  style={{ marginRight: 5 }}
+>
+  Generiši Sync JSON iz SofaScreen
+</button>
+            </div>
+            <input type="file" accept=".json" onChange={handleFileUpload} style={{ marginBottom: 10 }} />
+            {apiStatus && <div style={{ marginTop: 10, color: "green", fontWeight: "bold" }}>{apiStatus}</div>}
+            {apiError && <div style={{ marginTop: 10, color: "red", fontWeight: "bold" }}>{apiError}</div>}
+        </div>
+    );
+}
 
     if (activeTab === "uporedi") return renderCompare();  
     if (activeTab === "mapiranje") return <div />;  

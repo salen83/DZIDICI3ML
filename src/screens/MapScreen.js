@@ -35,14 +35,27 @@ export default function MapScreen({ onClose }) {
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
-  const sofaTeamsAll = useMemo(() => {
-    if (!sofaRows) return [];
-    return Array.from(
-      new Set(sofaRows.flatMap(r =>
-        [r.Domacin || r.domacin, r.Gost || r.gost].filter(Boolean)
-      ))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sofaRows]);
+const sofaTeamsAll = useMemo(() => {
+  if (!sofaRows) return [];
+  return Array.from(
+    new Set(
+      sofaRows.flatMap(r =>
+        [
+          r.domacin,
+          r.Domacin,
+          r.DOMACIN,
+          r.home,
+          r.Home,
+          r.gost,
+          r.Gost,
+          r.GOST,
+          r.away,
+          r.Away
+        ].filter(Boolean)
+      )
+    )
+  ).sort((a, b) => a.localeCompare(b));
+}, [sofaRows]);
 
   // =====================
   // SVE LIGE
