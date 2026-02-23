@@ -260,7 +260,7 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
   return (
     <div className="screen1-container">
-    <button onClick={deleteAllRows}>Izbrisi sve</button>
+   <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
   <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>

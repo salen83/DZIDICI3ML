@@ -118,9 +118,10 @@
 }
 
 .col.del button {
-  font-size: 11px;
-  padding: 2px 6px;
-  cursor: pointer;
+    font-size: 10px;       /* smanji font */
+    padding: 1px 3px;      /* minimalni padding */
+    cursor: pointer;
+    width: auto;            /* da ne zauzima celu širinu */
 }
 
 /* ===== MOBILE TWEAK ===== */
@@ -137,3 +138,9 @@
     width: 46px;
   }
 }
+.small-btn {   /* otvaramo blok */
+  font-size: 10px;
+  padding: 2px 4px;
+  width: auto;
+  cursor: pointer;
+}              /* zatvaramo blok */

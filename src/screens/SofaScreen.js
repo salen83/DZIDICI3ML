@@ -177,8 +177,10 @@ pen: r['Penali'] ?? ''
   return (
     <div className="screen1-container">
 
-      <button onClick={onClose}>⬅ Izadji</button>
-      <button onClick={deleteAllRows}>Izbrisi sve</button>
+    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+  <button onClick={onClose}>⬅ Izadji</button>
+  <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
+</div>
 
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
