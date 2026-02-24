@@ -39,21 +39,20 @@ const sofaTeamsAll = useMemo(() => {
   if (!sofaRows) return [];
   return Array.from(
     new Set(
-      sofaRows.flatMap(r => {
-        const isWomen = (r.Liga || r.liga || "").toLowerCase().includes("women");
-        return [
-          r.domacin ? (isWomen ? r.domacin + " W" : r.domacin) : null,
-          r.Domacin ? (isWomen ? r.Domacin + " W" : r.Domacin) : null,
-          r.DOMACIN ? (isWomen ? r.DOMACIN + " W" : r.DOMACIN) : null,
-          r.home ? (isWomen ? r.home + " W" : r.home) : null,
-          r.Home ? (isWomen ? r.Home + " W" : r.Home) : null,
-          r.gost ? (isWomen ? r.gost + " W" : r.gost) : null,
-          r.Gost ? (isWomen ? r.Gost + " W" : r.Gost) : null,
-          r.GOST ? (isWomen ? r.GOST + " W" : r.GOST) : null,
-          r.away ? (isWomen ? r.away + " W" : r.away) : null,
-          r.Away ? (isWomen ? r.Away + " W" : r.Away) : null
-        ].filter(Boolean);
-      })
+      sofaRows.flatMap(r =>
+        [
+          r.domacin,
+          r.Domacin,
+          r.DOMACIN,
+          r.home,
+          r.Home,
+          r.gost,
+          r.Gost,
+          r.GOST,
+          r.away,
+          r.Away
+        ].filter(Boolean)
+      )
     )
   ).sort((a, b) => a.localeCompare(b));
 }, [sofaRows]);
