@@ -178,9 +178,19 @@ const sofaTeamsAll = useMemo(() => {
 
     // 2️⃣ timovi iz te lige
     const teamsToDelete = sofaRows
-      .filter(r => (r.Liga || r.liga || "").trim() === liga)
-      .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
-      .filter(t => !Object.values(teamMap || {}).some(tm => tm.sofa === t)); // ne briši normalizovane
+  .filter(r => (r.Liga || r.liga || "").trim() === liga)
+  .flatMap(r => [
+    r.domacin,
+    r.Domacin,
+    r.DOMACIN,
+    r.home,
+    r.Home,
+    r.gost,
+    r.Gost,
+    r.GOST,
+    r.away,
+    r.Away
+  ].filter(Boolean));
 
     const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
     setDeletedSofaTeams(updatedTeams);
