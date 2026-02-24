@@ -14,19 +14,22 @@ export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
     if (saved) setLeagueMap(JSON.parse(saved));
   }, [setLeagueMap]);
 
-  const handleNormalizedChange = (key, value) => {
-    setLeagueMap(prev => {
-      const next = {
-        ...prev,
-        [key]: {
-          ...prev[key],
-          normalized: value
-        }
-      };
-      localStorage.setItem("leagueMap", JSON.stringify(next));
-      return next;
-    });
-  };
+const handleNormalizedChange = (key, value) => {
+  if (!value && leagueMap[key]?.screen1) {
+    value = leagueMap[key].screen1;
+  }
+  setLeagueMap(prev => {
+    const next = {
+      ...prev,
+      [key]: {
+        ...prev[key],
+        normalized: value
+      }
+    };
+    localStorage.setItem("leagueMap", JSON.stringify(next));
+    return next;
+  });
+};
 
   const handleDeleteLeague = (key) => {
     setLeagueMap(prev => {

@@ -19,15 +19,15 @@ const LeagueMapContext = createContext();
 export function LeagueMapProvider({ children }) {
 
   // ✅ UČITAJ TRAJNO SAČUVANE LIGE
-  const [leagueMap, setLeagueMap] = useState(() => {
-    const saved = localStorage.getItem("normalisedLeagues");
-    return saved ? JSON.parse(saved) : {};
-  });
+   const [leagueMap, setLeagueMap] = useState(() => {
+  const saved = localStorage.getItem("leagueMap");
+  return saved ? JSON.parse(saved) : {};
+});
 
   // ✅ AUTOMATSKO TRAJNO ČUVANJE
-  useEffect(() => {
-    localStorage.setItem("normalisedLeagues", JSON.stringify(leagueMap));
-  }, [leagueMap]);
+   useEffect(() => {
+  localStorage.setItem("leagueMap", JSON.stringify(leagueMap));
+}, [leagueMap]);
 
   // ======== CORE FUNKCIJA ========
   const registerLeague = (source, leagueName, teams = []) => {
@@ -46,6 +46,9 @@ export function LeagueMapProvider({ children }) {
           sofaTeams: []
         };
       }
+      if (!next[key].normalized && leagueName) {
+  next[key].normalized = leagueName;
+}
 
       if (source === "screen1" && !next[key].screen1) {
         next[key].screen1 = leagueName;
@@ -72,8 +75,9 @@ export function LeagueMapProvider({ children }) {
       const next = { ...prev };
       if (!next[screen1Key] || !next[sofaKey]) return prev;
 
-      next[screen1Key].normalized = normalizedName;
-      next[sofaKey].normalized = normalizedName;
+    next[screen1Key].normalized = normalizedName;
+next[sofaKey].normalized = normalizedName;
+localStorage.setItem("leagueMap", JSON.stringify(next));
 
       return next;
     });
