@@ -215,7 +215,7 @@ const sofaTeamsAll = useMemo(() => {
   // =====================
   const renderColumn = (title, items, selected, onClick, renderDelete=false) => (
     <div style={{ flex: 1, margin: 5 }}>
-      <h3>{title}</h3>
+  <h3>{title} ({items.length})</h3>
       <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #ccc", padding: 5 }}>
         {items.map((item, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
