@@ -112,6 +112,7 @@ const sofaTeamsAll = useMemo(() => {
   const [selectedTeam2, setSelectedTeam2] = useState(null);
   const [selectedLeague1, setSelectedLeague1] = useState(null);
   const [selectedLeague2, setSelectedLeague2] = useState(null);
+  const [debugLog, setDebugLog] = useState([]);
 
   // =====================
   // UPAARIVANJE TIMOVA
@@ -169,7 +170,8 @@ const sofaTeamsAll = useMemo(() => {
   // TRAJNO BRISANJE LIGE + TIMOVA
   // =====================
   const handleDeleteSofaLeague = (liga) => {
-    if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
+  setDebugLog(prev => [`🗑 Kliknuto brisanje lige: ${liga}`, ...prev]);
+   if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
 
     // 1️⃣ liga u storage
     const updatedLeagues = [...deletedSofaLeagues, liga];
@@ -195,18 +197,21 @@ const sofaTeamsAll = useMemo(() => {
     const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
     setDeletedSofaTeams(updatedTeams);
     localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
-  };
+    setDebugLog(prev => [`✅ OBRISANI timovi: ${updatedTeams.join(", ")}`, ...prev]);
+ };
 
   // =====================
   // VRATI IZBRISANU LIGU + TIMOVE
   // =====================
   const restoreSofaLeague = (liga) => {
+    setDebugLog(prev => [`↩ Kliknuto vraćanje lige: ${liga}`, ...prev]);
     if (!window.confirm(`Vratiti ligu ${liga} i njene timove?`)) return;
 
     // 1️⃣ ukloni ligu iz deletedSofaLeagues
     const updatedLeagues = deletedSofaLeagues.filter(l => l !== liga);
     setDeletedSofaLeagues(updatedLeagues);
     localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
+    setDebugLog(prev => [`✅ Vraćene lige: ${updatedLeagues.join(", ")}`, ...prev]);
 
     // 2️⃣ pronadji timove te lige
     const teamsToRestore = sofaRows
@@ -228,6 +233,7 @@ const sofaTeamsAll = useMemo(() => {
     const updatedTeams = deletedSofaTeams.filter(t => !teamsToRestore.includes(t));
     setDeletedSofaTeams(updatedTeams);
     localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
+    setDebugLog(prev => [`✅ Vraćeni timovi: ${updatedTeams.join(", ")}`, ...prev]);
   };
 
   // =====================
@@ -275,6 +281,22 @@ const sofaTeamsAll = useMemo(() => {
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
         {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v), true)}
       </div>
+{debugLog.length > 0 && (
+  <div style={{
+    marginTop: 20,
+    padding: 10,
+    background: "#111",
+    color: "#0f0",
+    maxHeight: 200,
+    overflowY: "auto",
+    fontSize: 12
+  }}>
+    <b>DEBUG LOG:</b>
+    {debugLog.map((log, i) => (
+      <div key={i}>{log}</div>
+    ))}
+  </div>
+)}
 
       {/* Lista izbrisanih liga */}
       {deletedSofaLeagues.length > 0 && (

@@ -82,27 +82,8 @@ export default function LeagueTeamScreen({ onClose }) {
   // =====================
   // SVI SOFA TIMOVI BEZ FILTRA
   // =====================
-  const sofaTeamsAll = useMemo(() => {
-    if (!sofaRows) return [];
-    return Array.from(
-      new Set(
-        sofaRows.flatMap(r =>
-          [
-            r.domacin,
-            r.Domacin,
-            r.home,
-            r.Home,
-            r.gost,
-            r.Gost,
-            r.away,
-            r.Away
-          ].filter(Boolean)
-        )
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sofaRows]);
 
-  return (
+return (
     <div className="league-wrapper">
       <button className="back-btn" onClick={onClose}>⬅ Nazad</button>
 
@@ -162,17 +143,6 @@ export default function LeagueTeamScreen({ onClose }) {
           ))}
         </div>
 
-        {/* SVI SOFA TIMOVI BEZ FILTRA */}
-        <div className="panel">
-          <div className="panel-title">Svi Sofa Timovi</div>
-          <div className="accordion-body">
-            {sofaTeamsAll.map((t, idx) => (
-              <div key={idx} className="team">
-                {idx + 1}. {t}
-              </div>
-            ))}
-          </div>
-        </div>
 
       </div>
     </div>
