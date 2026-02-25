@@ -210,9 +210,19 @@ const sofaTeamsAll = useMemo(() => {
 
     // 2️⃣ pronadji timove te lige
     const teamsToRestore = sofaRows
-      .filter(r => (r.Liga || r.liga || "").trim() === liga)
-      .flatMap(r => [r.Domacin || r.domacin, r.Gost || r.gost])
-      .filter(Boolean);
+  .filter(r => (r.Liga || r.liga || "").trim() === liga)
+  .flatMap(r => [
+    r.domacin,
+    r.Domacin,
+    r.DOMACIN,
+    r.home,
+    r.Home,
+    r.gost,
+    r.Gost,
+    r.GOST,
+    r.away,
+    r.Away
+  ].filter(Boolean));
 
     // 3️⃣ ukloni te timove iz deletedSofaTeams
     const updatedTeams = deletedSofaTeams.filter(t => !teamsToRestore.includes(t));
