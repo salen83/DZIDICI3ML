@@ -230,7 +230,11 @@ const sofaTeamsAll = useMemo(() => {
   ].filter(Boolean));
 
     // 3️⃣ ukloni te timove iz deletedSofaTeams
-    const updatedTeams = deletedSofaTeams.filter(t => !teamsToRestore.includes(t));
+  const updatedTeams = deletedSofaTeams.filter(
+  t => !teamsToRestore.some(r =>
+    r.trim().toLowerCase() === t.trim().toLowerCase()
+  )
+);
     setDeletedSofaTeams(updatedTeams);
     localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
     setDebugLog(prev => [`✅ Vraćeni timovi: ${updatedTeams.join(", ")}`, ...prev]);
