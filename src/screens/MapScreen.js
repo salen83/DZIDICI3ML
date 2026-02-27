@@ -203,42 +203,41 @@ const sofaTeamsAll = useMemo(() => {
   // =====================
   // VRATI IZBRISANU LIGU + TIMOVE
   // =====================
-  const restoreSofaLeague = (liga) => {
-    setDebugLog(prev => [`↩ Kliknuto vraćanje lige: ${liga}`, ...prev]);
-    if (!window.confirm(`Vratiti ligu ${liga} i njene timove?`)) return;
+// Linije: 206–241
+const restoreSofaLeague = (liga) => {
+  setDebugLog(prev => [`↩ Kliknuto vraćanje lige: ${liga}`, ...prev]);
+  if (!window.confirm(`Vratiti ligu ${liga} i njene timove?`)) return;
 
-    // 1️⃣ ukloni ligu iz deletedSofaLeagues
-    const updatedLeagues = deletedSofaLeagues.filter(l => l !== liga);
-    setDeletedSofaLeagues(updatedLeagues);
-    localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
-    setDebugLog(prev => [`✅ Vraćene lige: ${updatedLeagues.join(", ")}`, ...prev]);
+  // 1️⃣ ukloni ligu iz deletedSofaLeagues
+  const updatedLeagues = deletedSofaLeagues.filter(l => l !== liga);
+  setDeletedSofaLeagues(updatedLeagues);
+  localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
+  setDebugLog(prev => [`✅ Vraćene lige: ${updatedLeagues.join(", ")}`, ...prev]);
 
-    // 2️⃣ pronadji timove te lige
-    const teamsToRestore = sofaRows
-  .filter(r => (r.Liga || r.liga || "").trim() === liga)
-  .flatMap(r => [
-    r.domacin,
-    r.Domacin,
-    r.DOMACIN,
-    r.home,
-    r.Home,
-    r.gost,
-    r.Gost,
-    r.GOST,
-    r.away,
-    r.Away
-  ].filter(Boolean));
+  // 2️⃣ pronadji sve timove te lige
+  const teamsToRestore = sofaRows
+    .filter(r => ((r.Liga || r.liga || "").trim() === liga))
+    .flatMap(r => [
+      r.domacin,
+      r.Domacin,
+      r.DOMACIN,
+      r.home,
+      r.Home,
+      r.gost,
+      r.Gost,
+      r.GOST,
+      r.away,
+      r.Away
+    ].filter(Boolean));
 
-    // 3️⃣ ukloni te timove iz deletedSofaTeams
+  // 3️⃣ ukloni te timove iz deletedSofaTeams
   const updatedTeams = deletedSofaTeams.filter(
-  t => !teamsToRestore.some(r =>
-    r.trim().toLowerCase() === t.trim().toLowerCase()
-  )
-);
-    setDeletedSofaTeams(updatedTeams);
-    localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
-    setDebugLog(prev => [`✅ Vraćeni timovi: ${updatedTeams.join(", ")}`, ...prev]);
-  };
+    t => !teamsToRestore.some(rt => rt.trim().toLowerCase() === t.trim().toLowerCase())
+  );
+  setDeletedSofaTeams(updatedTeams);
+  localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
+  setDebugLog(prev => [`✅ Vraćeni timovi: ${updatedTeams.join(", ")}`, ...prev]);
+};
 
   // =====================
   // RENDER
