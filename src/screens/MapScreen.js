@@ -94,11 +94,11 @@ const sofaTeamsAll = useMemo(() => {
     );
   }, [teamMap]);
 
-  const pairedLeagues = useMemo(() => {
-    return new Set(
-      Object.values(leagueMap || {}).flatMap(l => [l.screen1, l.sofa])
-    );
-  }, [leagueMap]);
+const pairedLeagues = useMemo(() => {
+  return new Set(
+    Object.values(leagueMap || {}).flatMap(l => [l.screen1, ...(Array.isArray(l.sofa) ? l.sofa : [l.sofa])])
+  );
+}, [leagueMap]);
 
   const screen1Teams = screen1TeamsAll.filter(t => !pairedTeams.has(t));
   const sofaTeams = sofaTeamsBase.filter(t => !pairedTeams.has(t));
@@ -147,27 +147,64 @@ const sofaTeamsAll = useMemo(() => {
   // UPAARIVANJE LIGA
   // =====================
   const confirmLeaguePair = (l1, l2) => {
-    if (window.confirm(`Upariti lige:\n${l1} ↔ ${l2}?`)) {
-      const key = `league||${l1}||${l2}`;
-      setLeagueMap(prev => ({
-        ...prev,
-        [key]: { screen1: l1, sofa: l2, normalized: l1 }
-      }));
-      setSelectedLeague1(null);
-      setSelectedLeague2(null);
-    }
-  };
+  if (!window.confirm(`Upariti lige:\n${l1} ↔ ${l2}?`)) return;
 
-  const handleLeagueClick = (source, value) => {
-    if (source === "screen1") {
-      if (selectedLeague2) confirmLeaguePair(value, selectedLeague2);
-      else setSelectedLeague1(value);
+  setLeagueMap(prev => {
+    const existingKey = Object.keys(prev).find(k => prev[k].screen1 === l1);
+    if (existingKey) {
+      // Ako postoji entry za ovu screen1 ligu, dodaj novu Sofa ligu u niz
+      const existing = prev[existingKey];
+      return {
+        ...prev,
+        [existingKey]: {
+          ...existing,
+          sofa: Array.isArray(existing.sofa) ? [...existing.sofa, l2] : [existing.sofa, l2],
+        }
+      };
+    } else {
+      // Novi entry
+      const key = `league||${l1}||${l2}`;
+      return {
+        ...prev,
+        [key]: { screen1: l1, sofa: [l2], normalized: l1 }
+      };
     }
-    if (source === "sofa") {
-      if (selectedLeague1) confirmLeaguePair(selectedLeague1, value);
-      else setSelectedLeague2(value);
+  });
+
+  setSelectedLeague1(null);
+  setSelectedLeague2(null);
+};
+
+const handleLeagueClick = (source, value) => {
+  if (source === "screen1") {
+    if (selectedLeague2) {
+      if (Array.isArray(selectedLeague2)) {
+        selectedLeague2.forEach(l2 => confirmLeaguePair(value, l2));
+      } else {
+        confirmLeaguePair(value, selectedLeague2);
+      }
+      setSelectedLeague2(null);
+    } else {
+      setSelectedLeague1(value);
     }
-  };
+  }
+
+  if (source === "sofa") {
+    if (!selectedLeague2) {
+      setSelectedLeague2(value);
+    } else if (Array.isArray(selectedLeague2)) {
+      setSelectedLeague2(prev =>
+        prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+      );
+    } else {
+      if (selectedLeague2 === value) {
+        setSelectedLeague2(null);
+      } else {
+        setSelectedLeague2([selectedLeague2, value]);
+      }
+    }
+  }
+};
 
   // =====================
   // TRAJNO BRISANJE LIGE + TIMOVA
@@ -256,11 +293,11 @@ const resetDeletedSofaTeams = () => {
                 padding: "4px 8px",
                 cursor: "pointer",
                 backgroundColor:
-  selected === item
-    ? "#ffcc80"
-    : restoredHighlight.includes(item)
-    ? "#fff59d"
-    : "#f0f0f0",
+(selectedLeague2 === item || (Array.isArray(selectedLeague2) && selectedLeague2.includes(item)))
+  ? "#ffcc80"
+  : restoredHighlight.includes(item)
+  ? "#fff59d"
+  : "#f0f0f0",
                 flex: 1
               }}
             >
