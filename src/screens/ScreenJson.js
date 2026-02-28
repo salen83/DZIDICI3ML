@@ -17,9 +17,12 @@ export function convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap) {
       Object.values(teamMap).find(t => t.sofa === (r.away?.name || r.away))?.normalized ||
       (r.away?.name || r.away);
 
-    const normalizedLeague =
-      Object.values(leagueMap).find(l => l.sofa === r.liga)?.normalized ||
-      r.liga;
+const normalizedLeague =
+  Object.values(leagueMap).find(l =>
+    Array.isArray(l.sofa)
+      ? l.sofa.includes(r.liga)
+      : l.sofa === r.liga
+  )?.screen1 || r.liga;
 
     const [day, month, year] = r.datum.split("/");
     const fullYear = year.length === 2 ? "20" + year : year;
@@ -89,7 +92,12 @@ const convertSofaToSyncJSON = useCallback((sofaRows) => {
   const syncJson = sofaRows.map((r, index) => {
        const normalizedHome = Object.values(teamMap).find(t => t.sofa === (r.home?.name || r.home))?.normalized || (r.home?.name || r.home);
 const normalizedAway = Object.values(teamMap).find(t => t.sofa === (r.away?.name || r.away))?.normalized || (r.away?.name || r.away);
-const normalizedLeague = Object.values(leagueMap).find(l => l.sofa === r.liga)?.normalized || r.liga;
+const normalizedLeague =
+  Object.values(leagueMap).find(l =>
+    Array.isArray(l.sofa)
+      ? l.sofa.includes(r.liga)
+      : l.sofa === r.liga
+  )?.screen1 || r.liga;
 
     newLogs.push(`Meč #${index + 1}:`);
     newLogs.push(`  Original home: ${r.home} => Normalized: ${normalizedHome}`);
