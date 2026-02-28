@@ -113,6 +113,9 @@ const sofaTeamsAll = useMemo(() => {
   const [selectedLeague1, setSelectedLeague1] = useState(null);
   const [selectedLeague2, setSelectedLeague2] = useState(null);
   const [debugLog, setDebugLog] = useState([]);
+  const [restoredHighlight, setRestoredHighlight] = useState([]);
+  const [showDeletedLeagues, setShowDeletedLeagues] = useState(false);
+  const [showDeletedTeams, setShowDeletedTeams] = useState(false);
 
   // =====================
   // UPAARIVANJE TIMOVA
@@ -203,42 +206,41 @@ const sofaTeamsAll = useMemo(() => {
   // =====================
   // VRATI IZBRISANU LIGU + TIMOVE
   // =====================
-// Linije: 206–241
-const restoreSofaLeague = (liga) => {
-  setDebugLog(prev => [`↩ Kliknuto vraćanje lige: ${liga}`, ...prev]);
-  if (!window.confirm(`Vratiti ligu ${liga} i njene timove?`)) return;
+// =====================
+  // VRATI LIGU (bez automatskog vracanja timova)
+  // =====================
+  const restoreSofaLeague = (liga) => {
+    if (!window.confirm(`Vratiti ligu ${liga}?`)) return;
 
-  // 1️⃣ ukloni ligu iz deletedSofaLeagues
-  const updatedLeagues = deletedSofaLeagues.filter(l => l !== liga);
-  setDeletedSofaLeagues(updatedLeagues);
-  localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
-  setDebugLog(prev => [`✅ Vraćene lige: ${updatedLeagues.join(", ")}`, ...prev]);
+    const updated = deletedSofaLeagues.filter(l => l !== liga);
+    setDeletedSofaLeagues(updated);
+    localStorage.setItem("deletedSofaLeagues", JSON.stringify(updated));
 
-  // 2️⃣ pronadji sve timove te lige
-  const teamsToRestore = sofaRows
-    .filter(r => ((r.Liga || r.liga || "").trim() === liga))
-    .flatMap(r => [
-      r.domacin,
-      r.Domacin,
-      r.DOMACIN,
-      r.home,
-      r.Home,
-      r.gost,
-      r.Gost,
-      r.GOST,
-      r.away,
-      r.Away
-    ].filter(Boolean));
+    setRestoredHighlight(prev => [...prev, liga]);
+  };
 
-  // 3️⃣ ukloni te timove iz deletedSofaTeams
-  const updatedTeams = deletedSofaTeams.filter(
-    t => !teamsToRestore.some(rt => rt.trim().toLowerCase() === t.trim().toLowerCase())
-  );
-  setDeletedSofaTeams(updatedTeams);
-  localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
-  setDebugLog(prev => [`✅ Vraćeni timovi: ${updatedTeams.join(", ")}`, ...prev]);
+// =====================
+  // VRATI POJEDINACNI TIM
+  // =====================
+  const restoreSofaTeam = (team) => {
+    if (!window.confirm(`Vratiti tim ${team}?`)) return;
+
+    const updated = deletedSofaTeams.filter(t => t !== team);
+    setDeletedSofaTeams(updated);
+    localStorage.setItem("deletedSofaTeams", JSON.stringify(updated));
+
+    setRestoredHighlight(prev => [...prev, team]);
+  };
+// =====================
+// RESET SAMO OBRISANIH TIMOVA
+// =====================
+const resetDeletedSofaTeams = () => {
+  if (!window.confirm("Da li želiš da resetuješ sve obrisane timove?")) return;
+
+  setDeletedSofaTeams([]);
+  localStorage.removeItem("deletedSofaTeams");
+  setDebugLog(prev => ["♻ Resetovani svi obrisani timovi", ...prev]);
 };
-
   // =====================
   // RENDER
   // =====================
@@ -253,7 +255,12 @@ const restoreSofaLeague = (liga) => {
               style={{
                 padding: "4px 8px",
                 cursor: "pointer",
-                backgroundColor: selected === item ? "#ffcc80" : "#f0f0f0",
+                backgroundColor:
+  selected === item
+    ? "#ffcc80"
+    : restoredHighlight.includes(item)
+    ? "#fff59d"
+    : "#f0f0f0",
                 flex: 1
               }}
             >
@@ -277,6 +284,16 @@ const restoreSofaLeague = (liga) => {
       <button onClick={onClose} style={{ marginBottom: 15 }}>
         ⬅ Nazad
       </button>
+      <button onClick={resetDeletedSofaTeams} style={{ marginBottom: 15, marginLeft: 10 }}>
+  ♻ Resetuj obrisane timove
+</button>
+     <button onClick={() => setShowDeletedLeagues(true)} style={{ marginLeft: 10 }}>
+    📁 Izbrisane lige
+  </button>
+
+  <button onClick={() => setShowDeletedTeams(true)} style={{ marginLeft: 10 }}>
+    📁 Izbrisani timovi
+  </button>
 
       <div style={{ display: "flex", gap: 10 }}>
         {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
@@ -284,6 +301,30 @@ const restoreSofaLeague = (liga) => {
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
         {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v), true)}
       </div>
+{showDeletedLeagues && (
+    <div style={{ background: "#222", padding: 15, marginTop: 15 }}>
+      <h3>Izbrisane lige</h3>
+      {deletedSofaLeagues.map((l, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
+          <span>{l}</span>
+          <button onClick={() => restoreSofaLeague(l)}>↩ Vrati</button>
+        </div>
+      ))}
+      <button onClick={() => setShowDeletedLeagues(false)}>Zatvori</button>
+    </div>
+  )}
+{showDeletedTeams && (
+    <div style={{ background: "#222", padding: 15, marginTop: 15 }}>
+      <h3>Izbrisani timovi</h3>
+      {deletedSofaTeams.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
+          <span>{t}</span>
+          <button onClick={() => restoreSofaTeam(t)}>↩ Vrati</button>
+        </div>
+      ))}
+      <button onClick={() => setShowDeletedTeams(false)}>Zatvori</button>
+    </div>
+  )}
 {debugLog.length > 0 && (
   <div style={{
     marginTop: 20,
@@ -301,18 +342,6 @@ const restoreSofaLeague = (liga) => {
   </div>
 )}
 
-      {/* Lista izbrisanih liga */}
-      {deletedSofaLeagues.length > 0 && (
-        <div style={{ marginTop: 15 }}>
-          <h4>🟢 Izbrisane lige (može se vratiti)</h4>
-          {deletedSofaLeagues.map((l, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span>{l}</span>
-              <button onClick={() => restoreSofaLeague(l)}>↩ Vrati</button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
