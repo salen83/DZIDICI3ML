@@ -85,14 +85,20 @@ const sofaTeamsAll = useMemo(() => {
     t => !deletedSofaTeams.includes(t)
   );
 
-  // =====================
-  // UPAARENI
-  // =====================
-  const pairedTeams = useMemo(() => {
-    return new Set(
-      Object.values(teamMap || {}).flatMap(t => [t.screen1, t.sofa])
-    );
-  }, [teamMap]);
+// =====================
+// UPAARENI (ODVOJENO)
+// =====================
+const pairedScreen1Teams = useMemo(() => {
+  return new Set(
+    Object.values(teamMap || {}).map(t => t.screen1)
+  );
+}, [teamMap]);
+
+const pairedSofaTeams = useMemo(() => {
+  return new Set(
+    Object.values(teamMap || {}).map(t => t.sofa)
+  );
+}, [teamMap]);
 
 const pairedLeagues = useMemo(() => {
   return new Set(
@@ -100,8 +106,8 @@ const pairedLeagues = useMemo(() => {
   );
 }, [leagueMap]);
 
-  const screen1Teams = screen1TeamsAll.filter(t => !pairedTeams.has(t));
-  const sofaTeams = sofaTeamsBase.filter(t => !pairedTeams.has(t));
+const screen1Teams = screen1TeamsAll.filter(t => !pairedScreen1Teams.has(t));
+const sofaTeams = sofaTeamsBase.filter(t => !pairedSofaTeams.has(t));
 // =====================
 // PRETRAGA TIMOVA SOFA – ISPRAVNO
 // =====================
@@ -308,12 +314,18 @@ const resetDeletedSofaTeams = () => {
               style={{
                 padding: "4px 8px",
                 cursor: "pointer",
-                backgroundColor:
-(selectedLeague2 === item || (Array.isArray(selectedLeague2) && selectedLeague2.includes(item)))
-  ? "#ffcc80"
-  : restoredHighlight.includes(item)
-  ? "#fff59d"
-  : "#f0f0f0",
+       backgroundColor:
+  Array.isArray(selected)
+    ? selected.includes(item)
+      ? "#ffcc80"
+      : restoredHighlight.includes(item)
+      ? "#fff59d"
+      : "#f0f0f0"
+    : selected === item
+    ? "#ffcc80"
+    : restoredHighlight.includes(item)
+    ? "#fff59d"
+    : "#f0f0f0",
                 flex: 1
               }}
             >
