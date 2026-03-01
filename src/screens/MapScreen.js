@@ -102,7 +102,21 @@ const pairedLeagues = useMemo(() => {
 
   const screen1Teams = screen1TeamsAll.filter(t => !pairedTeams.has(t));
   const sofaTeams = sofaTeamsBase.filter(t => !pairedTeams.has(t));
-  const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
+// =====================
+// PRETRAGA TIMOVA SOFA – ISPRAVNO
+// =====================
+const findSofaTeamLocation = (team) => {
+  if (sofaTeams.includes(team)) {
+    return "U koloni za uparivanje (Sofa)";
+  } else if (sofaTeamsBase.includes(team)) {
+    return "U listi normalizovanih timova (Sofa)";
+  } else if (deletedSofaTeams.includes(team)) {
+    return "U listi izbrisanih timova (Sofa)";
+  } else {
+    return "Tim nije pronađen";
+  }
+};
+const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
   const sofaLeagues = sofaLeaguesBase.filter(l => !pairedLeagues.has(l));
 
   // =====================
@@ -116,6 +130,8 @@ const pairedLeagues = useMemo(() => {
   const [restoredHighlight, setRestoredHighlight] = useState([]);
   const [showDeletedLeagues, setShowDeletedLeagues] = useState(false);
   const [showDeletedTeams, setShowDeletedTeams] = useState(false);
+  const [searchTeam, setSearchTeam] = useState("");
+const [searchResult, setSearchResult] = useState("");
 
   // =====================
   // UPAARIVANJE TIMOVA
@@ -333,6 +349,24 @@ const resetDeletedSofaTeams = () => {
   </button>
 
       <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ marginBottom: 5 }}>
+  <input
+    type="text"
+    placeholder="Pretraži Sofa tim..."
+    value={searchTeam}
+    onChange={(e) => {
+      const val = e.target.value.trim();
+      setSearchTeam(val);
+      setSearchResult(val ? findSofaTeamLocation(val) : "");
+    }}
+    style={{ padding: 4, width: "200px" }}
+  />
+  {searchTeam && (
+    <div style={{ marginTop: 2, color: "#ff9900", fontSize: 12 }}>
+      {searchTeam}: {searchResult}
+    </div>
+  )}
+</div>
         {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
         {renderColumn("Timovi Sofa", sofaTeams, selectedTeam2, v => handleTeamClick("sofa", v))}
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
