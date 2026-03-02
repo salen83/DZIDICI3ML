@@ -385,9 +385,11 @@ const resetDeletedSofaTeams = () => {
         {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v), true)}
       </div>
 {showDeletedLeagues && (
-    <div style={{ background: "#222", padding: 15, marginTop: 15 }}>
+<div style={{ background: "#f5f5f5", padding: 15, marginTop: 15, border: "1px solid #ccc" }}>
       <h3>Izbrisane lige</h3>
-      {deletedSofaLeagues.map((l, i) => (
+{[...deletedSofaLeagues]
+  .sort((a, b) => a.localeCompare(b))
+  .map((l, i) => (
         <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
           <span>{l}</span>
           <button onClick={() => restoreSofaLeague(l)}>↩ Vrati</button>
@@ -397,9 +399,11 @@ const resetDeletedSofaTeams = () => {
     </div>
   )}
 {showDeletedTeams && (
-    <div style={{ background: "#222", padding: 15, marginTop: 15 }}>
+<div style={{ background: "#f5f5f5", padding: 15, marginTop: 15, border: "1px solid #ccc" }}>
       <h3>Izbrisani timovi</h3>
-      {deletedSofaTeams.map((t, i) => (
+{[...deletedSofaTeams]
+  .sort((a, b) => a.localeCompare(b))
+  .map((t, i) => (
         <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
           <span>{t}</span>
           <button onClick={() => restoreSofaTeam(t)}>↩ Vrati</button>
