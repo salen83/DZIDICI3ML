@@ -402,6 +402,7 @@ const resetDeletedSofaTeams = () => {
 <div style={{ background: "#f5f5f5", padding: 15, marginTop: 15, border: "1px solid #ccc" }}>
       <h3>Izbrisani timovi</h3>
 {[...deletedSofaTeams]
+  .filter(t => typeof t === "string")
   .sort((a, b) => a.localeCompare(b))
   .map((t, i) => (
         <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
