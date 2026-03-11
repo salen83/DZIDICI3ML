@@ -4,18 +4,34 @@ import { ensureTeam, getTeamMap } from './teamCountryMapUtils';
 import countries from './countries';
 import './TeamCountryMap.css';
 
+// Helper da vrati zastavicu po imenu države
+const getFlagByName = (countryName) => {
+  if (!countries) return '';
+  const entry = Object.values(countries || {}).find(c => c?.name === countryName);
+  return entry?.flag || '';
+};
+
+// Batch processing helper da se ne blokira UI
+const processTeamsBatch = (teamKeys, ensureTeamFn, callback, batchSize = 50) => {
+  let index = 0;
+  const nextBatch = () => {
+    const batch = teamKeys.slice(index, index + batchSize);
+    batch.forEach(teamName => ensureTeamFn(teamName));
+    index += batchSize;
+    if (index < teamKeys.length) {
+      setTimeout(nextBatch, 10); // 10ms pauza između batch-eva
+    } else {
+      callback();
+    }
+  };
+  nextBatch();
+};
+
 export default function TeamCountryMap({ onClose }) {
   const { rows } = useContext(MatchesContext);
   const [teamsList, setTeamsList] = useState([]);
   const [editTeam, setEditTeam] = useState(null);
   const [selectedCountry, setSelectedCountry] = useState('');
-
-  // helper da vrati zastavicu po imenu države
-  const getFlagByName = (countryName) => {
-    if (!countries) return '';
-    const entry = Object.values(countries || {}).find(c => c?.name === countryName);
-    return entry?.flag || '';
-  };
 
   // učitaj timove iz teamMap
   const refreshTeamsList = () => {
@@ -47,25 +63,8 @@ export default function TeamCountryMap({ onClose }) {
       if (r.away) uniqueTeams[r.away] = '';
     });
 
-    // 🔹 batch update bez blokiranja UI
     const teamKeys = Object.keys(uniqueTeams);
-    const batchSize = 50; // obrađuje po 50 timova odjednom
-    let index = 0;
-
-    const processBatch = () => {
-      const batch = teamKeys.slice(index, index + batchSize);
-      batch.forEach(teamName => ensureTeam(teamName));
-      index += batchSize;
-      if (index < teamKeys.length) {
-        setTimeout(processBatch, 0); // raspodeli sledeći batch
-      } else {
-        // pozovi refreshTeamsList samo jednom na kraju
-        refreshTeamsList();
-      }
-    };
-
-    processBatch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    processTeamsBatch(teamKeys, ensureTeam, refreshTeamsList);
   }, [rows]);
 
   const startEdit = (team) => {
@@ -78,7 +77,6 @@ export default function TeamCountryMap({ onClose }) {
     const flag = getFlagByName(selectedCountry);
     const map = getTeamMap();
     map[editTeam] = { country: selectedCountry, flag };
-    // sačuvaj u storage i update liste
     localStorage.setItem('TEAM_COUNTRY_MAP_V1', JSON.stringify(map));
     setTeamsList(prev =>
       prev.map(t =>
