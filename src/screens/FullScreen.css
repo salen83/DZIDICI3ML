@@ -1,0 +1,42 @@
+.full-screen-container {
+  padding: 20px;
+  background-color: white;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.close-button {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.country-item {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 18px;
+  border-bottom: 1px solid #eee;
+}
+
+.country-number {
+  width: 30px;
+}
+
+.country-flag {
+  width: 24px;
+  height: 16px;
+  margin: 0 10px;
+}
+
+.country-name {
+  flex: 1;
+}

@@ -18,6 +18,7 @@ import MapScreen from "./screens/MapScreen";
 import NormalisedTeamMapScreen from "./screens/NormalisedTeamMapScreen";
 import LeagueTeamScreen from "./screens/LeagueTeamScreen";
 import LeagueMapScreen from "./screens/LeagueMapScreen";
+import FullScreen from "./screens/FullScreen";
 
 import { MatchesProvider } from "./MatchesContext";
 import { NormalisedTeamMapProvider } from "./NormalisedTeamMapContext";
@@ -54,6 +55,7 @@ export default function App() {
   const [teamMapMode, setTeamMapMode] = useState(false);
   const [leagueTeamMode, setLeagueTeamMode] = useState(false);
   const [leagueMapMode, setLeagueMapMode] = useState(false); // ✅ novi mode
+  const [fullMode, setFullMode] = useState(false); // novi mode za FULL SCREEN
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [prevScreenIndex, setPrevScreenIndex] = useState(0);
@@ -167,6 +169,12 @@ export default function App() {
                       >
                         LEAGUE MAP
                       </button>
+                  <button
+  onClick={() => openMode(setFullMode)}
+  disabled={fullMode || mapMode || sofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode}
+>
+  FULL SCREEN
+</button>
                     </div>
                   )}
 
@@ -177,6 +185,7 @@ export default function App() {
                      sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
                      jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
                      leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
+                     fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
                      renderNormalScreen()}
                   </div>
 

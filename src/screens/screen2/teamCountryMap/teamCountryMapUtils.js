@@ -48,9 +48,11 @@ function guessCountryFromLeague(leagueName = "") {
 
 export function ensureTeam(teamName, leagueName = "") {
   if (!teamName) return;
-  if (teamCountryMap[teamName]) return;
   const { country, flag } = guessCountryFromLeague(leagueName);
-  teamCountryMap[teamName] = { country, flag };
+  const key = teamName + "_" + country;
+if (teamCountryMap[key]) return;
+teamCountryMap[key] = { name: teamName, country, flag 
+};
   saveToStorage();
   notifySubscribers();
 }

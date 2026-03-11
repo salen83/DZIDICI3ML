@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { MatchesContext } from '../../../MatchesContext';
-import { ensureTeam, getTeamMap } from './index';
+import { ensureTeam, getTeamMap } from './teamCountryMapUtils';
 import countries from './countries';
 import './TeamCountryMap.css';
 
@@ -12,43 +12,59 @@ export default function TeamCountryMap({ onClose }) {
 
   // helper da vrati zastavicu po imenu države
   const getFlagByName = (countryName) => {
-    const entry = Object.values(countries).find(c => c.name === countryName);
-    return entry ? entry.flag : '';
+    if (!countries) return '';
+    const entry = Object.values(countries || {}).find(c => c?.name === countryName);
+    return entry?.flag || '';
   };
 
-  useEffect(() => {
-    const refreshTeamsList = () => {
-      const map = getTeamMap();
-      const teamsArray = Object.keys(map).map(teamName => {
-        const info = map[teamName] || {};
-        const flag = getFlagByName(info.country) || '';
-        return { name: teamName, country: info.country || '', flag };
-      });
-      setTeamsList(teamsArray);
-    };
+  // učitaj timove iz teamMap
+const refreshTeamsList = () => {
+const map = getTeamMap() || {};
+const seen = new Set();
+const teamsArray = [];
 
-    const storedMap = localStorage.getItem('TEAM_COUNTRY_MAP_V1');
-    if (storedMap) {
-      const map = JSON.parse(storedMap);
-      Object.entries(map).forEach(([team, info]) => {
-        ensureTeam(team, '', info.country, info.flag);
-      });
-    }
+Object.entries(map).forEach(([key, info]) => {
+const teamName = info?.name || key;
+const countryName = info?.country || '';
+const uniqueKey = teamName + "_" + countryName;
+if (seen.has(uniqueKey)) return;
+seen.add(uniqueKey);
 
-    if (!rows || rows.length === 0) return;
+  const flag = getFlagByName(countryName);
+  teamsArray.push({ name: teamName, country: countryName, flag });
+});
 
-    const uniqueTeams = {};
-    rows.forEach(r => {
-      if (r.home) uniqueTeams[r.home] = '';
-      if (r.away) uniqueTeams[r.away] = '';
-    });
+teamsArray.sort((a, b) => a.name.localeCompare(b.name));
+setTeamsList(teamsArray);
+};
 
-    Object.keys(uniqueTeams).forEach(teamName => {
-      ensureTeam(teamName);
-    });
+useEffect(() => {
+  if (!rows || !Array.isArray(rows)) return;
 
-    refreshTeamsList();
-  }, [rows]);
+  const uniqueTeams = {};
+  rows.forEach(r => {
+    if (r.home) uniqueTeams[r.home] = '';
+    if (r.away) uniqueTeams[r.away] = '';
+  });
+
+  // 🔹 batch update bez blokiranja UI
+  const teamKeys = Object.keys(uniqueTeams);
+const batchSize = 50; // obrađuje po 50 timova odjednom
+let index = 0;
+
+const processBatch = () => {
+  const batch = teamKeys.slice(index, index + batchSize);
+  batch.forEach(teamName => ensureTeam(teamName));
+  index += batchSize;
+  refreshTeamsList();
+  if (index < teamKeys.length) {
+    setTimeout(processBatch, 0); // raspodeli sledeći batch
+  }
+};
+
+processBatch();
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [rows]);
 
   const startEdit = (team) => {
     setEditTeam(team.name);
@@ -60,6 +76,7 @@ export default function TeamCountryMap({ onClose }) {
     const flag = getFlagByName(selectedCountry);
     const map = getTeamMap();
     map[editTeam] = { country: selectedCountry, flag };
+    // sačuvaj u storage i update liste
     localStorage.setItem('TEAM_COUNTRY_MAP_V1', JSON.stringify(map));
     setTeamsList(prev =>
       prev.map(t =>
@@ -71,7 +88,7 @@ export default function TeamCountryMap({ onClose }) {
 
   return (
     <div className="team-country-map-container">
-      <button onClick={onClose} style={{ marginBottom: "10px" }}>Zatvori</button>
+      <button onClick={onClose} style={{ marginBottom: 10 }}>Zatvori</button>
       <h3>Mapa tim → država → zastavica</h3>
       <table>
         <thead>
@@ -85,26 +102,21 @@ export default function TeamCountryMap({ onClose }) {
         </thead>
         <tbody>
           {teamsList.map((team, idx) => {
-            const currentFlag = editTeam === team.name
-              ? getFlagByName(selectedCountry)
-              : team.flag;
+            const currentFlag = editTeam === team.name ? getFlagByName(selectedCountry) : team.flag;
             return (
-              <tr key={team.name}>
+              <tr key={team.name + "_" + team.country}>
                 <td>{idx + 1}</td>
                 <td>{team.name}</td>
                 <td>
                   {editTeam === team.name ? (
-                    <select
-                      value={selectedCountry}
-                      onChange={e => setSelectedCountry(e.target.value)}
-                    >
-                      {Object.values(countries).map(info => (
+                    <select value={selectedCountry} onChange={e => setSelectedCountry(e.target.value)}>
+                      {Object.values(countries || {}).map(info => (
                         <option key={info.name} value={info.name}>{info.name}</option>
                       ))}
                     </select>
                   ) : team.country || 'Nepoznato'}
                 </td>
-                <td style={{ fontSize: '20px' }}>{currentFlag}</td>
+                <td style={{ fontSize: 20 }}>{currentFlag}</td>
                 <td>
                   {editTeam === team.name ? (
                     <button onClick={saveEdit}>Sačuvaj</button>
