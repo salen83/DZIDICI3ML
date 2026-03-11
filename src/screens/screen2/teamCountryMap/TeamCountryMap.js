@@ -18,53 +18,55 @@ export default function TeamCountryMap({ onClose }) {
   };
 
   // učitaj timove iz teamMap
-const refreshTeamsList = () => {
-const map = getTeamMap() || {};
-const seen = new Set();
-const teamsArray = [];
+  const refreshTeamsList = () => {
+    const map = getTeamMap() || {};
+    const seen = new Set();
+    const teamsArray = [];
 
-Object.entries(map).forEach(([key, info]) => {
-const teamName = info?.name || key;
-const countryName = info?.country || '';
-const uniqueKey = teamName + "_" + countryName;
-if (seen.has(uniqueKey)) return;
-seen.add(uniqueKey);
+    Object.entries(map).forEach(([key, info]) => {
+      const teamName = info?.name || key;
+      const countryName = info?.country || '';
+      const uniqueKey = teamName + "_" + countryName;
+      if (seen.has(uniqueKey)) return;
+      seen.add(uniqueKey);
 
-  const flag = getFlagByName(countryName);
-  teamsArray.push({ name: teamName, country: countryName, flag });
-});
+      const flag = getFlagByName(countryName);
+      teamsArray.push({ name: teamName, country: countryName, flag });
+    });
 
-teamsArray.sort((a, b) => a.name.localeCompare(b.name));
-setTeamsList(teamsArray);
-};
+    teamsArray.sort((a, b) => a.name.localeCompare(b.name));
+    setTeamsList(teamsArray);
+  };
 
-useEffect(() => {
-  if (!rows || !Array.isArray(rows)) return;
+  useEffect(() => {
+    if (!rows || !Array.isArray(rows)) return;
 
-  const uniqueTeams = {};
-  rows.forEach(r => {
-    if (r.home) uniqueTeams[r.home] = '';
-    if (r.away) uniqueTeams[r.away] = '';
-  });
+    const uniqueTeams = {};
+    rows.forEach(r => {
+      if (r.home) uniqueTeams[r.home] = '';
+      if (r.away) uniqueTeams[r.away] = '';
+    });
 
-  // 🔹 batch update bez blokiranja UI
-  const teamKeys = Object.keys(uniqueTeams);
-const batchSize = 50; // obrađuje po 50 timova odjednom
-let index = 0;
+    // 🔹 batch update bez blokiranja UI
+    const teamKeys = Object.keys(uniqueTeams);
+    const batchSize = 50; // obrađuje po 50 timova odjednom
+    let index = 0;
 
-const processBatch = () => {
-  const batch = teamKeys.slice(index, index + batchSize);
-  batch.forEach(teamName => ensureTeam(teamName));
-  index += batchSize;
-  refreshTeamsList();
-  if (index < teamKeys.length) {
-    setTimeout(processBatch, 0); // raspodeli sledeći batch
-  }
-};
+    const processBatch = () => {
+      const batch = teamKeys.slice(index, index + batchSize);
+      batch.forEach(teamName => ensureTeam(teamName));
+      index += batchSize;
+      if (index < teamKeys.length) {
+        setTimeout(processBatch, 0); // raspodeli sledeći batch
+      } else {
+        // pozovi refreshTeamsList samo jednom na kraju
+        refreshTeamsList();
+      }
+    };
 
-processBatch();
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, [rows]);
+    processBatch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const startEdit = (team) => {
     setEditTeam(team.name);
