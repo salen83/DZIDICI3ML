@@ -35,12 +35,15 @@ export default function SofaScreen({ onClose }) {
     return String(val);
   };
 
-  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
-    const dateA = a.datum.split('.').reverse().join('-');
-    const dateB = b.datum.split('.').reverse().join('-');
-    return dateB.localeCompare(dateA);
-  });
+const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
+  const [dA,mA,yA] = a.datum.split('.');
+  const [dB,mB,yB] = b.datum.split('.');
 
+  const dateA = new Date(yA, mA-1, dA);
+  const dateB = new Date(yB, mB-1, dB);
+
+  return dateB - dateA;
+});
   const isRowComplete = (row) => {
     return (
       row.datum &&
@@ -73,8 +76,11 @@ export default function SofaScreen({ onClose }) {
     }
 
     // Minimalna promena: u sofaTeams ubaci direktno home i away
-    if (r.home) newLeagueData[key].sofaTeams.push(r.home);
-    if (r.away) newLeagueData[key].sofaTeams.push(r.away);
+if (r.home && !newLeagueData[key].sofaTeams.includes(r.home))
+  newLeagueData[key].sofaTeams.push(r.home);
+
+if (r.away && !newLeagueData[key].sofaTeams.includes(r.away))
+  newLeagueData[key].sofaTeams.push(r.away);
   });
 
   setLeagueTeamData(newLeagueData);
@@ -114,15 +120,33 @@ et: r['Produzeci'] ?? '',
 pen: r['Penali'] ?? ''
       }));
 
-      const allRows = sortRowsByDateDesc([...(sofaRows || []), ...newRows]);
-      allRows.forEach((r,i)=>r.rb=i+1);
+const BATCH_SIZE = 500;
+let index = 0;
+const allRows = [...sortRowsByDateDesc(newRows), ...(sofaRows || [])];
 
-      setSofaRows(allRows);
-      localStorage.setItem('sofaRows', JSON.stringify(allRows));
-    };
+const processBatch = () => {
+  const batch = allRows.slice(index, index + BATCH_SIZE);
 
-    reader.readAsArrayBuffer(file);
+  setSofaRows(prev => {
+    const combined = [...(prev || []), ...batch];
+    combined.forEach((r,i)=>r.rb=i+1);
+    return combined;
+  });
+
+if (index + BATCH_SIZE >= allRows.length)
+  localStorage.setItem('sofaRows', JSON.stringify(allRows));
+
+  index += BATCH_SIZE;
+  if (index < allRows.length) {
+    setTimeout(processBatch, 0);
+  }
+};
+
+processBatch();
   };
+
+  reader.readAsArrayBuffer(file);
+};
 
   /* ================= EDIT SISTEM ISTI KAO SCREEN1 ================= */
 
