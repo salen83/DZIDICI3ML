@@ -4,11 +4,10 @@ import countries from "./screen2/teamCountryMap/countries";
 import { MatchesContext } from "../MatchesContext";
 
 export default function FullScreen({ onClose }) {
-const { rows, setRows } = useContext(MatchesContext);
+const { rows, setRows, teamAliases, setTeamAliases } = useContext(MatchesContext);
   const [openCountry, setOpenCountry] = useState(null);
   const [openLeague, setOpenLeague] = useState(null);
   const [confirmedLeagues, setConfirmedLeagues] = useState({});
- const [teamAliases, setTeamAliases] = useState({});
 
   const leaguesByCountry = {};
   if (rows) {

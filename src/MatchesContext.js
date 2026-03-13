@@ -8,6 +8,7 @@ export const MatchesContext = createContext();
 export function MatchesProvider({ children }) {
 
 const [rows, setRows] = useState([]);
+const [teamAliases, setTeamAliases] = useState({});
 
   const [futureMatches, setFutureMatches] = useState([]);
   const [tickets, setTickets] = useState(() => {
@@ -270,6 +271,7 @@ finishedMatches.forEach(r=>{
   return (
     <MatchesContext.Provider value={{
       rows, setRows,
+      teamAliases, setTeamAliases,
       futureMatches, setFutureMatches,
       tickets, setTickets,
       activeTicket, setActiveTicket,
