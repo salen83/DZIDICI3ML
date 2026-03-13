@@ -96,30 +96,30 @@ if (!table[home]) table[home] = { team: home, teamId: `${liga}-${home}`, mp:0, w
         const away = teamAliases[m.away] || m.away;
 if (!table[away]) table[away] = { team: away, teamId: `${liga}-${away}`, mp:0, w:0, d:0, l:0, gf:0, ga:0, gd:0, pts:0 };
 
-        table[m.home].mp++;
-        table[m.away].mp++;
-        table[m.home].gf += hGoal;
-        table[m.home].ga += aGoal;
-        table[m.away].gf += aGoal;
-        table[m.away].ga += hGoal;
+        table[home].mp++;
+        table[away].mp++;
+        table[home].gf += hGoal;
+        table[home].ga += aGoal;
+        table[away].gf += aGoal;
+        table[away].ga += hGoal;
 
         if (hGoal > aGoal) {
-          table[m.home].w++;
-          table[m.home].pts += 3;
-          table[m.away].l++;
+          table[home].w++;
+          table[home].pts += 3;
+          table[away].l++;
         } else if (hGoal < aGoal) {
-          table[m.away].w++;
-          table[m.away].pts += 3;
-          table[m.home].l++;
+          table[away].w++;
+          table[away].pts += 3;
+          table[home].l++;
         } else {
-          table[m.home].d++;
-          table[m.away].d++;
+          table[home].d++;
+          table[away].d++;
           table[home].gd = table[home].gf - table[home].ga;
           table[away].gd = table[away].gf - table[away].ga;
         }
 
-        table[m.home].gd = table[m.home].gf - table[m.home].ga;
-        table[m.away].gd = table[m.away].gf - table[m.away].ga;
+        table[home].gd = table[home].gf - table[home].ga;
+        table[away].gd = table[away].gf - table[away].ga;
       });
 
     return Object.values(table)
