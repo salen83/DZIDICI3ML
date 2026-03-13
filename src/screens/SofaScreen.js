@@ -3,15 +3,22 @@ import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
+import { saveSofaRows, loadSofaRows } from "../db"; // IndexedDB funkcije
 
 export default function SofaScreen({ onClose }) {
-
   const { sofaRows, setSofaRows } = useSofa();
-  const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
+const { setLeagueTeamData } = useLeagueTeam();
 
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({ row: null, col: null });
+  const [importLogs, setImportLogs] = useState([]);
+
+  const debugImport = (...args) => {
+    const msg = args.join(' ');
+    console.log("[SOFA IMPORT]", msg);
+    setImportLogs(prev => [...prev, msg]);
+  };
 
   const rowHeight = 28;
   const buffer = 15;
@@ -24,8 +31,7 @@ export default function SofaScreen({ onClose }) {
 
   const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
 
-  /* ================= DATE SISTEM ISTI KAO SCREEN1 ================= */
-
+  /* ================= DATE SISTEM ================= */
   const normalizeDate = (val) => {
     if (!val) return '';
     if (!isNaN(val)) {
@@ -35,129 +41,122 @@ export default function SofaScreen({ onClose }) {
     return String(val);
   };
 
-const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
-  const [dA,mA,yA] = a.datum.split('.');
-  const [dB,mB,yB] = b.datum.split('.');
+const parseDate = (d) => {
+  if (!d) return new Date(0);
 
-  const dateA = new Date(yA, mA-1, dA);
-  const dateB = new Date(yB, mB-1, dB);
+  if (d.includes('/')) {
+    const [day, month, year] = d.split('/');
+    return new Date(Number("20"+year), Number(month)-1, Number(day));
+  }
 
-  return dateB - dateA;
-});
-  const isRowComplete = (row) => {
-    return (
-      row.datum &&
-      row.vreme &&
-      row.liga &&
-      row.home &&
-      row.away &&
-      row.ft &&
-      row.ht &&
-      row.sh
-    );
-  };
+  if (d.includes('.')) {
+    const [day, month, year] = d.split('.');
+    return new Date(Number(year), Number(month)-1, Number(day));
+  }
 
-  /* ================= MAP / LEAGUE TEAM (BEZ NORMALIZACIJE) ================= */
-
-  const updateLeagueTeam = (allRows) => {
-  const newLeagueData = { ...leagueTeamData };
-
-  allRows.forEach(r => {
-    if (!r.liga) return;
-    const key = r.liga.toLowerCase().trim();
-
-    if (!newLeagueData[key]) {
-      newLeagueData[key] = {
-        screen1: "",
-        sofa: r.liga,
-        screen1Teams: [],
-        sofaTeams: []
-      };
-    }
-
-    // Minimalna promena: u sofaTeams ubaci direktno home i away
-if (r.home && !newLeagueData[key].sofaTeams.includes(r.home))
-  newLeagueData[key].sofaTeams.push(r.home);
-
-if (r.away && !newLeagueData[key].sofaTeams.includes(r.away))
-  newLeagueData[key].sofaTeams.push(r.away);
-  });
-
-  setLeagueTeamData(newLeagueData);
+  return new Date(0);
 };
+
+const sortRowsByDateDesc = useCallback(
+  (rowsToSort) => [...rowsToSort].sort((a, b) => parseDate(b.datum) - parseDate(a.datum)),
+  [] // nema spoljašnjih zavisnosti
+);
+
+ const isRowComplete = (row) => (
+    row.datum && row.vreme && row.liga && row.home && row.away &&
+    row.ft && row.ht && row.sh
+  );
+
+  /* ================= LEAGUE TEAM ================= */
+const updateLeagueTeam = useCallback((allRows) => {
+  setLeagueTeamData(prev => {
+    const newLeagueData = { ...prev };
+    allRows.forEach(r => {
+      if (!r.liga) return;
+      const key = r.liga.toLowerCase().trim();
+      if (!newLeagueData[key]) newLeagueData[key] = { screen1: "", sofa: r.liga, screen1Teams: [], sofaTeams: [] };
+      if (r.home && !newLeagueData[key].sofaTeams.includes(r.home)) newLeagueData[key].sofaTeams.push(r.home);
+      if (r.away && !newLeagueData[key].sofaTeams.includes(r.away)) newLeagueData[key].sofaTeams.push(r.away);
+    });
+    return newLeagueData;
+  });
+}, [setLeagueTeamData]);
 
   useEffect(() => {
     if (!sofaRows) return;
     updateLeagueTeam(sofaRows);
-    // eslint-disable-next-line
-  }, [sofaRows]);
+}, [sofaRows, updateLeagueTeam]);
 
-  /* ================= IMPORT ================= */
+// ================= INIT IZ INDEXEDDB =================
+useEffect(() => {
+    (async () => {
+        const loaded = await loadSofaRows();
+        if (loaded?.length) setSofaRows(sortRowsByDateDesc(loaded));
+    })();
+}, [setSofaRows, sortRowsByDateDesc]);
 
+  /* ================= IMPORT EXCEL ================= */
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+    debugImport("Import pokrenut, fajl:", file.name, "velicina:", file.size, "bytes");
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    debugImport("Reader kreiran");
+
+    reader.onload = async (e) => {
+      debugImport("FileReader onload, byteLength:", e.target.result.byteLength);
 
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
+      debugImport("Excel parsiran u JSON, redova:", dataRows.length);
+      debugImport("Prvi redovi iz Excela:", dataRows.slice(0,5));
+
       const newRows = dataRows.map(r => ({
         rb: 0,
         datum: normalizeDate(r['Datum'] ?? ''),
         vreme: String(r['Time'] ?? r['Vreme'] ?? ''),
         liga: r['Liga'] ?? '',
-home: r['Domacin'] ?? '',
-away: r['Gost'] ?? '',
-ft: r['Ft'] ?? '',
-ht: r['Prvo poluvreme'] ?? '',
-sh: r['Drugo poluvreme'] ?? '',
-et: r['Produzeci'] ?? '',
-pen: r['Penali'] ?? ''
+        home: r['Domacin'] ?? '',
+        away: r['Gost'] ?? '',
+        ft: r['Ft'] ?? '',
+        ht: r['Prvo poluvreme'] ?? '',
+        sh: r['Drugo poluvreme'] ?? '',
+        et: r['Produzeci'] ?? '',
+        pen: r['Penali'] ?? ''
       }));
 
-const BATCH_SIZE = 500;
-let index = 0;
-const allRows = [...sortRowsByDateDesc(newRows), ...(sofaRows || [])];
+      debugImport("Kreiran newRows array, redova:", newRows.length, "primer prvih 5:", newRows.slice(0,5));
 
-const processBatch = () => {
-  const batch = allRows.slice(index, index + BATCH_SIZE);
+const allRows = sortRowsByDateDesc([...(sofaRows || []), ...newRows]);
 
-  setSofaRows(prev => {
-    const combined = [...(prev || []), ...batch];
-    combined.forEach((r,i)=>r.rb=i+1);
-    return combined;
-  });
+debugImport("allRows ukupno:", allRows.length, "primer prvih 5:", allRows.slice(0,5));
 
-if (index + BATCH_SIZE >= allRows.length)
-  localStorage.setItem('sofaRows', JSON.stringify(allRows));
+allRows.forEach((r,i)=>r.rb=i+1);
 
-  index += BATCH_SIZE;
-  if (index < allRows.length) {
-    setTimeout(processBatch, 0);
-  }
-};
+// React state update samo jednom
+setSofaRows(allRows);
 
-processBatch();
+// snimanje u IndexedDB
+await saveSofaRows(allRows);
+
+debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
+    };
+
+    reader.readAsArrayBuffer(file);
+    debugImport("Reader.readAsArrayBuffer pokrenut");
   };
 
-  reader.readAsArrayBuffer(file);
-};
-
-  /* ================= EDIT SISTEM ISTI KAO SCREEN1 ================= */
-
+  /* ================= EDIT SISTEM ================= */
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
 
-  const handleCellChange = (rowIdx,key,value) => {
-
+  const handleCellChange = async (rowIdx,key,value) => {
     const copy = [...sofaRows];
     copy[rowIdx] = { ...copy[rowIdx], [key]: value };
-
     const editedRow = copy[rowIdx];
 
     if (isRowComplete(editedRow)) {
@@ -165,46 +164,43 @@ processBatch();
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
       setSofaRows(sorted);
-      localStorage.setItem('sofaRows', JSON.stringify(sorted));
+      await saveSofaRows(sorted);
     } else {
       setSofaRows(copy);
-      localStorage.setItem('sofaRows', JSON.stringify(copy));
+      await saveSofaRows(copy);
     }
   };
 
-  const addNewRow = () => {
+  const addNewRow = async () => {
     const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', et:'', pen:'', _new:true };
     const newRows = [newRow, ...(sofaRows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setSofaRows(newRows);
-    localStorage.setItem('sofaRows', JSON.stringify(newRows));
-
+    await saveSofaRows(newRows);
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);
   };
 
-  const deleteRow = (index) => {
+  const deleteRow = async (index) => {
     const copy = [...sofaRows];
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setSofaRows(copy);
-    localStorage.setItem('sofaRows', JSON.stringify(copy));
+    await saveSofaRows(copy);
   };
 
-  const deleteAllRows = () => {
+  const deleteAllRows = async () => {
     setSofaRows([]);
-    localStorage.removeItem('sofaRows');
+    await saveSofaRows([]);
   };
 
   /* ================= RENDER ================= */
-
   return (
     <div className="screen1-container">
-
-    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-  <button onClick={onClose}>⬅ Izadji</button>
-  <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
-</div>
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        <button onClick={onClose}>⬅ Izadji</button>
+        <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
+      </div>
 
       <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
@@ -217,19 +213,7 @@ processBatch();
         ref={tableWrapperRef}
         onScroll={handleScroll}
       >
-
         <div style={{height: startIndex*rowHeight}}></div>
-       <div className="screen1-row header">
-  <div className="col info">Datum / Vreme / Liga</div>
-  <div className="col teams">Timovi</div>
-  <div className="col small">HT</div>
-  <div className="col small">SH</div>
-  <div className="col small">FT</div>
-  <div className="col small">ET</div>
-  <div className="col small">PEN</div>
-  <div className="col delete">X</div>
-</div>
-
         {visibleRows?.map((r,i)=>{
           const idx = startIndex+i;
           const isEditing = editing.row===idx;
@@ -237,26 +221,21 @@ processBatch();
 
           return (
             <div key={idx} className="screen1-row" style={{ height: rowHeight }}>
-
               <div className="col info">
-
                 <div style={{display:'flex', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='datum')) ?
                     <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
                     <div onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
                   }
-
                   {(isNew || (isEditing && editing.col==='vreme')) ?
                     <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
                     <div onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
                   }
                 </div>
-
                 {(isNew || (isEditing && editing.col==='liga')) ?
                   <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
                   <div onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold'}}>{r.liga}</div>
                 }
-
               </div>
 
               <div className="col teams">
@@ -271,51 +250,59 @@ processBatch();
                 }
               </div>
 
-<div className="col small">
-  {(isNew || (isEditing && editing.col==='ht')) ?
-    <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
-    <span onClick={()=>handleEditStart(idx,'ht')}>{r.ht}</span>
-  }
-</div>
-
-<div className="col small">
-  {(isNew || (isEditing && editing.col==='sh')) ?
-    <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
-    <span onClick={()=>handleEditStart(idx,'sh')}>{r.sh}</span>
-  }
-</div>
-
-<div className="col small">
-  {(isNew || (isEditing && editing.col==='ft')) ?
-    <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
-    <strong onClick={()=>handleEditStart(idx,'ft')}>{r.ft}</strong>
-  }
-</div>
-
-<div className="col small">
-  {(isNew || (isEditing && editing.col==='et')) ?
-    <input className="edit-input" value={r.et} onChange={e=>handleCellChange(idx,'et',e.target.value)} onBlur={handleEditEnd} /> :
-    <span onClick={()=>handleEditStart(idx,'et')}>{r.et}</span>
-  }
-</div>
-
-<div className="col small">
-  {(isNew || (isEditing && editing.col==='pen')) ?
-    <input className="edit-input" value={r.pen} onChange={e=>handleCellChange(idx,'pen',e.target.value)} onBlur={handleEditEnd} /> :
-    <span onClick={()=>handleEditStart(idx,'pen')}>{r.pen}</span>
-  }
-</div>
+              <div className="col small">
+                {(isNew || (isEditing && editing.col==='ht')) ?
+                  <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'ht')}>{r.ht}</span>
+                }
+              </div>
+              <div className="col small">
+                {(isNew || (isEditing && editing.col==='sh')) ?
+                  <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'sh')}>{r.sh}</span>
+                }
+              </div>
+              <div className="col small">
+                {(isNew || (isEditing && editing.col==='ft')) ?
+                  <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
+                  <strong onClick={()=>handleEditStart(idx,'ft')}>{r.ft}</strong>
+                }
+              </div>
+              <div className="col small">
+                {(isNew || (isEditing && editing.col==='et')) ?
+                  <input className="edit-input" value={r.et} onChange={e=>handleCellChange(idx,'et',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'et')}>{r.et}</span>
+                }
+              </div>
+              <div className="col small">
+                {(isNew || (isEditing && editing.col==='pen')) ?
+                  <input className="edit-input" value={r.pen} onChange={e=>handleCellChange(idx,'pen',e.target.value)} onBlur={handleEditEnd} /> :
+                  <span onClick={()=>handleEditStart(idx,'pen')}>{r.pen}</span>
+                }
+              </div>
 
               <div className="col delete">
                 <button onClick={()=>deleteRow(idx)}>x</button>
               </div>
-
             </div>
           );
         })}
-
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
 
+        <div style={{
+          position: 'sticky',
+          bottom: 0,
+          marginTop:'10px',
+          padding:'5px',
+          border:'1px solid #ccc',
+          maxHeight:150,
+          overflowY:'auto',
+          fontSize:'12px',
+          background:'#f9f9f9',
+          zIndex: 10
+        }}>
+          {importLogs.map((log,i) => <div key={i}>{log}</div>)}
+        </div>
       </div>
     </div>
   );
