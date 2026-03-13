@@ -7,13 +7,7 @@ export const MatchesContext = createContext();
 
 export function MatchesProvider({ children }) {
 
-  const [rows, setRows] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("rows")) || [];
-    } catch {
-      return [];
-    }
-  });
+const [rows, setRows] = useState([]);
 
   const [futureMatches, setFutureMatches] = useState([]);
   const [tickets, setTickets] = useState(() => {
@@ -120,19 +114,19 @@ export function MatchesProvider({ children }) {
     setActiveTicket(null);
   };
 
-  useEffect(() => { localStorage.setItem("rows", JSON.stringify(rows)); }, [rows]);
   useEffect(() => { localStorage.setItem("tickets", JSON.stringify(tickets)); }, [tickets]);
   useEffect(() => { localStorage.setItem("activeTicket", JSON.stringify(activeTicket)); }, [activeTicket]);
 
   // --- Team stats za Poisson ---
   useEffect(()=>{
-    if(!rows.length){
+const finishedMatches = rows.filter(r => r.ft && r.ft.includes(":"));
+if(!finishedMatches.length){
       setTeamPoissonStats([]);
       return;
     }
 
     const teams = {};
-    rows.forEach(r=>{
+finishedMatches.forEach(r=>{
       if(!r.ft || !r.home || !r.away) return;
 
       ensureTeam(r.home, r.liga);

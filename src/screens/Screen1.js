@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';        
+import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
@@ -9,23 +9,28 @@ import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { convertSofaToSyncJSONRaw } from "./ScreenJson";
 import { useSofa } from "../SofaContext";
 
+// 🔹 PROMENA: koristimo db1.js specijalno za Screen1
+import { saveRows, loadRows } from "../db1"; 
+
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
   const { setMapData } = useMapScreen();
   const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
   const { leagueMap } = useLeagueMap();
-const { teamMap } = useNormalisedTeamMap();
-const { sofaRows } = useSofa();
+  const { teamMap } = useNormalisedTeamMap();
+  const { sofaRows } = useSofa();
+
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
   const [debugLogs, setDebugLogs] = useState([]);
 
-const addLog = (msg) => {
-  setDebugLogs(prev => [...prev, msg]);
-  console.log(msg); // i dalje ide i u browser konzolu
-};
-const rowHeight = 28;
+  const addLog = (msg) => {
+    setDebugLogs(prev => [...prev, msg]);
+    console.log(msg);
+  };
+
+  const rowHeight = 28;
   const buffer = 15;
   const containerHeight = 600;
 
@@ -45,149 +50,161 @@ const rowHeight = 28;
     return String(val);
   };
 
-  const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
-    const dateA = a.datum.split('.').reverse().join('-');
-    const dateB = b.datum.split('.').reverse().join('-');
+const sortRowsByDateDesc = (rowsToSort) =>
+  [...rowsToSort].sort((a, b) => {
+    const dateA = a?.datum ? a.datum.split('.').reverse().join('-') : '';
+    const dateB = b?.datum ? b.datum.split('.').reverse().join('-') : '';
     return dateB.localeCompare(dateA);
   });
 
   // =========================
   // 🔥 puni MapScreen i LeagueTeamScreen
   // =========================
-  const updateMapAndLeagueTeam = (allRows) => {
-    // 1️⃣ MapScreen
-    setMapData(prev => {
-      const next = { ...prev };
-      allRows.forEach(r => {
-        if (!r.liga) return;
-        const key = r.liga.toLowerCase().trim();
-        if (!next[key]) {
-          next[key] = {
-            screen1: r.liga,
-            sofa: "",
-            screen1Teams: [],
-            sofaTeams: []
-          };
-        }
-        if (r.home && !next[key].screen1Teams.includes(r.home)) next[key].screen1Teams.push(r.home);
-        if (r.away && !next[key].screen1Teams.includes(r.away)) next[key].screen1Teams.push(r.away);
-      });
-      return next;
-    });
-
-    // 2️⃣ LeagueTeamScreen sa screen1 i sofa kolonom
-    const newLeagueData = { ...leagueTeamData };
+const updateMapAndLeagueTeam = useCallback((allRows) => {
+  setMapData(prev => {
+    const next = { ...prev };
     allRows.forEach(r => {
       if (!r.liga) return;
       const key = r.liga.toLowerCase().trim();
-      if (!newLeagueData[key]) {
-        newLeagueData[key] = {
+      if (!next[key]) {
+        next[key] = {
           screen1: r.liga,
           sofa: "",
           screen1Teams: [],
           sofaTeams: []
         };
       }
-      if (r.home && !newLeagueData[key].screen1Teams.includes(r.home))
-        newLeagueData[key].screen1Teams.push(r.home);
-      if (r.away && !newLeagueData[key].screen1Teams.includes(r.away))
-        newLeagueData[key].screen1Teams.push(r.away);
+      if (r.home && !next[key].screen1Teams.includes(r.home)) next[key].screen1Teams.push(r.home);
+      if (r.away && !next[key].screen1Teams.includes(r.away)) next[key].screen1Teams.push(r.away);
     });
-    setLeagueTeamData(newLeagueData);
-  };
+    return next;
+  });
 
+  const newLeagueData = { ...leagueTeamData };
+  allRows.forEach(r => {
+    if (!r.liga) return;
+    const key = r.liga.toLowerCase().trim();
+    if (!newLeagueData[key]) {
+      newLeagueData[key] = {
+        screen1: r.liga,
+        sofa: "",
+        screen1Teams: [],
+        sofaTeams: []
+      };
+    }
+    if (r.home && !newLeagueData[key].screen1Teams.includes(r.home))
+      newLeagueData[key].screen1Teams.push(r.home);
+    if (r.away && !newLeagueData[key].screen1Teams.includes(r.away))
+      newLeagueData[key].screen1Teams.push(r.away);
+  });
+  setLeagueTeamData(newLeagueData);
+}, [leagueTeamData, setMapData, setLeagueTeamData]);
+
+useEffect(() => {
+  if (!rows) return;
+  updateMapAndLeagueTeam(rows);
+}, [rows, updateMapAndLeagueTeam]);
   // =========================
-  // 🔥 AUTOMATSKI prati svaku promenu u Screen1
+  // 🔹 INIT IZ INDEXEDDB
   // =========================
   useEffect(() => {
-    if (!rows) return;
-    updateMapAndLeagueTeam(rows);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows]);
+    (async () => {
+      const loaded = await loadRows();
+      if (loaded?.length) setRows(sortRowsByDateDesc(loaded));
+    })();
+  }, [setRows]);
 
+  // =========================
+  // 🔹 IMPORT EXCEL
+  // =========================
   const importExcel = (event) => {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+
+    reader.onload = async (e) => {
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-    const newRows = dataRows.reduce((acc, r) => {
-  const datum = normalizeDate(r['Datum'] ?? '');
-  const vreme = String(r['Time'] ?? '');
-  const liga = r['Liga'] ?? '';
-  const home = r['Home'] ?? '';
-  const away = r['Away'] ?? '';
-  const ft = r['FT'] ?? '';
-  const ht = r['HT'] ?? '';
-  const sh = r['SH'] ?? '';
 
-  // provera da li vec postoji isti mec
-  const exists = rows?.some(existing =>
-    existing.datum === datum &&
-    String(existing.vreme) === vreme &&
-    existing.liga?.toLowerCase().trim() === liga?.toLowerCase().trim() &&
-    existing.home?.toLowerCase().trim() === home?.toLowerCase().trim() &&
-    existing.away?.toLowerCase().trim() === away?.toLowerCase().trim()
-  );
+      const newRows = dataRows.reduce((acc, r) => {
+        const datum = normalizeDate(r['Datum'] ?? '');
+        const vreme = String(r['Time'] ?? '');
+        const liga = r['Liga'] ?? '';
+        const home = r['Home'] ?? '';
+        const away = r['Away'] ?? '';
+        const ft = r['FT'] ?? '';
+        const ht = r['HT'] ?? '';
+        const sh = r['SH'] ?? '';
 
-  if (!exists) {
-    acc.push({ rb: 0, datum, vreme, liga, home, away, ft, ht, sh });
-  }
+        const exists = rows?.some(existing =>
+          existing.datum === datum &&
+          String(existing.vreme) === vreme &&
+          existing.liga?.toLowerCase().trim() === liga?.toLowerCase().trim() &&
+          existing.home?.toLowerCase().trim() === home?.toLowerCase().trim() &&
+          existing.away?.toLowerCase().trim() === away?.toLowerCase().trim()
+        );
 
-  return acc;
-}, []);
+        if (!exists) {
+          acc.push({ rb:0, datum, vreme, liga, home, away, ft, ht, sh });
+        }
+        return acc;
+      }, []);
+
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
       setRows(allRows);
-      localStorage.setItem('rows', JSON.stringify(allRows));
 
-  };
+      // 🔹 Čuvanje u IndexedDB
+      await saveRows(allRows);
+    };
+
     reader.readAsArrayBuffer(file);
   };
-const syncWithSofaScreen = async () => {
-  try {
-    addLog("🔹 Pokrenut syncWithSofaScreen");
 
-const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
-addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
+  const syncWithSofaScreen = async () => {
+    try {
+      addLog("🔹 Pokrenut syncWithSofaScreen");
 
-    const updatedRows = rows.map(row => {
-      const match = syncJson.find(s =>
-        s.datum === row.datum &&
-        String(s.vreme) === String(row.vreme) &&
-        s.liga === row.liga &&
-        s.home === row.home &&
-        s.away === row.away
-      );
+      const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
+      addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
-      if (!match) {
-        addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
-        return row;
-      }
+      const updatedRows = rows.map(row => {
+        const match = syncJson.find(s =>
+          s.datum === row.datum &&
+          String(s.vreme) === String(row.vreme) &&
+          s.liga === row.liga &&
+          s.home === row.home &&
+          s.away === row.away
+        );
 
-      const sofaFT = match.ft ?? '';
-      const sofaSH = match.sh ?? '';
+        if (!match) {
+          addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
+          return row;
+        }
 
-      if (row.ft === sofaFT && row.sh === sofaSH) {
-        addLog(`✅ Rezultati isti za: ${row.home} - ${row.away}`);
-        return { ...row, _syncedChanged: false };
-      }
+        const sofaFT = match.ft ?? '';
+        const sofaSH = match.sh ?? '';
 
-      addLog(`⚠️ Rezultati se razlikuju za: ${row.home} - ${row.away}, update na ${sofaFT}:${sofaSH}`);
-      return { ...row, ft: sofaFT, sh: sofaSH, _syncedChanged: true };
-    });
+        if (row.ft === sofaFT && row.sh === sofaSH) {
+          addLog(`✅ Rezultati isti za: ${row.home} - ${row.away}`);
+          return { ...row, _syncedChanged: false };
+        }
 
-    setRows(updatedRows);
-    localStorage.setItem('rows', JSON.stringify(updatedRows));
-    addLog("🔹 Sync završen");
+        addLog(`⚠️ Rezultati se razlikuju za: ${row.home} - ${row.away}, update na ${sofaFT}:${sofaSH}`);
+        return { ...row, ft: sofaFT, sh: sofaSH, _syncedChanged: true };
+      });
 
-  } catch (err) {
-    addLog(`❌ Greška u sync: ${err}`);
-  }
-};
+      setRows(updatedRows);
+      await saveRows(updatedRows);
+      addLog("🔹 Sync završen");
+
+    } catch (err) {
+      addLog(`❌ Greška u sync: ${err}`);
+    }
+  };
+
   const isRowComplete = (row) => {
     return (
       row.datum &&
@@ -200,12 +217,13 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
       row.sh
     );
   };
-  const addNewRow = () => {
-  const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
+
+  const addNewRow = async () => {
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', _new:true };
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
-    localStorage.setItem('rows', JSON.stringify(newRows));
+    await saveRows(newRows);
 
     updateMapAndLeagueTeam(newRows);
 
@@ -213,41 +231,38 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
     setScrollTop(0);
   };
 
-  const deleteRow = (index) => {
+  const deleteRow = async (index) => {
     const copy = [...rows];
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setRows(copy);
-    localStorage.setItem('rows', JSON.stringify(copy));
+    await saveRows(copy);
   };
-  const deleteAllRows = () => {
+
+  const deleteAllRows = async () => {
     setRows([]);
-    localStorage.removeItem('rows');
+    await saveRows([]);
   };
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
 
-  const handleCellChange = (rowIdx,key,value) => {
+  const handleCellChange = async (rowIdx,key,value) => {
     const copy = [...rows];
-    copy[rowIdx] = { ...copy[rowIdx], [key]: value};
-
+    copy[rowIdx] = { ...copy[rowIdx], [key]: value };
     const editedRow = copy[rowIdx];
 
     if (isRowComplete(editedRow)) {
       delete editedRow._new;
-
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
-
       setRows(sorted);
-      localStorage.setItem('rows', JSON.stringify(sorted));
+      await saveRows(sorted);
     } else {
       setRows(copy);
-      localStorage.setItem('rows', JSON.stringify(copy));
+      await saveRows(copy);
     }
   };
-
 
   const getFontSize = (text,maxWidth,base=11,min=7) => {
     let size = base;
@@ -260,13 +275,13 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
   return (
     <div className="screen1-container">
-   <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
-  <div className="screen1-topbar">
+      <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
+      <div className="screen1-topbar">
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
         <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
         <button onClick={() => console.log(debugLogs)}>Prikaži debug log</button>
-</div>
+      </div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
         <div style={{height: startIndex*rowHeight}}></div>
@@ -276,10 +291,8 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
           const isEditing = editing.row===idx;
           const isNew = r._new === true;
 
-
           return (
-<div key={idx} className="screen1-row" style={{ height: rowHeight, backgroundColor: r._syncedChanged ? 'yellow' : 'transparent' }}>
-
+            <div key={idx} className="screen1-row" style={{ height: rowHeight, backgroundColor: r._syncedChanged ? 'yellow' : 'transparent' }}>
               <div className="col info">
                 <div style={{display:'flex', flexDirection:'row', gap:'3px'}}>
                   {(isNew || (isEditing && editing.col==='datum')) ?
@@ -335,11 +348,13 @@ addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
             </div>
           );
         })}
+
         <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
       </div>
+
       <div style={{ maxHeight: 200, overflowY: 'auto', background: '#eee', marginTop: 10, padding: 5 }}>
-  {debugLogs.map((l, i) => <div key={i}>{l}</div>)}
-</div>
+        {debugLogs.map((l, i) => <div key={i}>{l}</div>)}
+      </div>
     </div>
   );
 }

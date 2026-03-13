@@ -1,5 +1,5 @@
-export const DB_NAME = "SofaDB";
-export const STORE_NAME = "sofaRows";
+export const DB_NAME = "Screen1DB";
+export const STORE_NAME = "matches";
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -15,7 +15,7 @@ function openDB() {
   });
 }
 
-export async function saveSofaRows(rows) {
+export async function saveRows(rows) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -27,7 +27,7 @@ export async function saveSofaRows(rows) {
   });
 }
 
-export async function loadSofaRows() {
+export async function loadRows() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");

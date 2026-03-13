@@ -24,9 +24,9 @@ const normalizedLeague =
       : l.sofa === r.liga
   )?.screen1 || r.liga;
 
-    const [day, month, year] = r.datum.split("/");
-    const fullYear = year.length === 2 ? "20" + year : year;
-    const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+const [day = "01", month = "01", year = "2000"] = (r.datum || "01/01/2000").split("/");
+const fullYear = (year || "2000").length === 2 ? "20" + year : year;
+const datum = `${fullYear.padStart(4,"0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 
     return {
       rb: index + 1,
@@ -105,9 +105,9 @@ const normalizedLeague =
     newLogs.push(`  Original liga: ${r.liga} => Normalized: ${normalizedLeague}`);
     newLogs.push(`  Datum/vreme: ${r.datum} ${r.vreme}`);
 
-    const [day, month, year] = r.datum.split("/");
-    const fullYear = year.length === 2 ? "20" + year : year;
-    const datum = `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+const [day = "01", month = "01", year = "2000"] = (r.datum || "01/01/2000").split("/");
+const fullYear = (year || "2000").length === 2 ? "20" + year : year;
+const datum = `${fullYear.padStart(4,"0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 
     return {
       rb: index + 1,
