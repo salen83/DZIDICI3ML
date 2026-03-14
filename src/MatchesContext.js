@@ -8,7 +8,13 @@ export const MatchesContext = createContext();
 export function MatchesProvider({ children }) {
 
 const [rows, setRows] = useState([]);
-const [teamAliases, setTeamAliases] = useState({});
+const [teamAliases, setTeamAliases] = useState(() => {
+  try {
+    return JSON.parse(localStorage.getItem("teamAliases")) || {};
+  } catch {
+    return {};
+  }
+});
 
   const [futureMatches, setFutureMatches] = useState([]);
   const [tickets, setTickets] = useState(() => {
@@ -117,6 +123,9 @@ const [teamAliases, setTeamAliases] = useState({});
 
   useEffect(() => { localStorage.setItem("tickets", JSON.stringify(tickets)); }, [tickets]);
   useEffect(() => { localStorage.setItem("activeTicket", JSON.stringify(activeTicket)); }, [activeTicket]);
+useEffect(() => {
+  localStorage.setItem("teamAliases", JSON.stringify(teamAliases));
+}, [teamAliases]);
 
   // --- Team stats za Poisson ---
   useEffect(()=>{
