@@ -2,6 +2,8 @@ import React, { useContext, useState } from "react";
 import "./FullScreen.css";
 import countries from "./screen2/teamCountryMap/countries";
 import { MatchesContext } from "../MatchesContext";
+import { saveRows } from "../db1";
+import { saveConfirmedLeagues } from "../db1";
 
 export default function FullScreen({ onClose }) {
 const { rows, setRows, teamAliases, setTeamAliases } = useContext(MatchesContext);
@@ -158,13 +160,17 @@ const mergeTeamWithPrompt = (ligaTable, originalName, duplicateName) => {
 const confirmLeagueTeams = (leagueName) => {
   const teams = getLeagueTable(leagueName).map(t => t.team);
 
-  setConfirmedLeagues(prev => ({
-    ...prev,
+  const updated = {
+    ...confirmedLeagues,
     [leagueName]: teams
-  }));
+  };
+
+  setConfirmedLeagues(updated);
+  saveConfirmedLeagues(updated);
 
   alert("Liga '" + leagueName + "' je potvrđena.");
 };
+
 const mergeTeams = (teamName) => {
   const standardName = prompt(
     "Upiši standardno ime tima (ime koje treba da ostane):"
@@ -184,12 +190,14 @@ const mergeTeams = (teamName) => {
     [teamName]: standardName
   }));
 
-  // Update Screen1 rows (home i away) da zameni duplikat sa standardnim imenom
-  setRows(prevRows => prevRows.map(r => ({
-    ...r,
-    home: r.home === teamName ? standardName : r.home,
-    away: r.away === teamName ? standardName : r.away
-  })));
+const updatedRows = rows.map(r => ({
+  ...r,
+  home: r.home === teamName ? standardName : r.home,
+  away: r.away === teamName ? standardName : r.away
+}));
+
+setRows(updatedRows);
+saveRows(updatedRows);
 };
 
   return (

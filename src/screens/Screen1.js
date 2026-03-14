@@ -11,6 +11,7 @@ import { useSofa } from "../SofaContext";
 
 // 🔹 PROMENA: koristimo db1.js specijalno za Screen1
 import { saveRows, loadRows } from "../db1"; 
+import { loadConfirmedLeagues } from "../db1";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
@@ -154,6 +155,19 @@ useEffect(() => {
 
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
+          const confirmedLeagues = await loadConfirmedLeagues();
+
+        Object.entries(confirmedLeagues || {}).forEach(([liga, teams]) => {
+          const importedTeams = allRows
+            .filter(r => r.liga === liga)
+            .flatMap(r => [r.home, r.away]);
+
+          importedTeams.forEach(team => {
+            if (!teams.includes(team)) {
+              alert("⚠ Novi tim u potvrđenoj ligi: " + liga + " → " + team);
+            }
+          });
+        });
       setRows(allRows);
 
       // 🔹 Čuvanje u IndexedDB

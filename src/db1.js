@@ -37,3 +37,25 @@ export async function loadRows() {
     request.onerror = () => reject(request.error);
   });
 }
+// === ADD AFTER LINE 39 ===
+export async function saveConfirmedLeagues(confirmedLeagues) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.put({ id: "confirmedLeagues", data: confirmedLeagues });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadConfirmedLeagues() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.get("confirmedLeagues");
+    request.onsuccess = () => resolve(request.result?.data || {});
+    request.onerror = () => reject(request.error);
+  });
+}
