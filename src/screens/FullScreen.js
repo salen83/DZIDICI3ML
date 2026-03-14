@@ -55,11 +55,11 @@ const { rows, setRows, teamAliases, setTeamAliases } = useContext(MatchesContext
         "prvenstvo južne amerike",
       ];
 
-      if (internationalKeywords.some(k => match.liga.toLowerCase().includes(k))) {
+if (internationalKeywords.some(k => (match.liga || "").toLowerCase().includes(k))) {
         countryName = "Međunarodno";
       }
 
-      const ligaLower = match.liga.toLowerCase();
+const ligaLower = (match.liga || "").toLowerCase();
       Object.keys(countryAliases).forEach(alias => {
         if (ligaLower.startsWith(alias)) {
           countryName = countryAliases[alias];
@@ -92,7 +92,7 @@ const { rows, setRows, teamAliases, setTeamAliases } = useContext(MatchesContext
     rows
       .filter(m => m.liga === liga)
       .forEach(m => {
-        const [hGoal, aGoal] = m.ft.split(":").map(Number);
+const [hGoal, aGoal] = (m.ft || "0:0").split(":").map(Number);
        const home = teamAliases[m.home] || m.home;
 if (!table[home]) table[home] = { team: home, teamId: `${liga}-${home}`, mp:0, w:0, d:0, l:0, gf:0, ga:0, gd:0, pts:0 };
         const away = teamAliases[m.away] || m.away;
