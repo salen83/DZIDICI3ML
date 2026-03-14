@@ -156,7 +156,7 @@ export default function FullScreen({ onClose }) {
         {Object.entries(leaguesByCountry).map(([country, leagues], index) => (
           <li key={index} className="country-block">
             <h3 onClick={() => setOpenCountry(openCountry === country ? null : country)}>
-              {index + 1}. {(countries ? Object.values(countries).find(c => c.name === country)?.flag : null) || "🏳️"}
+{index + 1}. {(countries ? Object.values(countries).find(c => c.name === country)?.flag : "🏳️")} {country}
             </h3>
             {openCountry === country && (
               <ul>
