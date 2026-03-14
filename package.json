@@ -15,6 +15,8 @@
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^13.5.0",
     "expo": "^54.0.32",
+    "idb": "^8.0.3",
+    "idb-keyval": "^6.2.2",
     "jszip": "^3.10.1",
     "react": "^19.2.3",
     "react-data-grid": "^7.0.0-beta.59",
