@@ -68,7 +68,7 @@ const ligaLower = (match.liga || "").toLowerCase();
 
       if (countryName !== "Međunarodno") {
         const found = Object.values(countries).find(c =>
-          match.liga.toLowerCase().startsWith(c.name.toLowerCase())
+(match.liga || "").toLowerCase().startsWith(c.name.toLowerCase())
         );
         if (found) countryName = found.name;
       }
@@ -207,7 +207,7 @@ saveRows(updatedRows);
         {Object.entries(leaguesByCountry).map(([country, leagues], index) => (
           <li key={index} className="country-block">
             <h3 onClick={() => setOpenCountry(openCountry === country ? null : country)}>
-              {index + 1}. {Object.values(countries).find(c => c.name === country)?.flag || "🏳️"} {country}
+{index + 1}. {(countries ? Object.values(countries).find(c => c.name === country)?.flag : null) || "🏳️"}
             </h3>
             {openCountry === country && (
               <ul>
