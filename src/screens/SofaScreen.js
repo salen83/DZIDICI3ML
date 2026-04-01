@@ -126,7 +126,8 @@ useEffect(() => {
         ht: r['Prvo poluvreme'] ?? '',
         sh: r['Drugo poluvreme'] ?? '',
         et: r['Produzeci'] ?? '',
-        pen: r['Penali'] ?? ''
+        pen: r['Penali'] ?? '',
+country: r['Country'] ?? ''
       }));
 
       debugImport("Kreiran newRows array, redova:", newRows.length, "primer prvih 5:", newRows.slice(0,5));
@@ -172,7 +173,7 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
   };
 
   const addNewRow = async () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', et:'', pen:'', _new:true };
+    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', ft:'', ht:'', sh:'', et:'', pen:'', country:'', _new:true };
     const newRows = [newRow, ...(sofaRows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setSofaRows(newRows);
@@ -280,6 +281,12 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
                   <span onClick={()=>handleEditStart(idx,'pen')}>{r.pen}</span>
                 }
               </div>
+          <div className="col small">
+  {(isNew || (isEditing && editing.col==='country')) ?
+    <input className="edit-input" value={r.country} onChange={e=>handleCellChange(idx,'country',e.target.value)} onBlur={handleEditEnd} /> :
+    <span onClick={()=>handleEditStart(idx,'country')}>{r.country}</span>
+  }
+</div>
 
               <div className="col delete">
                 <button onClick={()=>deleteRow(idx)}>x</button>
