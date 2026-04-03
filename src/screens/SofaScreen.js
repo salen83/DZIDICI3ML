@@ -41,26 +41,25 @@ const { setLeagueTeamData } = useLeagueTeam();
     return String(val);
   };
 
+/* ================= DATE SISTEM ================= */
 const parseDate = (d) => {
-  if (!d) return new Date(0);
+  if (!d) return new Date(0);           // fallback za prazne vrednosti
 
-  if (d.includes('/')) {
-    const [day, month, year] = d.split('/');
-    return new Date(Number("20"+year), Number(month)-1, Number(day));
+  // ISO format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    return new Date(d);                 // direktno konvertuje ISO datum
   }
 
-  if (d.includes('.')) {
-    const [day, month, year] = d.split('.');
-    return new Date(Number(year), Number(month)-1, Number(day));
-  }
-
+  // fallback za ostale formate (nije striktno potrebno ako Excel uvek daje ISO)
   return new Date(0);
 };
 
+// sortiranje od novijih ka starijim
 const sortRowsByDateDesc = useCallback(
   (rowsToSort) => [...rowsToSort].sort((a, b) => parseDate(b.datum) - parseDate(a.datum)),
   [] // nema spoljašnjih zavisnosti
 );
+
 
  const isRowComplete = (row) => (
     row.datum && row.vreme && row.liga && row.home && row.away &&
