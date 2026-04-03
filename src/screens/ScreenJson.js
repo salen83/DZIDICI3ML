@@ -105,9 +105,40 @@ const normalizedLeague =
     newLogs.push(`  Original liga: ${r.liga} => Normalized: ${normalizedLeague}`);
     newLogs.push(`  Datum/vreme: ${r.datum} ${r.vreme}`);
 
-const [day = "01", month = "01", year = "2000"] = (r.datum || "01/01/2000").split("/");
-const fullYear = (year || "2000").length === 2 ? "20" + year : year;
-const datum = `${fullYear.padStart(4,"0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+// ================= ISPRAVKA DATUMA =================
+// ================= ISPRAVKA DATUMA =================
+const parseRowDate = (d) => {
+  if (!d) return "2000-01-01";
+
+  // Ako je Excel broj
+  const excelNumber = Number(d);
+  if (!isNaN(excelNumber)) {
+    const date = new Date((excelNumber - 25569) * 86400 * 1000);
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  }
+
+  // ISO format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    return d;
+  }
+
+  let day, month, year;
+
+  if (d.includes('/')) {
+    [day, month, year] = d.split('/');
+  } else if (d.includes('.')) {
+    [day, month, year] = d.split('.');
+  } else {
+    return "2000-01-01"; // fallback
+  }
+
+  if (!year) year = "2000";
+  if (year.length === 2) year = "20" + year;
+
+  return `${year.padStart(4,'0')}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
+};
+
+const datum = parseRowDate(r.datum);
 
     return {
       rb: index + 1,

@@ -11,11 +11,10 @@ export default function LeagueTeamScreen({ onClose }) {
   const [openSofa, setOpenSofa] = useState(null);
 
   // =====================
-  // FUNKCIJA ZA TIMOVE PO LIGAMA (SVA MOGUĆA POLJA)
+  // FUNKCIJA ZA TIMOVE PO LIGAMA
   // =====================
   const getTeamsByLeague = (rows) => {
     const map = {};
-
     if (!rows) return map;
 
     rows.forEach(r => {
@@ -47,14 +46,8 @@ export default function LeagueTeamScreen({ onClose }) {
       if (!liga) return;
 
       if (!map[liga]) map[liga] = [];
-
-      if (home && !map[liga].includes(home)) {
-        map[liga].push(home);
-      }
-
-      if (away && !map[liga].includes(away)) {
-        map[liga].push(away);
-      }
+      if (home && !map[liga].includes(home)) map[liga].push(home);
+      if (away && !map[liga].includes(away)) map[liga].push(away);
     });
 
     return map;
@@ -69,21 +62,37 @@ export default function LeagueTeamScreen({ onClose }) {
   // =====================
   // LISTA LIGA
   // =====================
-  const screen1Leagues = useMemo(
-    () => Object.keys(screen1Teams).sort(),
-    [screen1Teams]
-  );
-
-  const sofaLeagues = useMemo(
-    () => Object.keys(sofaTeams).sort(),
-    [sofaTeams]
-  );
+  const screen1Leagues = useMemo(() => Object.keys(screen1Teams).sort(), [screen1Teams]);
+  const sofaLeagues = useMemo(() => Object.keys(sofaTeams).sort(), [sofaTeams]);
 
   // =====================
-  // SVI SOFA TIMOVI BEZ FILTRA
+  // SOFA LIGA -> DRŽAVA (iz leagueMap)
   // =====================
+const sofaLeagueCountryMap = useMemo(() => {
+  if (!sofaRows) return {};
+  const map = {};
 
-return (
+  sofaRows.forEach(r => {
+    const liga = r.Liga || r.liga;
+    const country =
+      r.Country ||
+      r.country ||
+      r.Država ||
+      r.drzava ||
+      "";
+
+    if (liga && country && !map[liga]) {
+      map[liga] = country;
+    }
+  });
+
+  return map;
+}, [sofaRows]);
+
+  // =====================
+  // RENDER
+  // =====================
+  return (
     <div className="league-wrapper">
       <button className="back-btn" onClick={onClose}>⬅ Nazad</button>
 
@@ -123,11 +132,17 @@ return (
             <div key={i} className="accordion-item">
               <div
                 className="accordion-header"
-                onClick={() =>
-                  setOpenSofa(openSofa === liga ? null : liga)
-                }
+                onClick={() => setOpenSofa(openSofa === liga ? null : liga)}
               >
-                {liga} <span>{openSofa === liga ? "▲" : "▼"}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: "bold" }}>{liga}</div>
+                    <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
+                      {sofaLeagueCountryMap[liga] || ""}
+                    </div>
+                  </div>
+                  <span>{openSofa === liga ? "▲" : "▼"}</span>
+                </div>
               </div>
 
               {openSofa === liga && (
@@ -142,7 +157,6 @@ return (
             </div>
           ))}
         </div>
-
 
       </div>
     </div>

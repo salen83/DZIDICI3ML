@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
@@ -73,6 +73,28 @@ const sofaTeamsAll = useMemo(() => {
       new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
   }, [sofaRows]);
+// =====================
+// SOFA LIGA -> DRŽAVA MAPA
+// =====================
+// =====================
+// SOFA LIGA -> DRŽAVA MAPA
+// =====================
+const sofaLeagueCountryMap = useMemo(() => {
+  if (!sofaRows) return {};
+  const map = {};
+  sofaRows.forEach(r => {
+    const liga = r.Liga || r.liga;
+    const country =
+      r.Country ||
+      r.country ||
+      r.Država ||
+      r.drzava ||
+      "";
+    // ✅ dodaj country samo ako liga još nije u mapi
+    if (liga && country && !map[liga]) map[liga] = country;
+  });
+  return map;
+}, [sofaRows]);
 
   // =====================
   // FILTRIRANJE OBRISANIH
@@ -105,6 +127,24 @@ const pairedLeagues = useMemo(() => {
     Object.values(leagueMap || {}).flatMap(l => [l.screen1, ...(Array.isArray(l.sofa) ? l.sofa : [l.sofa])])
   );
 }, [leagueMap]);
+useEffect(() => {
+  if (!leagueMap) return;
+
+  const updated = {};
+  Object.entries(leagueMap).forEach(([key, value]) => {
+    // Ako već ima country, ne diraj
+    if (value.country) {
+      updated[key] = value;
+    } else {
+      // uzmi prvu Sofa ligu iz niza ili string
+      const sofaArray = Array.isArray(value.sofa) ? value.sofa : [value.sofa];
+      const country = sofaLeagueCountryMap[sofaArray[0]] || "";
+      updated[key] = { ...value, country };
+    }
+  });
+
+  setLeagueMap(prev => ({ ...prev, ...updated }));
+}, [sofaLeagueCountryMap, leagueMap, setLeagueMap]);
 
 const screen1Teams = screen1TeamsAll.filter(t => !pairedScreen1Teams.has(t));
 const sofaTeams = sofaTeamsBase.filter(t => !pairedSofaTeams.has(t));
@@ -168,19 +208,21 @@ const [searchResult, setSearchResult] = useState("");
   // =====================
   // UPAARIVANJE LIGA
   // =====================
-  const confirmLeaguePair = (l1, l2) => {
+const confirmLeaguePair = (l1, l2) => {
   if (!window.confirm(`Upariti lige:\n${l1} ↔ ${l2}?`)) return;
 
   setLeagueMap(prev => {
     const existingKey = Object.keys(prev).find(k => prev[k].screen1 === l1);
+    const country = sofaLeagueCountryMap[l2] || ""; // <--- ovo dodajemo
+
     if (existingKey) {
-      // Ako postoji entry za ovu screen1 ligu, dodaj novu Sofa ligu u niz
       const existing = prev[existingKey];
       return {
         ...prev,
         [existingKey]: {
           ...existing,
           sofa: Array.isArray(existing.sofa) ? [...existing.sofa, l2] : [existing.sofa, l2],
+          country: existing.country || country // <--- ovde dodajemo country ako ne postoji
         }
       };
     } else {
@@ -188,7 +230,7 @@ const [searchResult, setSearchResult] = useState("");
       const key = `league||${l1}||${l2}`;
       return {
         ...prev,
-        [key]: { screen1: l1, sofa: [l2], normalized: l1 }
+        [key]: { screen1: l1, sofa: [l2], normalized: l1, country } // <--- dodajemo country
       };
     }
   });
@@ -307,40 +349,63 @@ const resetDeletedSofaTeams = () => {
     <div style={{ flex: 1, margin: 5 }}>
   <h3>{title} ({items.length})</h3>
       <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #ccc", padding: 5 }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
-            <div
-              onClick={() => onClick(item)}
-              style={{
-                padding: "4px 8px",
-                cursor: "pointer",
-       backgroundColor:
-  Array.isArray(selected)
-    ? selected.includes(item)
-      ? "#ffcc80"
-      : restoredHighlight.includes(item)
-      ? "#fff59d"
-      : "#f0f0f0"
-    : selected === item
-    ? "#ffcc80"
-    : restoredHighlight.includes(item)
-    ? "#fff59d"
-    : "#f0f0f0",
-                flex: 1
-              }}
-            >
-              {item}
-            </div>
-            {renderDelete && (
-              <button onClick={() => handleDeleteSofaLeague(item)} style={{ marginLeft: 5 }}>
-                🗑
-              </button>
-            )}
+{items.map((item, i) => {
+  const isObject = typeof item === "object";
+
+  const name = isObject ? item.name : item;
+  const country = isObject ? item.country : null;
+
+  return (
+    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
+      <div
+        onClick={() => onClick(name)}
+        style={{
+          padding: "4px 8px",
+          cursor: "pointer",
+          backgroundColor:
+            Array.isArray(selected)
+              ? selected.includes(name)
+                ? "#ffcc80"
+                : restoredHighlight.includes(name)
+                ? "#fff59d"
+                : "#f0f0f0"
+              : selected === name
+              ? "#ffcc80"
+              : restoredHighlight.includes(name)
+              ? "#fff59d"
+              : "#f0f0f0",
+          flex: 1
+        }}
+      >
+        <div style={{ fontWeight: "bold" }}>
+          {name}
+        </div>
+
+        {country && (
+          <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
+            ({country})
           </div>
-        ))}
+        )}
+      </div>
+
+      {renderDelete && (
+        <button onClick={() => handleDeleteSofaLeague(name)} style={{ marginLeft: 5 }}>
+          🗑
+        </button>
+      )}
+    </div>
+  );
+})}
       </div>
     </div>
   );
+const sofaLeaguesWithCountry = useMemo(() =>
+  sofaLeagues.map(l => ({
+    name: l,
+    country: sofaLeagueCountryMap[l] || ""
+  })),
+  [sofaLeagues, sofaLeagueCountryMap]
+);
 
   return (
     <div style={{ padding: 20 }}>
@@ -382,7 +447,13 @@ const resetDeletedSofaTeams = () => {
         {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
         {renderColumn("Timovi Sofa", sofaTeams, selectedTeam2, v => handleTeamClick("sofa", v))}
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
-        {renderColumn("Lige Sofa", sofaLeagues, selectedLeague2, v => handleLeagueClick("sofa", v), true)}
+        {renderColumn(
+  "Lige Sofa",
+  sofaLeaguesWithCountry,
+  selectedLeague2,
+  v => handleLeagueClick("sofa", v),
+  true
+)}
       </div>
 {showDeletedLeagues && (
 <div style={{ background: "#f5f5f5", padding: 15, marginTop: 15, border: "1px solid #ccc" }}>

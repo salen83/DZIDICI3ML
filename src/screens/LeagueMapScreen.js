@@ -138,7 +138,17 @@ const handleNormalizedChange = (key, value) => {
                     style={{ cursor: "pointer" }}
                     onClick={() => toggleList(key, "sofa")}
                   >
-                    <div style={{ fontWeight: "bold" }}>{l.sofa || "-"}</div>
+                  <div>
+  <div style={{ fontWeight: "bold" }}>
+    {Array.isArray(l.sofa) ? l.sofa.join(", ") : (l.sofa || "-")}
+  </div>
+
+  {l.country && (
+    <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
+      ({l.country})
+    </div>
+  )}
+</div>
 
                     {sofaOpen && (
                       <div style={{
