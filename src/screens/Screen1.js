@@ -185,12 +185,39 @@ useEffect(() => {
       addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
       const updatedRows = rows.map(row => {
-const match = syncJson.find(s =>
-  s.datum === row.datum &&
-  s.liga === row.liga &&
-  s.home === row.home &&
-  s.away === row.away
-);
+const clean = (v) =>
+  (typeof v === "object" ? v?.name : v || "")
+    .toString()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+let match = null;
+
+for (const s of syncJson) {
+  const sameDate = clean(s.datum) === clean(row.datum);
+  const sameLeague = clean(s.liga) === clean(row.liga);
+  const sameHome = clean(s.home) === clean(row.home);
+  const sameAway = clean(s.away) === clean(row.away);
+
+  if (sameDate && sameLeague && sameHome && sameAway) {
+    match = s;
+    break;
+  }
+
+  // 🔥 KLJUČNI DEBUG
+  if (sameHome && sameAway) {
+    addLog(`⚠️ DELIMIČAN MATCH: ${row.home} - ${row.away}`);
+    addLog(`   datum: ${row.datum} vs ${s.datum} → ${sameDate ? "OK" : "❌"}`);
+    addLog(`   liga: ${row.liga} vs ${s.liga} → ${sameLeague ? "OK" : "❌"}`);
+    addLog(`   home: ${row.home} vs ${s.home} → ${sameHome ? "OK" : "❌"}`);
+    addLog(`   away: ${row.away} vs ${s.away} → ${sameAway ? "OK" : "❌"}`);
+  }
+}
+
+if (!match) {
+  addLog(`❌ NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
+}
 
         if (!match) {
           addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
