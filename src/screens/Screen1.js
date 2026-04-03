@@ -185,13 +185,12 @@ useEffect(() => {
       addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
       const updatedRows = rows.map(row => {
-        const match = syncJson.find(s =>
-          s.datum === row.datum &&
-          String(s.vreme) === String(row.vreme) &&
-          s.liga === row.liga &&
-          s.home === row.home &&
-          s.away === row.away
-        );
+const match = syncJson.find(s =>
+  s.datum === row.datum &&
+  s.liga === row.liga &&
+  s.home === row.home &&
+  s.away === row.away
+);
 
         if (!match) {
           addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
