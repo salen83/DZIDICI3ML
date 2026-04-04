@@ -399,7 +399,7 @@ const resetDeletedSofaTeams = () => {
       </div>
 
       {renderDelete && (
-        <button onClick={() => handleDeleteSofaLeague(name)} style={{ marginLeft: 5 }}>
+<button onClick={() => handleDeleteSofaLeague(`${item.name}|||${item.country}`)} style={{ marginLeft: 5 }}>
           🗑
         </button>
       )}
