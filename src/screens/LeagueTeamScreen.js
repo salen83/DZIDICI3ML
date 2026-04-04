@@ -27,6 +27,15 @@ export default function LeagueTeamScreen({ onClose }) {
          r.Competition ||
          "").trim();
 
+      const country =
+        (r.Country ||
+         r.country ||
+         r.Država ||
+         r.drzava ||
+         "").trim();
+
+      const key = `${liga}|||${country}`;
+
       const home =
         (r.domacin ||
          r.Domacin ||
@@ -45,9 +54,9 @@ export default function LeagueTeamScreen({ onClose }) {
 
       if (!liga) return;
 
-      if (!map[liga]) map[liga] = [];
-      if (home && !map[liga].includes(home)) map[liga].push(home);
-      if (away && !map[liga].includes(away)) map[liga].push(away);
+      if (!map[key]) map[key] = [];
+      if (home && !map[key].includes(home)) map[key].push(home);
+      if (away && !map[key].includes(away)) map[key].push(away);
     });
 
     return map;
@@ -64,30 +73,6 @@ export default function LeagueTeamScreen({ onClose }) {
   // =====================
   const screen1Leagues = useMemo(() => Object.keys(screen1Teams).sort(), [screen1Teams]);
   const sofaLeagues = useMemo(() => Object.keys(sofaTeams).sort(), [sofaTeams]);
-
-  // =====================
-  // SOFA LIGA -> DRŽAVA (iz leagueMap)
-  // =====================
-const sofaLeagueCountryMap = useMemo(() => {
-  if (!sofaRows) return {};
-  const map = {};
-
-  sofaRows.forEach(r => {
-    const liga = r.Liga || r.liga;
-    const country =
-      r.Country ||
-      r.country ||
-      r.Država ||
-      r.drzava ||
-      "";
-
-    if (liga && country && !map[liga]) {
-      map[liga] = country;
-    }
-  });
-
-  return map;
-}, [sofaRows]);
 
   // =====================
   // RENDER
@@ -136,11 +121,19 @@ const sofaLeagueCountryMap = useMemo(() => {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontWeight: "bold" }}>{liga}</div>
-                    <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
-                      {sofaLeagueCountryMap[liga] || ""}
-                    </div>
+                    {(() => {
+                      const [name, country] = liga.split("|||");
+                      return (
+                        <>
+                          <div style={{ fontWeight: "bold" }}>{name}</div>
+                          <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
+                            {country}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
+
                   <span>{openSofa === liga ? "▲" : "▼"}</span>
                 </div>
               </div>
