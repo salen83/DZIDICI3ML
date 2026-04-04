@@ -67,12 +67,18 @@ const sofaTeamsAll = useMemo(() => {
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
-  const sofaLeaguesAll = useMemo(() => {
-    if (!sofaRows) return [];
-    return Array.from(
-      new Set(sofaRows.map(r => r.Liga || r.liga).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sofaRows]);
+const sofaLeaguesAll = useMemo(() => {
+  if (!sofaRows) return [];
+  return Array.from(
+    new Set(
+      sofaRows.map(r => {
+        const liga = r.Liga || r.liga || "";
+        const country = r.Country || r.country || "";
+        return `${liga}|||${country}`;
+      }).filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+}, [sofaRows]);
 // =====================
 // SOFA LIGA -> DRŽAVA MAPA
 // =====================
@@ -284,7 +290,11 @@ const handleLeagueClick = (source, value) => {
 
     // 2️⃣ timovi iz te lige
     const teamsToDelete = sofaRows
-  .filter(r => (r.Liga || r.liga || "").trim() === liga)
+.filter(r => {
+  const ligaName = r.Liga || r.liga || "";
+  const country = r.Country || r.country || "";
+  return `${ligaName}|||${country}` === liga;
+})
   .flatMap(r => [
     r.domacin,
     r.Domacin,
@@ -400,11 +410,11 @@ const resetDeletedSofaTeams = () => {
     </div>
   );
 const sofaLeaguesWithCountry = useMemo(() =>
-  sofaLeagues.map(l => ({
-    name: l,
-    country: sofaLeagueCountryMap[l] || ""
-  })),
-  [sofaLeagues, sofaLeagueCountryMap]
+  sofaLeagues.map(l => {
+    const [name, country] = l.split("|||");
+    return { name, country };
+  }),
+  [sofaLeagues]
 );
 
   return (
