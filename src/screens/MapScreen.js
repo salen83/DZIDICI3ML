@@ -3,6 +3,7 @@ import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
+import { dbMap, STORE_NAMES } from "../dbMap";
 
 export default function MapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useNormalisedTeamMap();
@@ -13,15 +14,18 @@ export default function MapScreen({ onClose }) {
   // =====================
   // STORAGE – OBRISANE LIGE I TIMOVI
   // =====================
-  const [deletedSofaLeagues, setDeletedSofaLeagues] = useState(() => {
-    const saved = localStorage.getItem("deletedSofaLeagues");
-    return saved ? JSON.parse(saved) : [];
-  });
+const [deletedSofaLeagues, setDeletedSofaLeagues] = useState([]);
+const [deletedSofaTeams, setDeletedSofaTeams] = useState([]);
 
-  const [deletedSofaTeams, setDeletedSofaTeams] = useState(() => {
-    const saved = localStorage.getItem("deletedSofaTeams");
-    return saved ? JSON.parse(saved) : [];
-  });
+useEffect(() => {
+  async function loadDeleted() {
+    const leagues = await dbMap.getAll(STORE_NAMES.DELETED_SOFALIGUES);
+    const teams = await dbMap.getAll(STORE_NAMES.DELETED_SOFATEAMS);
+    setDeletedSofaLeagues(leagues.map(l => l.value || l.id));
+    setDeletedSofaTeams(teams.map(t => t.value || t.id));
+  }
+  loadDeleted();
+}, []);
 
   // =====================
   // SVI TIMOVI
@@ -97,7 +101,7 @@ const sofaLeagueCountryMap = useMemo(() => {
       r.drzava ||
       "";
     // ✅ dodaj country samo ako liga još nije u mapi
-    if (liga && country && !map[liga]) map[liga] = country;
+if (liga && country && !map[`${liga}|||${country}`]) map[`${liga}|||${country}`] = country;
   });
   return map;
 }, [sofaRows]);
@@ -128,9 +132,23 @@ const pairedSofaTeams = useMemo(() => {
   );
 }, [teamMap]);
 
-const pairedLeagues = useMemo(() => {
+// =====================
+// UPAARENE SCREEN1 LIGE
+// =====================
+const pairedScreen1Leagues = useMemo(() => {
   return new Set(
-    Object.values(leagueMap || {}).flatMap(l => [l.screen1, ...(Array.isArray(l.sofa) ? l.sofa : [l.sofa])])
+    Object.values(leagueMap || {}).map(l => l.screen1)
+  );
+}, [leagueMap]);
+
+// =====================
+// UPAARENE SOFA LIGE
+// =====================
+const pairedSofaLeagues = useMemo(() => {
+  return new Set(
+    Object.values(leagueMap || {}).flatMap(l =>
+      Array.isArray(l.sofa) ? l.sofa : [l.sofa]
+    )
   );
 }, [leagueMap]);
 useEffect(() => {
@@ -168,8 +186,15 @@ const findSofaTeamLocation = (team) => {
     return "Tim nije pronađen";
   }
 };
-const screen1Leagues = screen1LeaguesAll.filter(l => !pairedLeagues.has(l));
-  const sofaLeagues = sofaLeaguesBase.filter(l => !pairedLeagues.has(l));
+const screen1Leagues = screen1LeaguesAll.filter(
+  l => !pairedScreen1Leagues.has(l)
+);
+// =====================
+// FILTER – SOFA LEAGUES
+// =====================
+const sofaLeagues = useMemo(() =>
+  sofaLeaguesBase.filter(l => !pairedSofaLeagues.has(l))
+, [sofaLeaguesBase, pairedSofaLeagues]);
 
   // =====================
   // SELEKCIJA
@@ -279,40 +304,39 @@ const handleLeagueClick = (source, value) => {
   // =====================
   // TRAJNO BRISANJE LIGE + TIMOVA
   // =====================
-  const handleDeleteSofaLeague = (liga) => {
+const handleDeleteSofaLeague = async (liga) => {
   setDebugLog(prev => [`🗑 Kliknuto brisanje lige: ${liga}`, ...prev]);
-   if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
+  if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
 
-    // 1️⃣ liga u storage
-    const updatedLeagues = [...deletedSofaLeagues, liga];
-    setDeletedSofaLeagues(updatedLeagues);
-    localStorage.setItem("deletedSofaLeagues", JSON.stringify(updatedLeagues));
+  const updatedLeagues = [...deletedSofaLeagues, liga];
+  setDeletedSofaLeagues(updatedLeagues);
 
-    // 2️⃣ timovi iz te lige
-    const teamsToDelete = sofaRows
-.filter(r => {
-  const ligaName = r.Liga || r.liga || "";
-  const country = r.Country || r.country || "";
-  return `${ligaName}|||${country}` === liga;
-})
-  .flatMap(r => [
-    r.domacin,
-    r.Domacin,
-    r.DOMACIN,
-    r.home,
-    r.Home,
-    r.gost,
-    r.Gost,
-    r.GOST,
-    r.away,
-    r.Away
-  ].filter(Boolean));
+  await dbMap.clear(STORE_NAMES.DELETED_SOFALIGUES);
+  for (const l of updatedLeagues) {
+    await dbMap.put(STORE_NAMES.DELETED_SOFALIGUES, { id: l, value: l });
+  }
 
-    const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
-    setDeletedSofaTeams(updatedTeams);
-    localStorage.setItem("deletedSofaTeams", JSON.stringify(updatedTeams));
-    setDebugLog(prev => [`✅ OBRISANI timovi: ${updatedTeams.join(", ")}`, ...prev]);
- };
+  const teamsToDelete = sofaRows
+    .filter(r => {
+      const ligaName = r.Liga || r.liga || "";
+      const country = r.Country || r.country || "";
+      return `${ligaName}|||${country}` === liga;
+    })
+    .flatMap(r => [
+      r.domacin, r.Domacin, r.DOMACIN, r.home, r.Home,
+      r.gost, r.Gost, r.GOST, r.away, r.Away
+    ].filter(Boolean));
+
+  const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
+  setDeletedSofaTeams(updatedTeams);
+
+  await dbMap.clear(STORE_NAMES.DELETED_SOFATEAMS);
+  for (const t of updatedTeams) {
+    await dbMap.put(STORE_NAMES.DELETED_SOFATEAMS, { id: t, value: t });
+  }
+
+  setDebugLog(prev => [`✅ OBRISANI timovi: ${updatedTeams.join(", ")}`, ...prev]);
+};
 
   // =====================
   // VRATI IZBRISANU LIGU + TIMOVE
@@ -320,36 +344,39 @@ const handleLeagueClick = (source, value) => {
 // =====================
   // VRATI LIGU (bez automatskog vracanja timova)
   // =====================
-  const restoreSofaLeague = (liga) => {
-    if (!window.confirm(`Vratiti ligu ${liga}?`)) return;
+const restoreSofaLeague = async (liga) => {
+  if (!window.confirm(`Vratiti ligu ${liga}?`)) return;
 
-    const updated = deletedSofaLeagues.filter(l => l !== liga);
-    setDeletedSofaLeagues(updated);
-    localStorage.setItem("deletedSofaLeagues", JSON.stringify(updated));
+  const updated = deletedSofaLeagues.filter(l => l !== liga);
+  setDeletedSofaLeagues(updated);
 
-    setRestoredHighlight(prev => [...prev, liga]);
-  };
+  await dbMap.delete(STORE_NAMES.DELETED_SOFALIGUES, liga);
+
+  setRestoredHighlight(prev => [...prev, liga]);
+};
 
 // =====================
   // VRATI POJEDINACNI TIM
   // =====================
-  const restoreSofaTeam = (team) => {
-    if (!window.confirm(`Vratiti tim ${team}?`)) return;
+const restoreSofaTeam = async (team) => {
+  if (!window.confirm(`Vratiti tim ${team}?`)) return;
 
-    const updated = deletedSofaTeams.filter(t => t !== team);
-    setDeletedSofaTeams(updated);
-    localStorage.setItem("deletedSofaTeams", JSON.stringify(updated));
+  const updated = deletedSofaTeams.filter(t => t !== team);
+  setDeletedSofaTeams(updated);
 
-    setRestoredHighlight(prev => [...prev, team]);
-  };
+  await dbMap.delete(STORE_NAMES.DELETED_SOFATEAMS, team);
+
+  setRestoredHighlight(prev => [...prev, team]);
+};
 // =====================
 // RESET SAMO OBRISANIH TIMOVA
 // =====================
-const resetDeletedSofaTeams = () => {
+const resetDeletedSofaTeams = async () => {
   if (!window.confirm("Da li želiš da resetuješ sve obrisane timove?")) return;
 
   setDeletedSofaTeams([]);
-  localStorage.removeItem("deletedSofaTeams");
+  await dbMap.clear(STORE_NAMES.DELETED_SOFATEAMS);
+
   setDebugLog(prev => ["♻ Resetovani svi obrisani timovi", ...prev]);
 };
   // =====================
@@ -368,18 +395,18 @@ const resetDeletedSofaTeams = () => {
   return (
     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
       <div
-        onClick={() => onClick(name)}
+onClick={() => onClick(isObject ? `${name}|||${country}` : name)}
         style={{
           padding: "4px 8px",
           cursor: "pointer",
           backgroundColor:
             Array.isArray(selected)
-              ? selected.includes(name)
+? selected.includes(isObject ? `${name}|||${country}` : name)
                 ? "#ffcc80"
                 : restoredHighlight.includes(name)
                 ? "#fff59d"
                 : "#f0f0f0"
-              : selected === name
+: selected === (isObject ? `${name}|||${country}` : name)
               ? "#ffcc80"
               : restoredHighlight.includes(name)
               ? "#fff59d"
