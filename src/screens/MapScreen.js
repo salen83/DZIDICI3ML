@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { useMapStore } from "../stores/mapStore";
+import React, { useMemo, useEffect } from "react";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
@@ -14,18 +15,24 @@ export default function MapScreen({ onClose }) {
   // =====================
   // STORAGE – OBRISANE LIGE I TIMOVI
   // =====================
-const [deletedSofaLeagues, setDeletedSofaLeagues] = useState([]);
-const [deletedSofaTeams, setDeletedSofaTeams] = useState([]);
+const {
+  deletedSofaLeagues,
+  setDeletedSofaLeagues,
+  deletedSofaTeams,
+  setDeletedSofaTeams
+} = useMapStore();
 
 useEffect(() => {
   async function loadDeleted() {
     const leagues = await dbMap.getAll(STORE_NAMES.DELETED_SOFALIGUES);
     const teams = await dbMap.getAll(STORE_NAMES.DELETED_SOFATEAMS);
+
     setDeletedSofaLeagues(leagues.map(l => l.value || l.id));
     setDeletedSofaTeams(teams.map(t => t.value || t.id));
+
   }
   loadDeleted();
-}, []);
+}, [setDeletedSofaLeagues, setDeletedSofaTeams]);
 
   // =====================
   // SVI TIMOVI
@@ -199,16 +206,28 @@ const sofaLeagues = useMemo(() =>
   // =====================
   // SELEKCIJA
   // =====================
-  const [selectedTeam1, setSelectedTeam1] = useState(null);
-  const [selectedTeam2, setSelectedTeam2] = useState(null);
-  const [selectedLeague1, setSelectedLeague1] = useState(null);
-  const [selectedLeague2, setSelectedLeague2] = useState(null);
-  const [debugLog, setDebugLog] = useState([]);
-  const [restoredHighlight, setRestoredHighlight] = useState([]);
-  const [showDeletedLeagues, setShowDeletedLeagues] = useState(false);
-  const [showDeletedTeams, setShowDeletedTeams] = useState(false);
-  const [searchTeam, setSearchTeam] = useState("");
-const [searchResult, setSearchResult] = useState("");
+const {
+  selectedTeam1,
+  setSelectedTeam1,
+  selectedTeam2,
+  setSelectedTeam2,
+  selectedLeague1,
+  setSelectedLeague1,
+  selectedLeague2,
+  setSelectedLeague2,
+  debugLog,
+  addDebugLog,
+  restoredHighlight,
+  setRestoredHighlight,
+  showDeletedLeagues,
+  setShowDeletedLeagues,
+  showDeletedTeams,
+  setShowDeletedTeams,
+  searchTeam,
+  setSearchTeam,
+  searchResult,
+  setSearchResult
+} = useMapStore();
 
   // =====================
   // UPAARIVANJE TIMOVA
@@ -305,7 +324,7 @@ const handleLeagueClick = (source, value) => {
   // TRAJNO BRISANJE LIGE + TIMOVA
   // =====================
 const handleDeleteSofaLeague = async (liga) => {
-  setDebugLog(prev => [`🗑 Kliknuto brisanje lige: ${liga}`, ...prev]);
+  addDebugLog("tekst")
   if (!window.confirm(`Trajno obrisati ligu ${liga} i sve njene timove?`)) return;
 
   const updatedLeagues = [...deletedSofaLeagues, liga];
@@ -335,7 +354,7 @@ const handleDeleteSofaLeague = async (liga) => {
     await dbMap.put(STORE_NAMES.DELETED_SOFATEAMS, { id: t, value: t });
   }
 
-  setDebugLog(prev => [`✅ OBRISANI timovi: ${updatedTeams.join(", ")}`, ...prev]);
+addDebugLog("tekst")
 };
 
   // =====================
@@ -377,7 +396,7 @@ const resetDeletedSofaTeams = async () => {
   setDeletedSofaTeams([]);
   await dbMap.clear(STORE_NAMES.DELETED_SOFATEAMS);
 
-  setDebugLog(prev => ["♻ Resetovani svi obrisani timovi", ...prev]);
+addDebugLog("tekst")
 };
   // =====================
   // RENDER
