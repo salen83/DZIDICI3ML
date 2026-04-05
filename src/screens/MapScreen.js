@@ -22,17 +22,21 @@ const {
   setDeletedSofaTeams
 } = useMapStore();
 
+// eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   async function loadDeleted() {
+    // ✅ AKO VEĆ IMA PODATAKA – NE UČITAVAJ PONOVO
+    if (deletedSofaLeagues.length > 0 || deletedSofaTeams.length > 0) return;
+
     const leagues = await dbMap.getAll(STORE_NAMES.DELETED_SOFALIGUES);
     const teams = await dbMap.getAll(STORE_NAMES.DELETED_SOFATEAMS);
 
     setDeletedSofaLeagues(leagues.map(l => l.value || l.id));
     setDeletedSofaTeams(teams.map(t => t.value || t.id));
-
   }
+
   loadDeleted();
-}, [setDeletedSofaLeagues, setDeletedSofaTeams]);
+}, [deletedSofaLeagues.length, deletedSofaTeams.length, setDeletedSofaLeagues, setDeletedSofaTeams]);
 
   // =====================
   // SVI TIMOVI
