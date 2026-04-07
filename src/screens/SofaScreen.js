@@ -3,7 +3,8 @@ import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
-import { saveSofaRows, loadSofaRows } from "../db"; // IndexedDB funkcije
+import { db } from "../firebaseConfig";
+import { collection, getDocs, setDoc, doc } from "firebase/firestore";
 
 export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
@@ -88,10 +89,16 @@ const updateLeagueTeam = useCallback((allRows) => {
 
 // ================= INIT IZ INDEXEDDB =================
 useEffect(() => {
-    (async () => {
-        const loaded = await loadSofaRows();
-        if (loaded?.length) setSofaRows(sortRowsByDateDesc(loaded));
-    })();
+  (async () => {
+    const snapshot = await getDocs(collection(db, "sofaRows"));
+    const loaded = snapshot.docs.map(doc => doc.data());
+
+    if (loaded?.length) {
+      setSofaRows(sortRowsByDateDesc(loaded));
+    }
+
+    console.log("Firestore ucitano:", loaded.length);
+  })();
 }, [setSofaRows, sortRowsByDateDesc]);
 
   /* ================= IMPORT EXCEL ================= */
@@ -141,7 +148,11 @@ allRows.forEach((r,i)=>r.rb=i+1);
 setSofaRows(allRows);
 
 // snimanje u IndexedDB
-await saveSofaRows(allRows);
+const promises = allRows.map((r, i) => {
+  const ref = doc(db, "sofaRows", String(i + 1));
+  return setDoc(ref, r);
+});
+await Promise.all(promises);
 
 debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
     };
@@ -164,10 +175,18 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
       setSofaRows(sorted);
-      await saveSofaRows(sorted);
+const promises = sorted.map((r, i) => {
+  const ref = doc(db, "sofaRows", String(i + 1));
+  return setDoc(ref, r);
+});
+await Promise.all(promises);
     } else {
       setSofaRows(copy);
-      await saveSofaRows(copy);
+const promises = copy.map((r, i) => {
+  const ref = doc(db, "sofaRows", String(i + 1));
+  return setDoc(ref, r);
+});
+await Promise.all(promises);
     }
   };
 
@@ -176,7 +195,11 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
     const newRows = [newRow, ...(sofaRows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setSofaRows(newRows);
-    await saveSofaRows(newRows);
+const promises = newRows.map((r, i) => {
+  const ref = doc(db, "sofaRows", String(i + 1));
+  return setDoc(ref, r);
+});
+await Promise.all(promises);
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);
   };
@@ -186,12 +209,18 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setSofaRows(copy);
-    await saveSofaRows(copy);
+const promises = copy.map((r, i) => {
+  const ref = doc(db, "sofaRows", String(i + 1));
+  return setDoc(ref, r);
+});
+await Promise.all(promises);
   };
 
   const deleteAllRows = async () => {
     setSofaRows([]);
-    await saveSofaRows([]);
+const snapshot = await getDocs(collection(db, "sofaRows"));
+const deletePromises = snapshot.docs.map(d => setDoc(doc(db, "sofaRows", d.id), {}));
+await Promise.all(deletePromises);
   };
 
   /* ================= RENDER ================= */
