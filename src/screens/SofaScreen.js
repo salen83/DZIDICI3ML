@@ -4,7 +4,7 @@ import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 import { db } from "../firebaseConfig";
-import { collection, getDocs, setDoc, doc } from "firebase/firestore";
+import { collection, getDocs, setDoc, doc, addDoc } from "firebase/firestore";
 
 export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
@@ -148,11 +148,9 @@ allRows.forEach((r,i)=>r.rb=i+1);
 setSofaRows(allRows);
 
 // snimanje u IndexedDB
-const promises = allRows.map((r, i) => {
-  const ref = doc(db, "sofaRows", String(i + 1));
-  return setDoc(ref, r);
-});
-await Promise.all(promises);
+// snimanje svih meceva u Firestore sa automatski generisanim ID-jevima
+const colRef = collection(db, "sofaRows");
+await Promise.all(allRows.map(r => addDoc(colRef, r)));
 
 debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
     };

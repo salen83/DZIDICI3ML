@@ -1,29 +1,27 @@
-import { db } from './firebaseConfig';
-import { collection, setDoc, doc, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
-const sofaCollection = collection(db, 'sofaRows');
-
-// Snimi sve mečeve
-export const saveSofaRows = async (rows) => {
-  try {
-    for (let row of rows) {
-      const rowDoc = doc(sofaCollection, String(row.rb));
-      await setDoc(rowDoc, row);
-    }
-  } catch (err) {
-    console.error('Firebase save error:', err);
+// inicijalno kreiranje dokumenta ako ne postoji
+export const initSofaRowsDoc = async () => {
+  const docRef = doc(db, "sofaRows", "default");
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) {
+    await setDoc(docRef, { rows: [] });
   }
 };
 
-// Učitaj sve mečeve
+// čuvanje svih redova (prepisuje ceo niz u Firestore)
+export const saveSofaRows = async (rows) => {
+  const docRef = doc(db, "sofaRows", "default");
+  await setDoc(docRef, { rows }); // merge nije potreban jer želimo sve redove
+};
+
+// učitavanje redova iz Firestore
 export const loadSofaRows = async () => {
-  try {
-    const snapshot = await getDocs(sofaCollection);
-    const rows = snapshot.docs.map(doc => doc.data());
-    rows.sort((a,b) => a.rb - b.rb);
-    return rows;
-  } catch (err) {
-    console.error('Firebase load error:', err);
-    return [];
+  const docRef = doc(db, "sofaRows", "default");
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data().rows || [];
   }
+  return [];
 };
