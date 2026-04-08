@@ -4,14 +4,14 @@ import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { useLeagueTeam } from "../LeagueTeamContext";
 import { db } from "../firebaseConfig";
-import { collection, getDocs, setDoc, doc, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc } from "firebase/firestore";
+import { List } from 'react-window';
 
 export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
 const { setLeagueTeamData } = useLeagueTeam();
 
   const tableWrapperRef = useRef(null);
-  const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({ row: null, col: null });
   const [importLogs, setImportLogs] = useState([]);
 
@@ -22,15 +22,9 @@ const { setLeagueTeamData } = useLeagueTeam();
   };
 
   const rowHeight = 28;
-  const buffer = 15;
   const containerHeight = 600;
 
-  const totalRows = sofaRows?.length || 0;
-  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
-  const endIndex = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / rowHeight) + buffer);
-  const visibleRows = sofaRows?.slice(startIndex, endIndex);
 
-  const handleScroll = useCallback((e) => setScrollTop(e.target.scrollTop), []);
 
   /* ================= DATE SISTEM ================= */
   const normalizeDate = (val) => {
@@ -173,18 +167,7 @@ debugImport("IndexedDB update zavrsen, total rows:", allRows.length);
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
       setSofaRows(sorted);
-const promises = sorted.map((r, i) => {
-  const ref = doc(db, "sofaRows", String(i + 1));
-  return setDoc(ref, r);
-});
-await Promise.all(promises);
-    } else {
-      setSofaRows(copy);
-const promises = copy.map((r, i) => {
-  const ref = doc(db, "sofaRows", String(i + 1));
-  return setDoc(ref, r);
-});
-await Promise.all(promises);
+
     }
   };
 
@@ -193,13 +176,8 @@ await Promise.all(promises);
     const newRows = [newRow, ...(sofaRows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setSofaRows(newRows);
-const promises = newRows.map((r, i) => {
-  const ref = doc(db, "sofaRows", String(i + 1));
-  return setDoc(ref, r);
-});
-await Promise.all(promises);
+
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
-    setScrollTop(0);
   };
 
   const deleteRow = async (index) => {
@@ -207,18 +185,10 @@ await Promise.all(promises);
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setSofaRows(copy);
-const promises = copy.map((r, i) => {
-  const ref = doc(db, "sofaRows", String(i + 1));
-  return setDoc(ref, r);
-});
-await Promise.all(promises);
   };
 
   const deleteAllRows = async () => {
     setSofaRows([]);
-const snapshot = await getDocs(collection(db, "sofaRows"));
-const deletePromises = snapshot.docs.map(d => setDoc(doc(db, "sofaRows", d.id), {}));
-await Promise.all(deletePromises);
   };
 
   /* ================= RENDER ================= */
@@ -236,91 +206,94 @@ await Promise.all(deletePromises);
 
       <div
         className="screen1-table-wrapper"
-        style={{height:containerHeight, overflowY:'auto'}}
+       style={{height:containerHeight}}
         ref={tableWrapperRef}
-        onScroll={handleScroll}
       >
-        <div style={{height: startIndex*rowHeight}}></div>
-        {visibleRows?.map((r,i)=>{
-          const idx = startIndex+i;
-          const isEditing = editing.row===idx;
-          const isNew = r._new === true;
+<List
+  height={containerHeight}
+  itemCount={sofaRows.length}
+  itemSize={rowHeight}
+  width="100%"
+>
+  {({ index, style }) => {
+    const r = sofaRows[index];
+    const isEditing = editing.row === index;
+    const isNew = r._new === true;
+    return (
+      <div key={index} className="screen1-row" style={style}>
+        <div className="col info">
+          <div style={{display:'flex', gap:'3px'}}>
+            {(isNew || (isEditing && editing.col==='datum')) ?
+              <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(index,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
+              <div onClick={()=>handleEditStart(index,'datum')}>{r.datum}</div>
+            }
+            {(isNew || (isEditing && editing.col==='vreme')) ?
+              <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(index,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
+              <div onClick={()=>handleEditStart(index,'vreme')}>{r.vreme}</div>
+            }
+          </div>
+          {(isNew || (isEditing && editing.col==='liga')) ?
+            <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(index,'liga',e.target.value)} onBlur={handleEditEnd} /> :
+            <div onClick={()=>handleEditStart(index,'liga')} style={{fontWeight:'bold'}}>{r.liga}</div>
+          }
+        </div>
 
-          return (
-            <div key={idx} className="screen1-row" style={{ height: rowHeight }}>
-              <div className="col info">
-                <div style={{display:'flex', gap:'3px'}}>
-                  {(isNew || (isEditing && editing.col==='datum')) ?
-                    <input className="edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd} autoFocus /> :
-                    <div onClick={()=>handleEditStart(idx,'datum')}>{r.datum}</div>
-                  }
-                  {(isNew || (isEditing && editing.col==='vreme')) ?
-                    <input className="edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd} /> :
-                    <div onClick={()=>handleEditStart(idx,'vreme')}>{r.vreme}</div>
-                  }
-                </div>
-                {(isNew || (isEditing && editing.col==='liga')) ?
-                  <input className="edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd} /> :
-                  <div onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold'}}>{r.liga}</div>
-                }
-              </div>
+        <div className="col teams">
+          {(isNew || (isEditing && editing.col==='home')) ?
+            <input className="edit-input" value={r.home} onChange={e=>handleCellChange(index,'home',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'home')}>{r.home}</span>
+          }
+          <span> - </span>
+          {(isNew || (isEditing && editing.col==='away')) ?
+            <input className="edit-input" value={r.away} onChange={e=>handleCellChange(index,'away',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'away')}>{r.away}</span>
+          }
+        </div>
 
-              <div className="col teams">
-                {(isNew || (isEditing && editing.col==='home')) ?
-                  <input className="edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
-                }
-                <span> - </span>
-                {(isNew || (isEditing && editing.col==='away')) ?
-                  <input className="edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
-                }
-              </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='ht')) ?
+            <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(index,'ht',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'ht')}>{r.ht}</span>
+          }
+        </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='sh')) ?
+            <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(index,'sh',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'sh')}>{r.sh}</span>
+          }
+        </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='ft')) ?
+            <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(index,'ft',e.target.value)} onBlur={handleEditEnd} /> :
+            <strong onClick={()=>handleEditStart(index,'ft')}>{r.ft}</strong>
+          }
+        </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='et')) ?
+            <input className="edit-input" value={r.et} onChange={e=>handleCellChange(index,'et',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'et')}>{r.et}</span>
+          }
+        </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='pen')) ?
+            <input className="edit-input" value={r.pen} onChange={e=>handleCellChange(index,'pen',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'pen')}>{r.pen}</span>
+          }
+        </div>
+        <div className="col small">
+          {(isNew || (isEditing && editing.col==='country')) ?
+            <input className="edit-input" value={r.country} onChange={e=>handleCellChange(index,'country',e.target.value)} onBlur={handleEditEnd} /> :
+            <span onClick={()=>handleEditStart(index,'country')}>{r.country}</span>
+          }
+        </div>
 
-              <div className="col small">
-                {(isNew || (isEditing && editing.col==='ht')) ?
-                  <input className="edit-input" value={r.ht} onChange={e=>handleCellChange(idx,'ht',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'ht')}>{r.ht}</span>
-                }
-              </div>
-              <div className="col small">
-                {(isNew || (isEditing && editing.col==='sh')) ?
-                  <input className="edit-input" value={r.sh} onChange={e=>handleCellChange(idx,'sh',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'sh')}>{r.sh}</span>
-                }
-              </div>
-              <div className="col small">
-                {(isNew || (isEditing && editing.col==='ft')) ?
-                  <input className="edit-input" value={r.ft} onChange={e=>handleCellChange(idx,'ft',e.target.value)} onBlur={handleEditEnd} /> :
-                  <strong onClick={()=>handleEditStart(idx,'ft')}>{r.ft}</strong>
-                }
-              </div>
-              <div className="col small">
-                {(isNew || (isEditing && editing.col==='et')) ?
-                  <input className="edit-input" value={r.et} onChange={e=>handleCellChange(idx,'et',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'et')}>{r.et}</span>
-                }
-              </div>
-              <div className="col small">
-                {(isNew || (isEditing && editing.col==='pen')) ?
-                  <input className="edit-input" value={r.pen} onChange={e=>handleCellChange(idx,'pen',e.target.value)} onBlur={handleEditEnd} /> :
-                  <span onClick={()=>handleEditStart(idx,'pen')}>{r.pen}</span>
-                }
-              </div>
-          <div className="col small">
-  {(isNew || (isEditing && editing.col==='country')) ?
-    <input className="edit-input" value={r.country} onChange={e=>handleCellChange(idx,'country',e.target.value)} onBlur={handleEditEnd} /> :
-    <span onClick={()=>handleEditStart(idx,'country')}>{r.country}</span>
-  }
-</div>
-
-              <div className="col delete">
-                <button onClick={()=>deleteRow(idx)}>x</button>
-              </div>
-            </div>
-          );
-        })}
-        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
+        <div className="col delete">
+          <button onClick={()=>deleteRow(index)}>x</button>
+        </div>
+      </div>
+    );
+  }}
+</List>
 
         <div style={{
           position: 'sticky',
