@@ -1,0 +1,40 @@
+name: Sentry Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project (with sourcemaps)
+        run: GENERATE_SOURCEMAP=true npm run build
+
+      - name: Install Sentry CLI
+        run: npm install -g @sentry/cli
+
+      - name: Create Sentry release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: salen-4p
+          SENTRY_PROJECT: javascript-react
+        run: |
+          export RELEASE=$GITHUB_SHA
+
+          sentry-cli releases new $RELEASE
+          sentry-cli releases files $RELEASE upload-sourcemaps build/static/js --rewrite
+          sentry-cli releases finalize $RELEASE
