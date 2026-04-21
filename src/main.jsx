@@ -6,10 +6,6 @@ import "./index.css";
 import LogRocket from "logrocket";
 import eruda from "eruda";
 
-  tracesSampleRate: 1.0,
-  attachStacktrace: true
-});
-
 LogRocket.init("ovblkx/myapp");
 
 if (import.meta.env.DEV) {
@@ -19,5 +15,5 @@ if (import.meta.env.DEV) {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-    <App />
+  <App />
 );
