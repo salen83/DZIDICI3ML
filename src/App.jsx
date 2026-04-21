@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import Screen1 from "./screens/Screen1";
 import Screen2 from "./screens/Screen2";
 import Screen2Liga from "./screens/Screen2Liga";
@@ -28,6 +29,8 @@ import { MapScreenProvider } from "./MapScreenContext";
 import { LeagueTeamProvider } from "./LeagueTeamContext";
 
 import TicketPanel from "./components/TicketPanel";
+import DebugOverlay from "./debug/DebugOverlay";
+
 import "./App.css";
 
 const screens = [
@@ -54,8 +57,8 @@ export default function App() {
   const [mapMode, setMapMode] = useState(false);
   const [teamMapMode, setTeamMapMode] = useState(false);
   const [leagueTeamMode, setLeagueTeamMode] = useState(false);
-  const [leagueMapMode, setLeagueMapMode] = useState(false); // ✅ novi mode
-  const [fullMode, setFullMode] = useState(false); // novi mode za FULL SCREEN
+  const [leagueMapMode, setLeagueMapMode] = useState(false);
+  const [fullMode, setFullMode] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [prevScreenIndex, setPrevScreenIndex] = useState(0);
@@ -97,7 +100,12 @@ export default function App() {
           <NormalisedTeamMapProvider>
             <LeagueMapProvider>
               <MapScreenProvider>
+
                 <div>
+
+                  {/* 🔥 DEBUG OVERLAY GLOBAL */}
+                  <DebugOverlay />
+
                   <div className="top-bar">
                     <button
                       onClick={() => setMenuOpen(!menuOpen)}
@@ -115,12 +123,12 @@ export default function App() {
 
                     <span style={{ margin: "0 10px" }}>
                       {leagueTeamMode ? "LEAGUE / TEAM SCREEN" :
-                       teamMapMode ? "NORMALISED TEAM MAP SCREEN" :
-                       mapMode ? "MAP SCREEN" :
-                       sofaMode ? "SOFA SCREEN" :
-                       jsonMode ? "JSON SCREEN" :
-                       leagueMapMode ? "LEAGUE MAP SCREEN" :
-                       screens[currentScreenIndex].title}
+                        teamMapMode ? "NORMALISED TEAM MAP SCREEN" :
+                        mapMode ? "MAP SCREEN" :
+                        sofaMode ? "SOFA SCREEN" :
+                        jsonMode ? "JSON SCREEN" :
+                        leagueMapMode ? "LEAGUE MAP SCREEN" :
+                        screens[currentScreenIndex].title}
                     </span>
 
                     <button
@@ -133,64 +141,31 @@ export default function App() {
 
                   {menuOpen && (
                     <div className="menu-panel">
-                      <button
-                        onClick={() => openMode(setMapMode)}
-                        disabled={mapMode || sofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode}
-                      >
-                        MAP
-                      </button>
-                      <button
-                        onClick={() => openMode(setLeagueTeamMode)}
-                        disabled={leagueTeamMode || mapMode || sofaMode || jsonMode || teamMapMode || leagueMapMode}
-                      >
-                        LEAGUE / TEAM
-                      </button>
-                      <button
-                        onClick={() => openMode(setSofaMode)}
-                        disabled={sofaMode || jsonMode || mapMode || teamMapMode || leagueTeamMode || leagueMapMode}
-                      >
-                        SOFA
-                      </button>
-                      <button
-                        onClick={() => openMode(setJsonMode)}
-                        disabled={jsonMode || sofaMode || mapMode || teamMapMode || leagueTeamMode || leagueMapMode}
-                      >
-                        JSON
-                      </button>
-                      <button
-                        onClick={() => openMode(setTeamMapMode)}
-                        disabled={teamMapMode || mapMode || sofaMode || jsonMode || leagueTeamMode || leagueMapMode}
-                      >
-                        NORMALISED TEAM MAP
-                      </button>
-                      <button
-                        onClick={() => openMode(setLeagueMapMode)}
-                        disabled={leagueMapMode || teamMapMode || mapMode || sofaMode || jsonMode || leagueTeamMode}
-                      >
-                        LEAGUE MAP
-                      </button>
-                  <button
-  onClick={() => openMode(setFullMode)}
-  disabled={fullMode || mapMode || sofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode}
->
-  FULL SCREEN
-</button>
+                      <button onClick={() => openMode(setMapMode)}>MAP</button>
+                      <button onClick={() => openMode(setLeagueTeamMode)}>LEAGUE / TEAM</button>
+                      <button onClick={() => openMode(setSofaMode)}>SOFA</button>
+                      <button onClick={() => openMode(setJsonMode)}>JSON</button>
+                      <button onClick={() => openMode(setTeamMapMode)}>NORMALISED TEAM MAP</button>
+                      <button onClick={() => openMode(setLeagueMapMode)}>LEAGUE MAP</button>
+                      <button onClick={() => openMode(setFullMode)}>FULL SCREEN</button>
                     </div>
                   )}
 
                   <div className="screen-container">
                     {leagueTeamMode ? <LeagueTeamScreen onClose={() => closeMode(setLeagueTeamMode)} /> :
-                     teamMapMode ? <NormalisedTeamMapScreen onClose={() => closeMode(setTeamMapMode)} /> :
-                     mapMode ? <MapScreen onClose={() => closeMode(setMapMode)} /> :
-                     sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
-                     jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
-                     leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
-                     fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
-                     renderNormalScreen()}
+                      teamMapMode ? <NormalisedTeamMapScreen onClose={() => closeMode(setTeamMapMode)} /> :
+                      mapMode ? <MapScreen onClose={() => closeMode(setMapMode)} /> :
+                      sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
+                      jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
+                      leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
+                      fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
+                      renderNormalScreen()}
                   </div>
 
                   <TicketPanel />
+
                 </div>
+
               </MapScreenProvider>
             </LeagueMapProvider>
           </NormalisedTeamMapProvider>

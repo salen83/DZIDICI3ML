@@ -16,3 +16,6 @@ build/
 # APK
 *.apk
 *.aab
+
+# Sentry Config File
+.sentryclirc

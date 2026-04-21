@@ -1,146 +1,132 @@
 /* ===== CONTAINER ===== */
-.sofa-screen-container {
+.screen1-container {
   width: 100%;
   font-family: Arial, sans-serif;
 }
 
-/* ===== TOP BAR ===== */
-.sofa-screen-topbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 6px;
-  background: #d9f0ff;
-  border-bottom: 1px solid #ccc;
-}
-
 /* ===== TABLE WRAPPER ===== */
-.sofa-screen-table-wrapper {
+.sofa-table-wrapper {
   width: 100%;
+  overflow-x: auto;
+  border-top: 1px solid #ccc;
 }
 
 /* ===== ROW ===== */
-.sofa-screen-row {
+.sofa-row {
   display: flex;
   align-items: center;
+  height: 32px;
   border-bottom: 1px solid #e0e0e0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
-.sofa-screen-row:nth-child(even) {
+.sofa-row:nth-child(even) {
   background: #fafafa;
 }
 
 /* ===== HEADER ===== */
-.sofa-header {
+.sofa-row.header {
   background: #eeeeee;
   font-weight: bold;
   border-bottom: 2px solid #ccc;
 }
 
 /* ===== GENERIC COLUMN ===== */
-.col {
-  padding: 2px 4px;
-  box-sizing: border-box;
+.sofa-col {
   display: flex;
   align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  border-right: 1px solid #ddd;
+  overflow: hidden;
 }
 
 /* ===== RB ===== */
-.col.rb {
-  width: 34px;
+.sofa-col.rb {
+  width: 40px;
   justify-content: center;
   font-weight: bold;
 }
 
-/* ===== INFO (Datum / Vreme / Liga) ===== */
-.col.info {
-  width: 120px;
+/* ===== INFO ===== */
+.sofa-col.info {
+  width: 300px;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   line-height: 1.1;
-  position: relative; /* omogućava da input bude iznad ostalih elemenata */
-  z-index: 1;
 }
 
+/* gornji deo (datum + vreme) */
 .info-top {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   font-size: 10px;
-}
-
-.info-league {
-  font-weight: bold;
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 110px;
-}
-
-/* ===== INLINE EDIT INPUT ===== */
-.inline-edit {
   width: 100%;
-  font-size: 11px;
-  padding: 2px;
-  box-sizing: border-box;
-  pointer-events: auto; /* omogućava klik */
-  z-index: 2; /* iznad ostalih divova */
 }
 
-/* ===== TEAM ===== */
-.col.team {
-  width: 140px;
+/* donji deo (liga) */
+.info-bottom {
+  font-size: 12px;
+  font-weight: bold;
+  width: 100%;
+
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.col.team.bold {
-  font-weight: bold;
+/* ===== COUNTRY ===== */
+.sofa-col.country {
+  width: 120px;
 }
 
-/* ===== RESULTS ===== */
-.col.res {
-  width: 52px;
-  justify-content: center;
-  font-size: 11px;
+/* ===== TEAMS ===== */
+.sofa-col.teams {
+  width: 220px;
+  justify-content: flex-start;
+  gap: 4px;
 }
-.col.small {
-  width: 60px;
-  text-align: center;
+
+/* ===== RESULT KOLONE ===== */
+.sofa-col.results {
+  width: 70px;
 }
 
 /* ===== DELETE ===== */
-.col.del {
-  width: 34px;
-  justify-content: center;
+.sofa-col.delete {
+  width: 40px;
 }
 
-.col.del button {
-    font-size: 10px;       /* smanji font */
-    padding: 1px 3px;      /* minimalni padding */
-    cursor: pointer;
-    width: auto;            /* da ne zauzima celu širinu */
+/* ===== INPUT ===== */
+.sofa-col input {
+  width: 100%;
+  height: 22px;
+  font-size: 11px;
+  padding: 1px 3px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
 }
 
-/* ===== MOBILE TWEAK ===== */
-@media (max-width: 600px) {
-  .col.team {
-    width: 120px;
-  }
-
-  .col.info {
-    width: 110px;
-  }
-
-  .col.res {
-    width: 46px;
-  }
-}
-.small-btn {   /* otvaramo blok */
-  font-size: 10px;
-  padding: 2px 4px;
-  width: auto;
+/* ===== BUTTON ===== */
+.sofa-col.delete button {
+  font-size: 11px;
+  padding: 2px 6px;
   cursor: pointer;
-}              /* zatvaramo blok */
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 600px) {
+  .sofa-col.info {
+    width: 240px;
+  }
+
+  .sofa-col.teams {
+    width: 180px;
+  }
+
+  .sofa-col.results {
+    width: 60px;
+  }
+}
