@@ -1,6 +1,6 @@
 {
   "appId": "com.salen.dzidici",
   "appName": "DZIDICIML",
-  "webDir": "build",
+  "webDir": "dist",
   "bundledWebRuntime": false
 }
