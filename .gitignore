@@ -19,3 +19,4 @@ build/
 
 # Sentry Config File
 .sentryclirc
+.sentryclirc

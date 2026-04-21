@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "vite",
     "start": "vite",
-    "build": "vite build && npm run sentry:sourcemaps",
+    "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org salen-4p --project javascript-react ./dist && sentry-cli sourcemaps upload --org salen-4p --project javascript-react ./dist"
+    "test": "vitest"
   },
   "dependencies": {
     "@babel/parser": "^7.29.0",
@@ -20,7 +19,6 @@
     "@capacitor/core": "^8.0.1",
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/share": "^8.0.0",
-    "@sentry/react": "^10.48.0",
     "@sentry/tracing": "^7.120.4",
     "@supabase/supabase-js": "^2.103.3",
     "eruda": "^3.4.3",
