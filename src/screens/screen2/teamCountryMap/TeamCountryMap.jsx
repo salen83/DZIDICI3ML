@@ -19,7 +19,7 @@ const processTeamsBatch = (teamKeys, ensureTeamFn, callback, batchSize = 50) => 
     batch.forEach(teamName => ensureTeamFn(teamName));
     index += batchSize;
     if (index < teamKeys.length) {
-      setTimeout(nextBatch, 10); // 10ms pauza između batch-eva
+      setTimeout(nextBatch, 10);
     } else {
       callback();
     }
@@ -74,15 +74,20 @@ export default function TeamCountryMap({ onClose }) {
 
   const saveEdit = () => {
     if (!editTeam) return;
+
     const flag = getFlagByName(selectedCountry);
     const map = getTeamMap();
+
     map[editTeam] = { country: selectedCountry, flag };
-    localStorage.setItem('TEAM_COUNTRY_MAP_V1', JSON.stringify(map));
+
+    // TEMP: localStorage uklonjen (prelazak na Supabase)
+
     setTeamsList(prev =>
       prev.map(t =>
         t.name === editTeam ? { ...t, country: selectedCountry, flag } : t
       )
     );
+
     setEditTeam(null);
   };
 
@@ -90,6 +95,7 @@ export default function TeamCountryMap({ onClose }) {
     <div className="team-country-map-container">
       <button onClick={onClose} style={{ marginBottom: 10 }}>Zatvori</button>
       <h3>Mapa tim → država → zastavica</h3>
+
       <table>
         <thead>
           <tr>
@@ -100,23 +106,38 @@ export default function TeamCountryMap({ onClose }) {
             <th>Akcija</th>
           </tr>
         </thead>
+
         <tbody>
           {teamsList.map((team, idx) => {
-            const currentFlag = editTeam === team.name ? getFlagByName(selectedCountry) : team.flag;
+            const currentFlag =
+              editTeam === team.name
+                ? getFlagByName(selectedCountry)
+                : team.flag;
+
             return (
               <tr key={team.name + "_" + team.country}>
                 <td>{idx + 1}</td>
                 <td>{team.name}</td>
+
                 <td>
                   {editTeam === team.name ? (
-                    <select value={selectedCountry} onChange={e => setSelectedCountry(e.target.value)}>
+                    <select
+                      value={selectedCountry}
+                      onChange={e => setSelectedCountry(e.target.value)}
+                    >
                       {Object.values(countries || {}).map(info => (
-                        <option key={info.name} value={info.name}>{info.name}</option>
+                        <option key={info.name} value={info.name}>
+                          {info.name}
+                        </option>
                       ))}
                     </select>
-                  ) : team.country || 'Nepoznato'}
+                  ) : (
+                    team.country || 'Nepoznato'
+                  )}
                 </td>
+
                 <td style={{ fontSize: 20 }}>{currentFlag}</td>
+
                 <td>
                   {editTeam === team.name ? (
                     <button onClick={saveEdit}>Sačuvaj</button>

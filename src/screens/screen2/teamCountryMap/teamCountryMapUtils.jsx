@@ -15,8 +15,7 @@ function loadFromStorage() {
 }
 
 function saveToStorage() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(teamCountryMap)); }
-  catch(e){ console.error("Failed to save teamCountryMap", e); }
+  // TEMP: disabled localStorage (migracija na Supabase)
 }
 
 loadFromStorage();
@@ -31,28 +30,44 @@ function notifySubscribers() {
 export function subscribeTeamMap(callback) {
   subscribers.push(callback);
   callback({ ...teamCountryMap });
-  return () => { subscribers = subscribers.filter(cb => cb !== callback); };
+  return () => {
+    subscribers = subscribers.filter(cb => cb !== callback);
+  };
 }
 
-export function getTeamMap() { return { ...teamCountryMap }; }
-export function getTeamInfo(teamName) { return teamCountryMap[teamName] || null; }
+export function getTeamMap() {
+  return { ...teamCountryMap };
+}
+
+export function getTeamInfo(teamName) {
+  return teamCountryMap[teamName] || null;
+}
 
 function guessCountryFromLeague(leagueName = "") {
   const lower = (leagueName || "").toLowerCase();
   for (const entry of Object.values(countries)) {
     if (!entry || !entry.name) continue;
-    if (lower.includes(entry.name.toLowerCase())) return { country: entry.name, flag: entry.flag };
+    if (lower.includes(entry.name.toLowerCase())) {
+      return { country: entry.name, flag: entry.flag };
+    }
   }
   return { country: leagueName || "?", flag: "" };
 }
 
 export function ensureTeam(teamName, leagueName = "") {
   if (!teamName) return;
+
   const { country, flag } = guessCountryFromLeague(leagueName);
   const key = teamName + "_" + country;
-if (teamCountryMap[key]) return;
-teamCountryMap[key] = { name: teamName, country, flag 
-};
+
+  if (teamCountryMap[key]) return;
+
+  teamCountryMap[key] = {
+    name: teamName,
+    country,
+    flag
+  };
+
   saveToStorage();
   notifySubscribers();
 }

@@ -5,6 +5,7 @@ import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 import { dbMap, STORE_NAMES } from "../dbMap";
+import { supabase } from "../supabase";
 
 export default function MapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useNormalisedTeamMap();
@@ -178,8 +179,8 @@ useEffect(() => {
     }
   });
 
-  setLeagueMap(prev => ({ ...prev, ...updated }));
-}, [sofaLeagueCountryMap, leagueMap, setLeagueMap]);
+setLeagueMap(updated);
+}, [sofaLeagueCountryMap, setLeagueMap]);
 
 const screen1Teams = screen1TeamsAll.filter(t => !pairedScreen1Teams.has(t));
 const sofaTeams = sofaTeamsBase.filter(t => !pairedSofaTeams.has(t));
@@ -236,17 +237,76 @@ const {
   // =====================
   // UPAARIVANJE TIMOVA
   // =====================
-  const confirmTeamPair = (t1, t2) => {
-    if (window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) {
-      const key = `${t1}||${t2}`;
-      setTeamMap(prev => ({
-        ...prev,
-        [key]: { screen1: t1, sofa: t2, normalized: t1 }
-      }));
-      setSelectedTeam1(null);
-      setSelectedTeam2(null);
-    }
+const confirmTeamPair = async (t1, t2) => {
+  if (!window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) return;
+
+  const key = `${t1}||${t2}`;
+ setTeamMap(prev => {
+  if (prev[key]) return prev; // ✅ spreči duplikat
+  return {
+    ...prev,
+    [key]: { screen1: t1, sofa: t2, normalized: t1 }
   };
+});
+
+  try {
+    // 1. proveri da li već postoji neki od ova 2 aliasa
+    const { data: existing } = await supabase
+      .from("team_aliases")
+      .select("*")
+      .in("alias", [t1, t2]);
+
+    let teamId;
+
+    if (existing && existing.length > 0) {
+  teamId = existing[0].team_id;
+} else {
+  // ✅ napravi novi tim u teams tabeli
+  const { data: newTeam, error: teamError } = await supabase
+    .from("teams")
+    .insert([{ name: t1 }])
+    .select()
+    .single();
+
+  if (teamError) {
+    console.log("❌ Team insert error:", teamError);
+    return;
+  }
+
+  teamId = newTeam.id;
+}
+
+    // 2. ubaci oba aliasa (ako već ne postoje)
+    const inserts = [];
+
+    if (!existing.find(e => e.alias === t1)) {
+      inserts.push({ alias: t1, team_id: teamId });
+    }
+
+    if (!existing.find(e => e.alias === t2)) {
+      inserts.push({ alias: t2, team_id: teamId });
+    }
+
+    if (inserts.length > 0) {
+      const { error } = await supabase
+        .from("team_aliases")
+        .insert(inserts);
+
+      if (error) {
+        console.log("Supabase insert error:", error);
+      } else {
+        console.log("✅ team_id:", teamId, inserts);
+      }
+    }
+
+  } catch (err) {
+    console.log("❌ Supabase error:", err);
+  }
+
+  setSelectedTeam1(null);
+  setSelectedTeam2(null);
+};
+
 
   const handleTeamClick = (source, value) => {
     if (source === "screen1") {

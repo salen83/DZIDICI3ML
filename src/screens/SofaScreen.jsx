@@ -167,7 +167,7 @@ if (alive) {
   })();
 
   return () => { alive = false; };
-}, [setSofaRows]);
+}, []);
 
 
   // ================= UPDATE =================
@@ -232,7 +232,7 @@ setSofaRows(copy);
         {visibleRows.map((r, i) => {
   const index = startIndex + i;
   return (
-          <div key={r.id} className="sofa-row">
+          <div key={`${r.id}-${index}`} className="sofa-row">
 
             {/* RB */}
             <div className="sofa-col rb">

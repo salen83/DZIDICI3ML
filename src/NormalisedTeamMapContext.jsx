@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState } from "react";
 
 const NormalisedTeamMapContext = createContext();
 
@@ -10,10 +10,7 @@ export const NormalisedTeamMapProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Automatsko trajno čuvanje
-  useEffect(() => {
-    localStorage.setItem("normalisedTeams", JSON.stringify(teamMap));
-  }, [teamMap]);
+  // useEffect uklonjen – prelazimo na Supabase kasnije
 
   return (
     <NormalisedTeamMapContext.Provider
