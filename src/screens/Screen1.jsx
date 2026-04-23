@@ -12,6 +12,7 @@ import { useSofa } from "../SofaContext";
 // 🔹 PROMENA: koristimo db1.js specijalno za Screen1
 import { saveRows, loadRows } from "../db1"; 
 import { loadConfirmedLeagues } from "../db1";
+import { supabase } from "../supabase";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
@@ -108,12 +109,38 @@ useEffect(() => {
   // =========================
   // 🔹 INIT IZ INDEXEDDB
   // =========================
-  useEffect(() => {
-    (async () => {
-      const loaded = await loadRows();
-      if (loaded?.length) setRows(sortRowsByDateDesc(loaded));
-    })();
-  }, [setRows]);
+useEffect(() => {
+  (async () => {
+    try {
+
+const { data, error } = await supabase
+  .from("screen1_matches")
+  .select("*");
+      if (error) {
+        console.error("❌ Supabase error:", error);
+        return;
+      }
+
+      if (data) {
+        const formatted = data.map((r, i) => ({
+          rb: i + 1,
+          datum: r.datum || "",
+          vreme: r.vreme || "",
+          liga: r.liga || "",
+          home: r.home || "",
+          away: r.away || "",
+          ft: r.ft || "",
+          ht: r.ht || "",
+          sh: r.sh || ""
+        }));
+
+        setRows(sortRowsByDateDesc(formatted));
+      }
+    } catch (err) {
+      console.error("❌ Fetch error:", err);
+    }
+  })();
+}, [setRows]);
 
   // =========================
   // 🔹 IMPORT EXCEL
