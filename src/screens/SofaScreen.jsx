@@ -143,32 +143,47 @@ if (error) console.log("INSERT ERROR:", error);
 useEffect(() => {
   let alive = true;
 
-(async () => {
-  try {
+  (async () => {
+    try {
+      let allData = [];
+      let from = 0;
+      const pageSize = 1000;
 
-const { data, error } = await supabase.from("matches").select("*");
+      while (true) {
+        const { data, error } = await supabase
+          .from("matches")
+          .select("*")
+          .range(from, from + pageSize - 1);
 
-if (error) {
-  console.log("LOAD ERROR:", error);
-} else {
-if (alive) {
-  const safeData = Array.isArray(data) ? data : [];
-  const normalized = safeData.map(safeRow);
+        if (error) {
+          console.log("LOAD ERROR:", error);
+          break;
+        }
 
-  setSofaRows(normalized);
-  log("Loaded from DB: " + normalized.length);
-}
-}
+        if (!data || data.length === 0) break;
 
+        allData = [...allData, ...data];
 
+        if (data.length < pageSize) break;
+
+        from += pageSize;
+      }
+
+      if (alive) {
+        const normalized = allData.map(safeRow);
+
+        setSofaRows(normalized);
+        log("Loaded from DB: " + normalized.length);
+      }
     } catch (e) {
       console.log(e);
     }
   })();
 
-  return () => { alive = false; };
+  return () => {
+    alive = false;
+  };
 }, []);
-
 
   // ================= UPDATE =================
   const updateCell = (index, key, value) => {
