@@ -211,57 +211,63 @@ const { data, error } = await supabase
       const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
       addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
-      const updatedRows = rows.map(row => {
-const clean = (v) =>
-  (typeof v === "object" ? v?.name : v || "")
-    .toString()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+const updatedRows = rows.map(row => {
+  const clean = (v) =>
+    (typeof v === "object" ? v?.name : v || "")
+      .toString()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
 
-let match = null;
+  // 🔹 NORMALIZACIJA preko mapa
+  const leagueKey = row.liga?.toLowerCase().trim();
+  const normalizedLeague = leagueMap?.[leagueKey]?.normalized || row.liga;
 
-for (const s of syncJson) {
-  const sameDate = clean(s.datum) === clean(row.datum);
-  const sameLeague = clean(s.liga) === clean(row.liga);
-  const sameHome = clean(s.home) === clean(row.home);
-  const sameAway = clean(s.away) === clean(row.away);
+  const normalizedHome = teamMap?.[clean(row.home)] || row.home;
+  const normalizedAway = teamMap?.[clean(row.away)] || row.away;
 
-  if (sameDate && sameLeague && sameHome && sameAway) {
-    match = s;
-    break;
+  let match = null;
+
+  for (const s of syncJson) {
+    const sameDate   = clean(s.datum) === clean(row.datum);
+    const sameLeague = clean(s.liga) === clean(normalizedLeague);
+    const sameHome   = clean(s.home) === clean(normalizedHome);
+    const sameAway   = clean(s.away) === clean(normalizedAway);
+
+    if (sameDate && sameLeague && sameHome && sameAway) {
+      match = s;
+      break;
+    }
+
+    // DEBUG ako timovi matchuju a ostalo ne
+    if (sameHome && sameAway) {
+      addLog(`⚠️ DELIMIČAN MATCH: ${row.home} - ${row.away}`);
+      addLog(`   datum: ${row.datum} vs ${s.datum} → ${sameDate ? "OK" : "❌"}`);
+      addLog(`   liga: ${normalizedLeague} vs ${s.liga} → ${sameLeague ? "OK" : "❌"}`);
+    }
   }
 
-  // 🔥 KLJUČNI DEBUG
-  if (sameHome && sameAway) {
-    addLog(`⚠️ DELIMIČAN MATCH: ${row.home} - ${row.away}`);
-    addLog(`   datum: ${row.datum} vs ${s.datum} → ${sameDate ? "OK" : "❌"}`);
-    addLog(`   liga: ${row.liga} vs ${s.liga} → ${sameLeague ? "OK" : "❌"}`);
-    addLog(`   home: ${row.home} vs ${s.home} → ${sameHome ? "OK" : "❌"}`);
-    addLog(`   away: ${row.away} vs ${s.away} → ${sameAway ? "OK" : "❌"}`);
+  if (!match) {
+    addLog(`❌ NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
+    return row;
   }
-}
 
-if (!match) {
-  addLog(`❌ NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
-}
+  const sofaFT = match.ft ?? '';
+  const sofaSH = match.sh ?? '';
 
-        if (!match) {
-          addLog(`❌ Nije pronađen match za: ${row.home} - ${row.away}`);
-          return row;
-        }
+  if (row.ft === sofaFT && row.sh === sofaSH) {
+    return { ...row, _syncedChanged: false };
+  }
 
-        const sofaFT = match.ft ?? '';
-        const sofaSH = match.sh ?? '';
+  addLog(`⚠️ UPDATE: ${row.home} - ${row.away} → ${sofaFT}:${sofaSH}`);
 
-        if (row.ft === sofaFT && row.sh === sofaSH) {
-          addLog(`✅ Rezultati isti za: ${row.home} - ${row.away}`);
-          return { ...row, _syncedChanged: false };
-        }
-
-        addLog(`⚠️ Rezultati se razlikuju za: ${row.home} - ${row.away}, update na ${sofaFT}:${sofaSH}`);
-        return { ...row, ft: sofaFT, sh: sofaSH, _syncedChanged: true };
-      });
+  return {
+    ...row,
+    ft: sofaFT,
+    sh: sofaSH,
+    _syncedChanged: true
+  };
+});
 
       setRows(updatedRows);
       await saveRows(updatedRows);

@@ -322,12 +322,14 @@ const confirmTeamPair = async (t1, t2) => {
   // =====================
   // UPAARIVANJE LIGA
   // =====================
-const confirmLeaguePair = (l1, l2) => {
+const confirmLeaguePair = async (l1, l2) => {
   if (!window.confirm(`Upariti lige:\n${l1} ↔ ${l2}?`)) return;
 
+  const country = sofaLeagueCountryMap[l2] || "";
+
+  // 1. LOCAL STATE
   setLeagueMap(prev => {
     const existingKey = Object.keys(prev).find(k => prev[k].screen1 === l1);
-    const country = sofaLeagueCountryMap[l2] || ""; // <--- ovo dodajemo
 
     if (existingKey) {
       const existing = prev[existingKey];
@@ -335,23 +337,77 @@ const confirmLeaguePair = (l1, l2) => {
         ...prev,
         [existingKey]: {
           ...existing,
-          sofa: Array.isArray(existing.sofa) ? [...existing.sofa, l2] : [existing.sofa, l2],
-          country: existing.country || country // <--- ovde dodajemo country ako ne postoji
+          sofa: Array.isArray(existing.sofa)
+            ? [...existing.sofa, l2]
+            : [existing.sofa, l2],
+          country: existing.country || country
         }
       };
     } else {
-      // Novi entry
       const key = `league||${l1}||${l2}`;
       return {
         ...prev,
-        [key]: { screen1: l1, sofa: [l2], normalized: l1, country } // <--- dodajemo country
+        [key]: { screen1: l1, sofa: [l2], normalized: l1, country }
       };
     }
   });
 
+  // 2. SUPABASE (ISTO KAO TIMOVI)
+  try {
+    const { data: existing } = await supabase
+      .from("league_aliases")
+      .select("*")
+      .in("alias", [l1, l2]);
+
+    let leagueId;
+
+    if (existing && existing.length > 0) {
+      leagueId = existing[0].league_id;
+    } else {
+      const { data: newLeague, error: leagueError } = await supabase
+        .from("leagues")
+        .insert([{ name: l1, country }])
+        .select()
+        .single();
+
+      if (leagueError) {
+        console.log("❌ League insert error:", leagueError);
+        return;
+      }
+
+      leagueId = newLeague.id;
+    }
+
+    const inserts = [];
+
+    if (!existing.find(e => e.alias === l1)) {
+      inserts.push({ alias: l1, league_id: leagueId });
+    }
+
+    if (!existing.find(e => e.alias === l2)) {
+      inserts.push({ alias: l2, league_id: leagueId });
+    }
+
+    if (inserts.length > 0) {
+      const { error } = await supabase
+        .from("league_aliases")
+        .insert(inserts);
+
+      if (error) {
+        console.log("❌ League alias insert error:", error);
+      } else {
+        console.log("✅ league_id:", leagueId, inserts);
+      }
+    }
+
+  } catch (err) {
+    console.log("❌ Supabase error:", err);
+  }
+
   setSelectedLeague1(null);
   setSelectedLeague2(null);
 };
+
 
 const handleLeagueClick = (source, value) => {
   if (source === "screen1") {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLeagueMap } from "../LeagueMapContext";
+import { supabase } from "../supabase";
 
 export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
   const { leagueMap, setLeagueMap } = useLeagueMap();
@@ -9,10 +10,53 @@ export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
   // =====================
   // UCITAVANJE IZ LOCALSTORAGE
   // =====================
-  useEffect(() => {
-    const saved = localStorage.getItem("leagueMap");
-    if (saved) setLeagueMap(JSON.parse(saved));
-  }, [setLeagueMap]);
+useEffect(() => {
+  async function loadLeagues() {
+    try {
+      const { data: aliases, error } = await supabase
+        .from("league_aliases")
+        .select("*");
+
+      if (error) {
+        console.log("❌ load leagues error:", error);
+        return;
+      }
+
+      const grouped = {};
+
+      aliases.forEach(a => {
+        if (!grouped[a.league_id]) {
+          grouped[a.league_id] = [];
+        }
+        grouped[a.league_id].push(a.alias);
+      });
+
+      const formatted = {};
+
+      Object.entries(grouped).forEach(([leagueId, aliases]) => {
+        const screen1 = aliases[0]; // privremeno
+        const sofa = aliases.slice(1);
+
+        const key = `league||${screen1}||${sofa[0] || "x"}`;
+
+        formatted[key] = {
+          screen1,
+          sofa,
+          normalized: screen1
+        };
+      });
+
+      setLeagueMap(formatted);
+
+      console.log("✅ leagues loaded", formatted);
+
+    } catch (err) {
+      console.log("❌ load error:", err);
+    }
+  }
+
+  loadLeagues();
+}, []);
 
 const handleNormalizedChange = (key, value) => {
   if (!value && leagueMap[key]?.screen1) {
