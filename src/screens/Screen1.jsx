@@ -10,9 +10,41 @@ import { convertSofaToSyncJSONRaw } from "./ScreenJson";
 import { useSofa } from "../SofaContext";
 
 // 🔹 PROMENA: koristimo db1.js specijalno za Screen1
-import { saveRows, loadRows } from "../db1"; 
+// import { saveRows, loadRows } from "../db1";
 import { loadConfirmedLeagues } from "../db1";
 import { supabase } from "../supabase";
+const saveTeamsToSupabase = async (rowsToSave) => {
+  try {
+    const teamSet = new Set();
+
+    rowsToSave.forEach(r => {
+      if (r.home) teamSet.add(r.home.trim());
+      if (r.away) teamSet.add(r.away.trim());
+    });
+
+    const payload = Array.from(teamSet).map(team => ({
+      name: team,
+      source: "screen1"
+    }));
+
+    if (payload.length === 0) return;
+
+    await supabase
+      .from("teams")
+      .delete()
+      .eq("source", "screen1");
+
+    const { error } = await supabase
+      .from("teams")
+      .insert(payload);
+
+    if (error) console.error("❌ Teams insert error:", error);
+    else console.log("✅ Teams saved:", payload.length);
+
+  } catch (err) {
+    console.error("❌ saveTeamsToSupabase error:", err);
+  }
+};
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
@@ -114,25 +146,26 @@ useEffect(() => {
     try {
 
 const { data, error } = await supabase
-  .from("screen1_matches")
-  .select("*");
+  .from("matches")
+  .select("*")
+  .eq("source", "screen1");
       if (error) {
         console.error("❌ Supabase error:", error);
         return;
       }
 
       if (data) {
-        const formatted = data.map((r, i) => ({
-          rb: i + 1,
-          datum: r.datum || "",
-          vreme: r.vreme || "",
-          liga: r.liga || "",
-          home: r.home || "",
-          away: r.away || "",
-          ft: r.ft || "",
-          ht: r.ht || "",
-          sh: r.sh || ""
-        }));
+const formatted = data.map((r, i) => ({
+  rb: i + 1,
+  datum: r.match_date || "",
+  vreme: r.match_time || "",
+  liga: r.raw_league || "",
+  home: r.raw_home || "",
+  away: r.raw_away || "",
+  ft: r.ft || "",
+  ht: r.ht || "",
+  sh: r.sh || ""
+}));
 
         setRows(sortRowsByDateDesc(formatted));
       }
@@ -141,6 +174,49 @@ const { data, error } = await supabase
     }
   })();
 }, [setRows]);
+const saveToSupabase = async (rowsToSave) => {
+    try {
+      // ❗ prvo brišemo stare screen1 mečeve
+      const { error: deleteError } = await supabase
+        .from("matches")
+        .delete()
+        .eq("source", "screen1");
+
+      if (deleteError) {
+        console.error("❌ Delete error:", deleteError);
+        return;
+      }
+
+      // ❗ priprema podataka za insert
+      const payload = rowsToSave.map(r => ({
+        source: "screen1",
+        match_date: r.datum || "",
+        match_time: r.vreme || "",
+        raw_league: r.liga || "",
+        raw_home: r.home || "",
+        raw_away: r.away || "",
+        ft: r.ft || "",
+        ht: r.ht || "",
+        sh: r.sh || ""
+      }));
+
+      if (payload.length === 0) return;
+
+      const { error: insertError } = await supabase
+        .from("matches")
+        .insert(payload);
+
+      if (insertError) {
+        console.error("❌ Insert error:", insertError);
+      } else {
+        console.log("✅ Saved to Supabase:", payload.length);
+      }
+await saveTeamsToSupabase(rowsToSave);
+
+    } catch (err) {
+      console.error("❌ saveToSupabase error:", err);
+    }
+  };
 
   // =========================
   // 🔹 IMPORT EXCEL
@@ -195,10 +271,11 @@ const { data, error } = await supabase
             }
           });
         });
-      setRows(allRows);
+setRows(allRows);
+await saveTeamsToSupabase(allRows);
 
-      // 🔹 Čuvanje u IndexedDB
-      await saveRows(allRows);
+// 🔹 Čuvanje u Supabase
+await saveToSupabase(allRows);
     };
 
     reader.readAsArrayBuffer(file);
@@ -270,7 +347,7 @@ const updatedRows = rows.map(row => {
 });
 
       setRows(updatedRows);
-      await saveRows(updatedRows);
+      await saveToSupabase(updatedRows);
       addLog("🔹 Sync završen");
 
     } catch (err) {
@@ -296,7 +373,7 @@ const updatedRows = rows.map(row => {
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
-    await saveRows(newRows);
+    await saveToSupabase(newRows);
 
     updateMapAndLeagueTeam(newRows);
 
@@ -309,12 +386,12 @@ const updatedRows = rows.map(row => {
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setRows(copy);
-    await saveRows(copy);
+    await saveToSupabase(copy);
   };
 
   const deleteAllRows = async () => {
     setRows([]);
-    await saveRows([]);
+    await saveToSupabase([]);
   };
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
@@ -330,10 +407,10 @@ const updatedRows = rows.map(row => {
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
       setRows(sorted);
-      await saveRows(sorted);
+      await saveToSupabase(sorted);
     } else {
       setRows(copy);
-      await saveRows(copy);
+      await saveToSupabase(copy);
     }
   };
 

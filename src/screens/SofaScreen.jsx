@@ -6,18 +6,19 @@ import { supabase } from "../supabase";
 
 // ================= SAFE ROW =================
 const safeRow = (r) => ({
-  id: r.id ?? `${r.home}-${r.away}-${r.datum}-${r.vreme}`,
-  datum: r.datum || "",
-  vreme: r.vreme || "",
-  liga: r.liga || "",
-  home: r.home || "",
-  away: r.away || "",
+id: r.id ?? `${r.raw_home}-${r.raw_away}-${r.match_date}-${r.match_time}`,
+datum: r.match_date || "",
+vreme: r.match_time || "",
+liga: r.raw_league || "",
+home: r.raw_home || "",
+away: r.raw_away || "",
   ht: r.ht || "",
   sh: r.sh || "",
   ft: r.ft || "",
   extratime: r.extratime || "",
   penalties: r.penalties || "",
-  country: r.country || "",
+  country: r.country_name || "",
+  source: r.source || "",
 });
 
 // ================= COMPONENT =================
@@ -76,8 +77,11 @@ json.forEach((r) => {
 
 // 2. INSERT (ignore duplicates)
 await supabase.from("teams").upsert(
-  Array.from(teamsSet).map((name) => ({ name })),
-  { onConflict: "name" }
+  Array.from(teamsSet).map((name) => ({
+    name,
+    source: "sofa"
+  })),
+  { onConflict: "name", ignoreDuplicates: true }
 );
 
 await supabase.from("leagues").upsert(
@@ -131,7 +135,30 @@ setSofaRows(normalized);
 log("IMPORT: " + normalized.length);
 
 // 5. INSERT MATCHES
-const { error } = await supabase.from("matches").insert(normalized);
+const { error } = await supabase.from("matches").upsert(
+  normalized.map(r => ({
+    source: "sofa",
+
+    match_date: r.datum,
+    match_time: r.vreme,
+
+    raw_home: r.home,
+    raw_away: r.away,
+    raw_league: r.liga,
+    country_id: r.country_id,
+
+    home_team_id: r.home_id,
+    away_team_id: r.away_id,
+    league_id: r.league_id,
+
+    ht: r.ht,
+    sh: r.sh,
+    ft: r.ft,
+    extratime: r.extratime,
+    penalties: r.penalties
+  }))
+);
+
 if (error) console.log("INSERT ERROR:", error);
 
   } catch (err) {
@@ -143,48 +170,57 @@ if (error) console.log("INSERT ERROR:", error);
 useEffect(() => {
   let alive = true;
 
-  (async () => {
-    try {
-      let allData = [];
-      let from = 0;
-      const pageSize = 1000;
+(async () => {
+  try {
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
 
-      while (true) {
-        const { data, error } = await supabase
-          .from("matches")
-          .select("*")
-          .range(from, from + pageSize - 1);
+    while (true) {
+      const { data, error } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("source", "sofa")
+        .range(from, from + pageSize - 1);
 
-        if (error) {
-          console.log("LOAD ERROR:", error);
-          break;
-        }
-
-        if (!data || data.length === 0) break;
-
-        allData = [...allData, ...data];
-
-        if (data.length < pageSize) break;
-
-        from += pageSize;
+      if (error) {
+        console.log("LOAD ERROR:", error);
+        break;
       }
 
-      if (alive) {
-        const normalized = allData.map(safeRow);
+      if (!data || data.length === 0) break;
 
-        setSofaRows(normalized);
-        log("Loaded from DB: " + normalized.length);
-      }
-    } catch (e) {
-      console.log(e);
+      allData = [...allData, ...data];
+
+      if (data.length < pageSize) break;
+
+      from += pageSize;
     }
-  })();
 
-  return () => {
-    alive = false;
-  };
+    if (alive) {
+const { data: countriesData } = await supabase
+  .from("countries")
+  .select("id,name");
+
+const countryMap = {};
+countriesData.forEach(c => {
+  countryMap[c.id] = c.name;
+});
+
+const normalized = allData.map(r => ({
+  ...safeRow(r),
+  country: countryMap[r.country_id] || ""
+}));
+
+setSofaRows(normalized);
+      log("Loaded from DB: " + normalized.length);
+    }
+
+  } catch (e) {
+    console.log(e);
+  }
+})();
 }, []);
-
   // ================= UPDATE =================
   const updateCell = (index, key, value) => {
     const copy = [...sofaRows];
@@ -233,6 +269,7 @@ setSofaRows(copy);
           <div className="sofa-col rb">#</div>
           <div className="sofa-col info">Info</div>
           <div className="sofa-col country">Country</div>
+          <div className="sofa-col source">Source</div>
           <div className="sofa-col teams">Home-Away</div>
           <div className="sofa-col results">1H</div>
           <div className="sofa-col results">2H</div>
@@ -266,6 +303,9 @@ setSofaRows(copy);
 </span>
               </div>
             </div>
+           <div className="sofa-col source">
+  {r.source}
+</div>
 
             {/* COUNTRY */}
             <div className="sofa-col country">

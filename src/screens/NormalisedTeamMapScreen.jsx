@@ -1,10 +1,37 @@
 import React, { useState, useEffect } from "react";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import LeagueTeamScreen from "./LeagueTeamScreen";
+import { supabase } from "../supabase";
 
 export default function NormalisedTeamMapScreen({ onClose }) {
   const { teamMap, setTeamMap } = useNormalisedTeamMap();
   const [showLeagueTeams, setShowLeagueTeams] = useState(null);
+
+useEffect(() => {
+  (async () => {
+    const { data, error } = await supabase
+      .from("team_map")
+      .select("*");
+
+    if (error) {
+      console.error("❌ load team_map:", error);
+      return;
+    }
+
+    if (data) {
+      const map = {};
+      data.forEach(r => {
+        map[r.key] = {
+          screen1: r.screen1,
+          sofa: r.sofa,
+          normalized: r.normalized
+        };
+      });
+
+      setTeamMap(map);
+    }
+  })();
+}, []);
 
   // ✅ AUTOMATSKI postavi normalized = screen1 ako ne postoji
   useEffect(() => {
@@ -23,31 +50,51 @@ export default function NormalisedTeamMapScreen({ onClose }) {
     }
   }, [teamMap, setTeamMap]);
 
-  const handleNormalizedChange = (key, value) => {
-    setTeamMap(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        normalized: value
-      }
-    }));
-  };
-
-  const handleDelete = (key) => {
-    if (window.confirm("Da li želiš da izbrišeš normalizovani tim?")) {
-      setTeamMap(prev => {
-        const newMap = { ...prev };
-        delete newMap[key];
-        return newMap;
-      });
+const handleNormalizedChange = async (key, value) => {
+  const updated = {
+    ...teamMap,
+    [key]: {
+      ...teamMap[key],
+      normalized: value
     }
   };
 
-  const handleDeleteAll = () => {
-    if (window.confirm("Da li želiš da izbrišeš SVE normalizovane timove?")) {
-      setTeamMap({});
-    }
-  };
+  setTeamMap(updated);
+
+  const row = updated[key];
+
+  const { error } = await supabase
+    .from("team_map")
+    .upsert({
+      key,
+      screen1: row.screen1 || "",
+      sofa: row.sofa || "",
+      normalized: value
+    });
+
+  if (error) {
+    console.error("❌ save team_map:", error);
+  }
+};
+
+const handleDelete = async (key) => {
+  if (!window.confirm("Da li želiš da izbrišeš normalizovani tim?")) return;
+
+  setTeamMap(prev => {
+    const newMap = { ...prev };
+    delete newMap[key];
+    return newMap;
+  });
+
+  await supabase.from("team_map").delete().eq("key", key);
+};
+
+const handleDeleteAll = async () => {
+  if (!window.confirm("Da li želiš da izbrišeš SVE normalizovane timove?")) return;
+
+  setTeamMap({});
+  await supabase.from("team_map").delete().neq("key", "");
+};
 
   const teams = Object.entries(teamMap || {}).map(([key, t]) => ({
     key,
