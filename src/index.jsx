@@ -75,7 +75,7 @@ import eruda from "eruda";
 
     push("error", {
       args,
-      stack: stack || new Error().stack
+      stack: stack || null
     });
 
     original.error(...args);

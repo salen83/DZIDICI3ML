@@ -2,7 +2,7 @@ import React, { useContext, useState } from "react";
 import "./FullScreen.css";
 import countries from "./screen2/teamCountryMap/countries";
 import { MatchesContext } from "../MatchesContext";
-import { saveRows, saveConfirmedLeagues } from "../db1";
+import { supabase } from "../supabase";
 
 export default function FullScreen({ onClose }) {
   const { rows, setRows, teamAliases, setTeamAliases } = useContext(MatchesContext);

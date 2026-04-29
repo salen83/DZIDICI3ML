@@ -1,14 +1,11 @@
 import { useMapStore } from "../stores/mapStore";
 import React, { useMemo, useEffect } from "react";
-import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useMatches } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
-import { dbMap, STORE_NAMES } from "../dbMap";
 import { supabase } from "../supabase";
 
 export default function MapScreen({ onClose }) {
-  const { teamMap, setTeamMap } = useNormalisedTeamMap();
   const { leagueMap, setLeagueMap } = useLeagueMap();
   const { rows: screen1Rows } = useMatches();
   const { sofaRows } = useSofa();
@@ -23,22 +20,61 @@ const {
   setDeletedSofaTeams
 } = useMapStore();
 
-// eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   async function loadDeleted() {
     // ✅ AKO VEĆ IMA PODATAKA – NE UČITAVAJ PONOVO
     if (deletedSofaLeagues.length > 0 || deletedSofaTeams.length > 0) return;
 
-    const leagues = await dbMap.getAll(STORE_NAMES.DELETED_SOFALIGUES);
-    const teams = await dbMap.getAll(STORE_NAMES.DELETED_SOFATEAMS);
+    const { data: leagues = [] } = await supabase
+  .from("deleted_sofa_leagues")
+  .select("value");
+    const { data: teams = [] } = await supabase
+  .from("deleted_sofa_teams")
+  .select("id,value");
 
     setDeletedSofaLeagues(leagues.map(l => l.value || l.id));
-    setDeletedSofaTeams(teams.map(t => t.value || t.id));
+    setDeletedSofaTeams((teams || []).map(t => t?.value || t?.id));
   }
 
   loadDeleted();
 }, [deletedSofaLeagues.length, deletedSofaTeams.length, setDeletedSofaLeagues, setDeletedSofaTeams]);
 
+  const [pairedLeaguesDB, setPairedLeaguesDB] = React.useState(new Set());
+  const [pairedTeamsDB, setPairedTeamsDB] = React.useState([]);
+
+useEffect(() => {
+  async function loadPairedLeagues() {
+    const { data, error } = await supabase
+      .from("league_aliases")
+      .select("alias");
+
+    if (error) {
+      console.log("❌ load league_aliases:", error);
+      return;
+    }
+
+    const set = new Set((data || []).map(d => d.alias));
+    setPairedLeaguesDB(set);
+  }
+
+  loadPairedLeagues();
+}, []);
+useEffect(() => {
+  async function loadPairedTeams() {
+    const { data, error } = await supabase
+      .from("team_aliases")
+      .select("alias,source");
+
+    if (error) {
+      console.log("❌ load team_aliases:", error);
+      return;
+    }
+
+    setPairedTeamsDB(data || []);
+  }
+
+  loadPairedTeams();
+}, []);
   // =====================
   // SVI TIMOVI
   // =====================
@@ -79,25 +115,36 @@ const sofaTeamsAll = useMemo(() => {
   const screen1LeaguesAll = useMemo(() => {
     if (!screen1Rows) return [];
     return Array.from(
-      new Set(screen1Rows.map(r => r.Liga || r.liga).filter(Boolean))
+new Set(
+  screen1Rows
+.map(r => (r.Liga || r.liga || "").trim())
+    .filter(Boolean)
+)
     ).sort((a, b) => a.localeCompare(b));
   }, [screen1Rows]);
 
 const sofaLeaguesAll = useMemo(() => {
   if (!sofaRows) return [];
-  return Array.from(
-    new Set(
-      sofaRows.map(r => {
-        const liga = r.Liga || r.liga || "";
-        const country = r.Country || r.country || "";
-        return `${liga}|||${country}`;
-      }).filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
+
+  const map = new Map();
+
+  sofaRows.forEach(r => {
+    const liga = r.Liga || r.liga || "";
+    const country = r.Country || r.country || "";
+
+    if (!liga) return;
+
+    const key = `${liga}|||${country}`;
+
+    if (!map.has(key)) {
+      map.set(key, { liga, country });
+    }
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => (a.liga || "").localeCompare(b.liga || ""));
+
 }, [sofaRows]);
-// =====================
-// SOFA LIGA -> DRŽAVA MAPA
-// =====================
 // =====================
 // SOFA LIGA -> DRŽAVA MAPA
 // =====================
@@ -121,38 +168,34 @@ if (liga && country && !map[`${liga}|||${country}`]) map[`${liga}|||${country}`]
   // =====================
   // FILTRIRANJE OBRISANIH
   // =====================
-  const sofaLeaguesBase = sofaLeaguesAll.filter(
-    l => !deletedSofaLeagues.includes(l)
-  );
-
-  const sofaTeamsBase = sofaTeamsAll.filter(
-    t => !deletedSofaTeams.includes(t)
-  );
+const sofaLeaguesBase = sofaLeaguesAll.filter(l => {
+  const key = `${l.liga}|||${l.country}`;
+  return !deletedSofaLeagues.includes(key);
+});
 
 // =====================
 // UPAARENI (ODVOJENO)
 // =====================
-const pairedScreen1Teams = useMemo(() => {
-  return new Set(
-    Object.values(teamMap || {}).map(t => t.screen1)
-  );
-}, [teamMap]);
+const pairedScreen1Teams = useMemo(() => new Set(
+  pairedTeamsDB
+    .filter(t => t.source === "screen1")
+    .map(t => (t.alias || "").trim())
+), [pairedTeamsDB]);
 
-const pairedSofaTeams = useMemo(() => {
-  return new Set(
-    Object.values(teamMap || {}).map(t => t.sofa)
-  );
-}, [teamMap]);
-
+const pairedSofaTeams = useMemo(() => new Set(
+  pairedTeamsDB
+    .filter(t => t.source === "sofa")
+    .map(t => (t.alias || "").trim())
+), [pairedTeamsDB]);
 // =====================
 // UPAARENE SCREEN1 LIGE
 // =====================
 const pairedScreen1Leagues = useMemo(() => {
   return new Set(
-    Object.values(leagueMap || {}).map(l => l.screen1)
+    Object.values(leagueMap || {})
+      .map(l => (l.screen1 || "").toLowerCase().trim())
   );
 }, [leagueMap]);
-
 // =====================
 // UPAARENE SOFA LIGE
 // =====================
@@ -164,6 +207,7 @@ const pairedSofaLeagues = useMemo(() => {
   );
 }, [leagueMap]);
 useEffect(() => {
+  if (!Object.keys(leagueMap || {}).length) return;
   if (!leagueMap) return;
 
   const updated = {};
@@ -179,11 +223,16 @@ useEffect(() => {
     }
   });
 
-setLeagueMap(updated);
+if (JSON.stringify(updated) !== JSON.stringify(leagueMap)) {
+  setLeagueMap(updated);
+}
 }, [sofaLeagueCountryMap, setLeagueMap]);
 
 const screen1Teams = screen1TeamsAll.filter(t => !pairedScreen1Teams.has(t));
-const sofaTeams = sofaTeamsBase.filter(t => !pairedSofaTeams.has(t));
+const sofaTeams = sofaTeamsAll.filter(t => !pairedSofaTeams.has(t));
+const sofaTeamsBase = sofaTeamsAll.filter(
+  t => !deletedSofaTeams.includes(t)
+);
 // =====================
 // PRETRAGA TIMOVA SOFA – ISPRAVNO
 // =====================
@@ -198,16 +247,28 @@ const findSofaTeamLocation = (team) => {
     return "Tim nije pronađen";
   }
 };
-const screen1Leagues = screen1LeaguesAll.filter(
-  l => !pairedScreen1Leagues.has(l)
-);
+const screen1Leagues = useMemo(() =>
+  screen1LeaguesAll.filter(l => {
+    const clean = (l || "").trim();
+    return !pairedLeaguesDB.has(clean);
+  }),
+[screen1LeaguesAll, pairedLeaguesDB]);
 // =====================
 // FILTER – SOFA LEAGUES
 // =====================
 const sofaLeagues = useMemo(() =>
-  sofaLeaguesBase.filter(l => !pairedSofaLeagues.has(l))
-, [sofaLeaguesBase, pairedSofaLeagues]);
+  sofaLeaguesBase.filter(l => {
+    const clean = l.liga?.trim();
+    const country = l.country?.trim() || "";
+    const fullKey = `${clean}|||${country}`;
 
+    return (
+      !pairedLeaguesDB.has(clean) &&
+      !pairedLeaguesDB.has(fullKey) &&
+      !pairedSofaLeagues.has(fullKey)
+    );
+  })
+, [sofaLeaguesBase, pairedLeaguesDB, pairedSofaLeagues]);
   // =====================
   // SELEKCIJA
   // =====================
@@ -241,13 +302,6 @@ const confirmTeamPair = async (t1, t2) => {
   if (!window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) return;
 
   const key = `${t1}||${t2}`;
- setTeamMap(prev => {
-  if (prev[key]) return prev; // ✅ spreči duplikat
-  return {
-    ...prev,
-    [key]: { screen1: t1, sofa: t2, normalized: t1 }
-  };
-});
 
   try {
     // 1. proveri da li već postoji neki od ova 2 aliasa
@@ -258,22 +312,22 @@ const confirmTeamPair = async (t1, t2) => {
 
     let teamId;
 
-    if (existing && existing.length > 0) {
+if (existing && existing.length > 0) {
   teamId = existing[0].team_id;
 } else {
-  // ✅ napravi novi tim u teams tabeli
-  const { data: newTeam, error: teamError } = await supabase
+  // ✅ uzmi postojeći tim iz teams tabele
+  const { data: team, error: teamError } = await supabase
     .from("teams")
-    .insert([{ name: t1 }])
-    .select()
+    .select("id")
+    .eq("name", t1)
     .single();
 
-  if (teamError) {
-    console.log("❌ Team insert error:", teamError);
+  if (teamError || !team) {
+    console.log("❌ Team not found in teams table:", t1);
     return;
   }
 
-  teamId = newTeam.id;
+  teamId = team.id;
 }
 
     // 2. ubaci oba aliasa (ako već ne postoje)
@@ -329,7 +383,9 @@ const confirmLeaguePair = async (l1, l2) => {
 
   // 1. LOCAL STATE
   setLeagueMap(prev => {
-    const existingKey = Object.keys(prev).find(k => prev[k].screen1 === l1);
+const existingKey = Object.keys(prev).find(
+  k => (prev[k].screen1 || "").toLowerCase().trim() === l1.toLowerCase().trim()
+);
 
     if (existingKey) {
       const existing = prev[existingKey];
@@ -361,22 +417,18 @@ const confirmLeaguePair = async (l1, l2) => {
 
     let leagueId;
 
-    if (existing && existing.length > 0) {
-      leagueId = existing[0].league_id;
-    } else {
-      const { data: newLeague, error: leagueError } = await supabase
-        .from("leagues")
-        .insert([{ name: l1, country }])
-        .select()
-        .single();
+const { data: league } = await supabase
+  .from("leagues")
+  .select("id")
+  .eq("name", l1)
+  .single();
 
-      if (leagueError) {
-        console.log("❌ League insert error:", leagueError);
-        return;
-      }
+if (!league) {
+  console.log("❌ League not found in leagues:", l1);
+  return;
+}
 
-      leagueId = newLeague.id;
-    }
+leagueId = league.id;
 
     const inserts = [];
 
@@ -384,14 +436,22 @@ const confirmLeaguePair = async (l1, l2) => {
       inserts.push({ alias: l1, league_id: leagueId });
     }
 
-    if (!existing.find(e => e.alias === l2)) {
-      inserts.push({ alias: l2, league_id: leagueId });
-    }
+const cleanL2 = l2.includes("|||") ? l2.split("|||")[0].trim() : l2.trim();
 
-    if (inserts.length > 0) {
-      const { error } = await supabase
-        .from("league_aliases")
-        .insert(inserts);
+if (!existing.find(e => e.alias === cleanL2)) {
+  inserts.push({ alias: cleanL2, league_id: leagueId });
+}
+
+if (inserts.length > 0) {
+  const enrichedInserts = inserts.map(i => ({
+  ...i,
+  country: country || "",
+  source: i.alias === l1 ? "screen1" : "sofa"
+}));
+
+  const { error } = await supabase
+    .from("league_aliases")
+    .insert(enrichedInserts);
 
       if (error) {
         console.log("❌ League alias insert error:", error);
@@ -450,10 +510,10 @@ const handleDeleteSofaLeague = async (liga) => {
   const updatedLeagues = [...deletedSofaLeagues, liga];
   setDeletedSofaLeagues(updatedLeagues);
 
-  await dbMap.clear(STORE_NAMES.DELETED_SOFALIGUES);
-  for (const l of updatedLeagues) {
-    await dbMap.put(STORE_NAMES.DELETED_SOFALIGUES, { id: l, value: l });
-  }
+await supabase.from("deleted_sofa_leagues").delete().neq("value", "");
+await supabase.from("deleted_sofa_leagues").insert(
+  updatedLeagues.map(l => ({ value: l }))
+);
 
   const teamsToDelete = sofaRows
     .filter(r => {
@@ -469,10 +529,10 @@ const handleDeleteSofaLeague = async (liga) => {
   const updatedTeams = [...new Set([...deletedSofaTeams, ...teamsToDelete])];
   setDeletedSofaTeams(updatedTeams);
 
-  await dbMap.clear(STORE_NAMES.DELETED_SOFATEAMS);
-  for (const t of updatedTeams) {
-    await dbMap.put(STORE_NAMES.DELETED_SOFATEAMS, { id: t, value: t });
-  }
+await supabase.from("deleted_sofa_teams").delete().neq("value", "");
+await supabase.from("deleted_sofa_teams").insert(
+  updatedTeams.map(t => ({ value: t }))
+);
 
 addDebugLog("tekst")
 };
@@ -489,7 +549,10 @@ const restoreSofaLeague = async (liga) => {
   const updated = deletedSofaLeagues.filter(l => l !== liga);
   setDeletedSofaLeagues(updated);
 
-  await dbMap.delete(STORE_NAMES.DELETED_SOFALIGUES, liga);
+  await supabase
+  .from("deleted_sofa_leagues")
+  .delete()
+  .eq("value", liga);
 
   setRestoredHighlight(prev => [...prev, liga]);
 };
@@ -503,7 +566,10 @@ const restoreSofaTeam = async (team) => {
   const updated = deletedSofaTeams.filter(t => t !== team);
   setDeletedSofaTeams(updated);
 
-  await dbMap.delete(STORE_NAMES.DELETED_SOFATEAMS, team);
+  await supabase
+  .from("deleted_sofa_teams")
+  .delete()
+  .eq("value", team);
 
   setRestoredHighlight(prev => [...prev, team]);
 };
@@ -514,7 +580,10 @@ const resetDeletedSofaTeams = async () => {
   if (!window.confirm("Da li želiš da resetuješ sve obrisane timove?")) return;
 
   setDeletedSofaTeams([]);
-  await dbMap.clear(STORE_NAMES.DELETED_SOFATEAMS);
+  await supabase
+  .from("deleted_sofa_teams")
+  .delete()
+  .neq("value", "");
 
 addDebugLog("tekst")
 };
@@ -528,8 +597,8 @@ addDebugLog("tekst")
 {items.map((item, i) => {
   const isObject = typeof item === "object";
 
-  const name = isObject ? item.name : item;
-  const country = isObject ? item.country : null;
+const name = isObject ? item.liga : item;
+const country = isObject ? item.country : null;
 
   return (
     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 0" }}>
@@ -575,13 +644,7 @@ onClick={() => onClick(isObject ? `${name}|||${country}` : name)}
       </div>
     </div>
   );
-const sofaLeaguesWithCountry = useMemo(() =>
-  sofaLeagues.map(l => {
-    const [name, country] = l.split("|||");
-    return { name, country };
-  }),
-  [sofaLeagues]
-);
+
 
   return (
     <div style={{ padding: 20 }}>
@@ -625,7 +688,7 @@ const sofaLeaguesWithCountry = useMemo(() =>
         {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
         {renderColumn(
   "Lige Sofa",
-  sofaLeaguesWithCountry,
+  sofaLeagues,
   selectedLeague2,
   v => handleLeagueClick("sofa", v),
   true

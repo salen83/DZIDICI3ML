@@ -1,84 +1,1119 @@
-digraph G {
-	graph [bb="0,0,1453.2,174.25",
-		bgcolor="#111111",
-		layout=dot,
-		overlap=false,
-		pad=0.3,
-		rankdir=LR
-	];
-	node [color="#c6c5fe",
-		fontcolor="#c6c5fe",
-		fontname=Arial,
-		fontsize="14px",
-		height=0,
-		label="\N",
-		shape=box,
-		style=rounded
-	];
-	edge [color="#757575"];
-	"../MatchesContext.js"	[color="#ff6c60",
-		fontcolor="#ff6c60",
-		height=0.35069,
-		pos="289.5,98.625",
-		width=2.1806];
-	"../ticketInfluence.js"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="540.62,161.62",
-		width=2.0451];
-	"../MatchesContext.js" -> "../ticketInfluence.js"	[pos="e,466.65,151.52 324.06,111.72 348.59,120.89 382.84,132.84 413.75,140.62 427.14,144 441.48,146.98 455.5,149.55"];
-	"../utils/poissonEngine.js"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="540.62,118.62",
-		width=2.5035];
-	"../MatchesContext.js" -> "../utils/poissonEngine.js"	[pos="e,450.24,111.45 368.3,104.87 390.63,106.66 415.3,108.64 438.81,110.53"];
-	"screen2/teamCountryMap/index.js"	[color="#ff6c60",
-		fontcolor="#ff6c60",
-		height=0.35069,
-		pos="540.62,36.625",
-		width=3.5243];
-	"../MatchesContext.js" -> "screen2/teamCountryMap/index.js"	[pos="e,468.88,49.728 349.46,85.579 358.98,83.145 368.68,80.466 377.75,77.625 394.13,72.494 397.3,68.552 413.75,63.625 427.83,59.408 442.97,\
-55.576 457.71,52.21"];
-	"screen2/teamCountryMap/TeamCountryMap.js"	[color="#ff6c60",
-		fontcolor="#ff6c60",
-		height=0.35069,
-		pos="886.62,57.625",
-		width=4.6701];
-	"screen2/teamCountryMap/index.js" -> "screen2/teamCountryMap/TeamCountryMap.js"	[pos="e,774.83,44.507 667.76,37.793 699.02,39.398 732.45,41.452 763.51,43.679"];
-	"screen2/teamCountryMap/teamCountryMapUtils.js"	[height=0.35069,
-		pos="886.62,14.625",
-		width=5.0868];
-	"screen2/teamCountryMap/index.js" -> "screen2/teamCountryMap/teamCountryMapUtils.js"	[pos="e,703.24,26.289 667.76,28.558 675.65,28.054 683.67,27.541 691.76,27.023"];
-	"../SofaContext.js"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="289.5,55.625",
-		width=1.8056];
-	"LeagueTeamScreen.css"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="289.5,12.625",
-		width=2.4514];
-	"LeagueTeamScreen.js"	[height=0.35069,
-		pos="82.625,55.625",
-		width=2.2951];
-	"LeagueTeamScreen.js" -> "../MatchesContext.js"	[pos="e,226.14,85.537 145.93,68.702 167.68,73.267 192.3,78.435 214.89,83.175"];
-	"LeagueTeamScreen.js" -> "../SofaContext.js"	[pos="e,224.12,55.625 165.48,55.625 181.18,55.625 197.54,55.625 213.03,55.625"];
-	"LeagueTeamScreen.js" -> "LeagueTeamScreen.css"	[pos="e,226.14,25.713 145.93,42.548 167.68,37.983 192.3,32.815 214.89,28.075"];
-	"screen2/teamCountryMap/TeamCountryMap.css"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="1279.5,57.625",
-		width=4.8264];
-	"screen2/teamCountryMap/TeamCountryMap.js" -> "../MatchesContext.js"	[pos="e,368.3,93.265 718.19,69.16 608.31,76.73 468.95,86.331 379.74,92.477"];
-	"screen2/teamCountryMap/TeamCountryMap.js" -> "screen2/teamCountryMap/index.js"	[pos="e,652.36,49.739 718.12,54.147 699.81,53.046 681.43,51.839 663.82,50.576"];
-	"screen2/teamCountryMap/TeamCountryMap.js" -> "screen2/teamCountryMap/TeamCountryMap.css"	[pos="e,1105.5,57.625 1055.1,57.625 1068,57.625 1081.1,57.625 1094.1,57.625"];
-	"screen2/teamCountryMap/countries.js"	[color="#cfffac",
-		fontcolor="#cfffac",
-		height=0.35069,
-		pos="1279.5,14.625",
-		width=3.8889];
-	"screen2/teamCountryMap/TeamCountryMap.js" -> "screen2/teamCountryMap/countries.js"	[pos="e,1159.3,27.734 1006.8,44.519 1051.5,39.601 1102.5,33.988 1148.2,28.964"];
-	"screen2/teamCountryMap/teamCountryMapUtils.js" -> "screen2/teamCountryMap/countries.js"	[pos="e,1139.1,14.625 1070.2,14.625 1089.5,14.625 1108.9,14.625 1127.8,14.625"];
+=== KOMPLETAN IZVEŠTAJ APLIKACIJE ===
+{
+  "src/App.jsx": {
+    "imports": [
+      "react",
+      "./screens/Screen1",
+      "./screens/Screen2",
+      "./screens/Screen2Liga",
+      "./screens/Screen3",
+      "./screens/Screen4",
+      "./screens/Screen5",
+      "./screens/Screen6",
+      "./screens/Screen7",
+      "./screens/Screen8",
+      "./screens/Screen9",
+      "./screens/Screen10",
+      "./screens/Screen11",
+      "./screens/Screen12",
+      "./screens/ScreenJson",
+      "./screens/SofaScreen",
+      "./screens/MapScreen",
+      "./screens/NormalisedTeamMapScreen",
+      "./screens/LeagueTeamScreen",
+      "./screens/LeagueMapScreen",
+      "./screens/FullScreen",
+      "./MatchesContext",
+      "./NormalisedTeamMapContext",
+      "./SofaContext",
+      "./LeagueMapContext",
+      "./MapScreenContext",
+      "./LeagueTeamContext",
+      "./components/TicketPanel",
+      "./debug/DebugOverlay",
+      "./App.css"
+    ],
+    "contextsUsed": [
+      "useState"
+    ],
+    "functions": [
+      "App",
+      "renderNormalScreen",
+      "openMode",
+      "closeMode"
+    ],
+    "componentsUsed": [
+      "Screen1",
+      "Screen2",
+      "Screen2Liga",
+      "Screen3",
+      "Screen4",
+      "Screen5",
+      "Screen6",
+      "Screen7",
+      "Screen8",
+      "Screen9",
+      "Screen10",
+      "Screen11",
+      "Screen12",
+      "LeagueTeamProvider",
+      "SofaProvider",
+      "MatchesProvider",
+      "NormalisedTeamMapProvider",
+      "LeagueMapProvider",
+      "MapScreenProvider",
+      "div",
+      "DebugOverlay",
+      "button",
+      "span",
+      "LeagueTeamScreen",
+      "NormalisedTeamMapScreen",
+      "MapScreen",
+      "SofaScreen",
+      "ScreenJson",
+      "LeagueMapScreen",
+      "FullScreen",
+      "TicketPanel"
+    ]
+  },
+  "src/DebugWrapper.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useRef",
+      "useEffect"
+    ],
+    "functions": [
+      "debugLog",
+      "withDebug"
+    ],
+    "componentsUsed": [
+      "WrappedComponent"
+    ]
+  },
+  "src/LeagueMapContext.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useCallback",
+      "useContext"
+    ],
+    "functions": [
+      "LeagueMapProvider",
+      "useLeagueMap"
+    ],
+    "componentsUsed": []
+  },
+  "src/LeagueTeamContext.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useCallback",
+      "useContext"
+    ],
+    "functions": [
+      "LeagueTeamProvider",
+      "useLeagueTeam"
+    ],
+    "componentsUsed": []
+  },
+  "src/MapScreenContext.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useContext"
+    ],
+    "functions": [
+      "MapScreenProvider",
+      "useMapScreen"
+    ],
+    "componentsUsed": []
+  },
+  "src/MatchesContext.jsx": {
+    "imports": [
+      "react",
+      "./utils/poissonEngine",
+      "./ticketInfluence",
+      "./screens/screen2/teamCountryMap"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useEffect",
+      "useContext"
+    ],
+    "functions": [
+      "MatchesProvider",
+      "toggleMatchInActiveTicket",
+      "toggleMatchSelection",
+      "saveActiveTicket",
+      "pct",
+      "useMatches"
+    ],
+    "componentsUsed": []
+  },
+  "src/NormalisedTeamMapContext.jsx": {
+    "imports": [
+      "react",
+      "./supabase"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useEffect",
+      "useContext"
+    ],
+    "functions": [
+      "NormalisedTeamMapProvider",
+      "load",
+      "useNormalisedTeamMap"
+    ],
+    "componentsUsed": []
+  },
+  "src/SofaContext.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useEffect",
+      "useContext"
+    ],
+    "functions": [
+      "normalizeRow",
+      "SofaProvider",
+      "useSofa"
+    ],
+    "componentsUsed": []
+  },
+  "src/components/TicketPanel.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext"
+    ],
+    "contextsUsed": [
+      "useContext"
+    ],
+    "functions": [
+      "TicketPanel",
+      "getTipStyle"
+    ],
+    "componentsUsed": [
+      "div",
+      "b"
+    ]
+  },
+  "src/context/buildFormStats.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "buildFormStats"
+    ],
+    "componentsUsed": []
+  },
+  "src/core/safe.js": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "safeArray",
+      "safeObject",
+      "safeString"
+    ],
+    "componentsUsed": []
+  },
+  "src/core/storage.js": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "safeSet",
+      "safeGet"
+    ],
+    "componentsUsed": []
+  },
+  "src/data/matchTeamResolver.jsx": {
+    "imports": [
+      "./teamManager"
+    ],
+    "contextsUsed": [],
+    "functions": [
+      "resolveMatchTeams"
+    ],
+    "componentsUsed": []
+  },
+  "src/data/teamManager.jsx": {
+    "imports": [
+      "./teams"
+    ],
+    "contextsUsed": [],
+    "functions": [
+      "loadDB",
+      "saveDB",
+      "makeId",
+      "getOrCreateTeamId",
+      "getTeamById",
+      "getAllTeams"
+    ],
+    "componentsUsed": []
+  },
+  "src/data/teams.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/debug/DebugOverlay.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState",
+      "useEffect"
+    ],
+    "functions": [
+      "extractSource",
+      "DebugOverlay"
+    ],
+    "componentsUsed": [
+      "div"
+    ]
+  },
+  "src/debug/DevToolsPanel.jsx": {
+    "imports": [
+      "react"
+    ],
+    "contextsUsed": [
+      "useState"
+    ],
+    "functions": [
+      "DevToolsPanel",
+      "clear"
+    ],
+    "componentsUsed": [
+      "button",
+      "div",
+      "b",
+      "hr",
+      "pre"
+    ]
+  },
+  "src/debugSofaRows.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "debugSofaRows"
+    ],
+    "componentsUsed": []
+  },
+  "src/instrumentation.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "installGlobalInstrumentation",
+      "push"
+    ],
+    "componentsUsed": []
+  },
+  "src/main.jsx": {
+    "imports": [
+      "react",
+      "react-dom/client",
+      "./App",
+      "./index.css",
+      "logrocket",
+      "eruda"
+    ],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": [
+      "App"
+    ]
+  },
+  "src/reportWebVitals.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "reportWebVitals"
+    ],
+    "componentsUsed": []
+  },
+  "src/screens/FullScreen.jsx": {
+    "imports": [
+      "react",
+      "./FullScreen.css",
+      "./screen2/teamCountryMap/countries",
+      "../MatchesContext",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useState"
+    ],
+    "functions": [
+      "FullScreen",
+      "getLeagueTable",
+      "mergeTeams",
+      "confirmLeagueTeams"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "ul",
+      "li",
+      "h3",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/LeagueMapScreen.jsx": {
+    "imports": [
+      "react",
+      "../LeagueMapContext",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useLeagueMap",
+      "useState",
+      "useRef",
+      "useEffect"
+    ],
+    "functions": [
+      "LeagueMapScreen",
+      "loadLeagues",
+      "handleNormalizedChange",
+      "handleDeleteLeague",
+      "toggleList",
+      "handleClickOutside"
+    ],
+    "componentsUsed": [
+      "div",
+      "h2",
+      "button",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "input"
+    ]
+  },
+  "src/screens/LeagueTeamScreen.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../SofaContext",
+      "./LeagueTeamScreen.css"
+    ],
+    "contextsUsed": [
+      "useMatches",
+      "useSofa",
+      "useState",
+      "useMemo"
+    ],
+    "functions": [
+      "LeagueTeamScreen",
+      "getTeamsByLeague"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "span"
+    ]
+  },
+  "src/screens/MapScreen.jsx": {
+    "imports": [
+      "../stores/mapStore",
+      "react",
+      "../LeagueMapContext",
+      "../MatchesContext",
+      "../SofaContext",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useLeagueMap",
+      "useMatches",
+      "useSofa",
+      "useMapStore",
+      "useEffect",
+      "useMemo"
+    ],
+    "functions": [
+      "MapScreen",
+      "loadDeleted",
+      "loadPairedLeagues",
+      "loadPairedTeams",
+      "findSofaTeamLocation",
+      "confirmTeamPair",
+      "handleTeamClick",
+      "confirmLeaguePair",
+      "handleLeagueClick",
+      "handleDeleteSofaLeague",
+      "restoreSofaLeague",
+      "restoreSofaTeam",
+      "resetDeletedSofaTeams",
+      "renderColumn"
+    ],
+    "componentsUsed": [
+      "div",
+      "h3",
+      "button",
+      "h2",
+      "input",
+      "span",
+      "b"
+    ]
+  },
+  "src/screens/NormalisedTeamMapScreen.jsx": {
+    "imports": [
+      "react",
+      "../NormalisedTeamMapContext",
+      "./LeagueTeamScreen",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useNormalisedTeamMap",
+      "useState",
+      "useEffect"
+    ],
+    "functions": [
+      "NormalisedTeamMapScreen",
+      "handleNormalizedChange",
+      "handleDelete",
+      "handleDeleteAll"
+    ],
+    "componentsUsed": [
+      "LeagueTeamScreen",
+      "div",
+      "h2",
+      "button",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "input"
+    ]
+  },
+  "src/screens/Screen1.jsx": {
+    "imports": [
+      "react",
+      "xlsx",
+      "./Screen1.css",
+      "../MatchesContext",
+      "../MapScreenContext",
+      "../LeagueTeamContext",
+      "../LeagueMapContext",
+      "../NormalisedTeamMapContext",
+      "./ScreenJson",
+      "../SofaContext",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useMapScreen",
+      "useLeagueTeam",
+      "useLeagueMap",
+      "useNormalisedTeamMap",
+      "useSofa",
+      "useRef",
+      "useState",
+      "useCallback",
+      "useEffect"
+    ],
+    "functions": [
+      "saveTeamsToSupabase",
+      "Screen1",
+      "addLog",
+      "normalizeDate",
+      "sortRowsByDateDesc",
+      "saveToSupabase",
+      "importExcel",
+      "syncWithSofaScreen",
+      "clean",
+      "isRowComplete",
+      "addNewRow",
+      "deleteRow",
+      "deleteAllRows",
+      "handleEditStart",
+      "handleEditEnd",
+      "handleCellChange",
+      "getFontSize"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "input",
+      "span"
+    ]
+  },
+  "src/screens/Screen1.test.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/screens/Screen10.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "./Screen2.css"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useMemo"
+    ],
+    "functions": [
+      "poissonProb",
+      "factorial",
+      "Screen10"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/Screen10Poisson.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useEffect"
+    ],
+    "functions": [
+      "poisson",
+      "factorial",
+      "Screen10Poisson"
+    ],
+    "componentsUsed": [
+      "div",
+      "h2",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/Screen11.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../utils/poissonEngine"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useMemo"
+    ],
+    "functions": [
+      "Screen11"
+    ],
+    "componentsUsed": [
+      "div",
+      "h3",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/Screen12.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "./Screen2.css"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useMemo"
+    ],
+    "functions": [
+      "Screen12"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/Screen1Wrapper.jsx": {
+    "imports": [
+      "react",
+      "./Screen1"
+    ],
+    "contextsUsed": [
+      "useState"
+    ],
+    "functions": [
+      "Screen1Wrapper"
+    ],
+    "componentsUsed": [
+      "Screen1"
+    ]
+  },
+  "src/screens/Screen2.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "./screen2/teamCountryMap",
+      "./screen2/teamCountryMap/TeamCountryMap",
+      "./Screen2.css"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useState",
+      "useMemo"
+    ],
+    "functions": [
+      "Screen2",
+      "calculateStats",
+      "handleTeamClick"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "TeamCountryMap",
+      "table",
+      "tbody",
+      "tr",
+      "td",
+      "b"
+    ]
+  },
+  "src/screens/Screen2Liga.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useMemo"
+    ],
+    "functions": [
+      "Screen2Liga"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td"
+    ]
+  },
+  "src/screens/Screen3.jsx": {
+    "imports": [
+      "react",
+      "xlsx",
+      "./Screen3.css",
+      "../MatchesContext"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useRef",
+      "useState",
+      "useEffect",
+      "useCallback"
+    ],
+    "functions": [
+      "Screen3",
+      "normalizeDate",
+      "sortRowsByDateDesc",
+      "importExcel",
+      "addNewRow",
+      "deleteRow",
+      "deleteAllRows",
+      "handleEditStart",
+      "handleEditEnd",
+      "handleCellChange",
+      "getTeamFontSize"
+    ],
+    "componentsUsed": [
+      "div",
+      "input",
+      "button",
+      "span"
+    ]
+  },
+  "src/screens/Screen4.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../ticketInfluence"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useState",
+      "useMemo"
+    ],
+    "functions": [
+      "pct",
+      "Screen4",
+      "init",
+      "predict"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "h3",
+      "button"
+    ]
+  },
+  "src/screens/Screen5.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../components/TicketPanel"
+    ],
+    "contextsUsed": [
+      "useContext"
+    ],
+    "functions": [
+      "Screen5",
+      "isMatchInTicket",
+      "isBlocked",
+      "handleToggleMatch"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "TicketPanel"
+    ]
+  },
+  "src/screens/Screen6.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../components/TicketPanel"
+    ],
+    "contextsUsed": [
+      "useContext"
+    ],
+    "functions": [
+      "Screen6",
+      "isMatchInTicket",
+      "isBlocked",
+      "handleToggleMatch"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "TicketPanel"
+    ]
+  },
+  "src/screens/Screen7.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../components/TicketPanel"
+    ],
+    "contextsUsed": [
+      "useContext"
+    ],
+    "functions": [
+      "Screen7",
+      "isMatchInTicket",
+      "isBlocked",
+      "handleToggleMatch"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "TicketPanel"
+    ]
+  },
+  "src/screens/Screen8.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../components/TicketPanel"
+    ],
+    "contextsUsed": [
+      "useContext"
+    ],
+    "functions": [
+      "Screen8",
+      "isMatchInTicket",
+      "isBlocked",
+      "handleToggleMatch"
+    ],
+    "componentsUsed": [
+      "div",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "TicketPanel"
+    ]
+  },
+  "src/screens/Screen9.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "./Screen9.css"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useState",
+      "useEffect",
+      "useCallback"
+    ],
+    "functions": [
+      "Screen9",
+      "updateOnlineStatus",
+      "getTabTickets",
+      "ticketBg",
+      "tipBg",
+      "deleteTicket",
+      "copyJSON",
+      "previewMatches",
+      "formatDate"
+    ],
+    "componentsUsed": [
+      "div",
+      "span",
+      "h2",
+      "button",
+      "pre",
+      "h3"
+    ]
+  },
+  "src/screens/ScreenJson.jsx": {
+    "imports": [
+      "react",
+      "../MatchesContext",
+      "../SofaContext",
+      "../LeagueMapContext",
+      "../NormalisedTeamMapContext"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useSofa",
+      "useState",
+      "useLeagueMap",
+      "useNormalisedTeamMap",
+      "useCallback",
+      "useEffect"
+    ],
+    "functions": [
+      "convertSofaToSyncJSONRaw",
+      "parseRowDate",
+      "ScreenJson",
+      "copyJSON",
+      "copySofaJSON",
+      "handleFileUpload",
+      "renderCompare",
+      "renderTab"
+    ],
+    "componentsUsed": [
+      "div",
+      "h3",
+      "button",
+      "pre",
+      "input",
+      "strong"
+    ]
+  },
+  "src/screens/SofaScreen.jsx": {
+    "imports": [
+      "react",
+      "xlsx",
+      "./SofaScreen.css",
+      "../SofaContext",
+      "../supabase"
+    ],
+    "contextsUsed": [
+      "useSofa",
+      "useState",
+      "useRef",
+      "useEffect"
+    ],
+    "functions": [
+      "safeRow",
+      "SofaScreen",
+      "handleScroll",
+      "log",
+      "handleImport",
+      "updateCell",
+      "deleteRow"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "input",
+      "span"
+    ]
+  },
+  "src/screens/__tests__/Screen1.test.jsx": {
+    "imports": [
+      "@testing-library/jest-dom",
+      "react",
+      "@testing-library/react",
+      "../Screen1",
+      "../../MatchesContext",
+      "../../NormalisedTeamMapContext",
+      "../../LeagueMapContext",
+      "../../MapScreenContext",
+      "../../LeagueTeamContext"
+    ],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": [
+      "Screen1"
+    ]
+  },
+  "src/screens/screen2/teamCountryMap/TeamCountryMap.jsx": {
+    "imports": [
+      "react",
+      "../../../MatchesContext",
+      "./teamCountryMapUtils",
+      "./countries",
+      "./TeamCountryMap.css"
+    ],
+    "contextsUsed": [
+      "useContext",
+      "useState",
+      "useEffect"
+    ],
+    "functions": [
+      "getFlagByName",
+      "processTeamsBatch",
+      "nextBatch",
+      "TeamCountryMap",
+      "refreshTeamsList",
+      "startEdit",
+      "saveEdit"
+    ],
+    "componentsUsed": [
+      "div",
+      "button",
+      "h3",
+      "table",
+      "thead",
+      "tr",
+      "th",
+      "tbody",
+      "td",
+      "select",
+      "option"
+    ]
+  },
+  "src/screens/screen2/teamCountryMap/countries.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/screens/screen2/teamCountryMap/index.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/screens/screen2/teamCountryMap/teamCountryMapUtils.jsx": {
+    "imports": [
+      "./countries"
+    ],
+    "contextsUsed": [],
+    "functions": [
+      "loadFromStorage",
+      "saveToStorage",
+      "notifySubscribers",
+      "subscribeTeamMap",
+      "getTeamMap",
+      "getTeamInfo",
+      "guessCountryFromLeague",
+      "ensureTeam"
+    ],
+    "componentsUsed": []
+  },
+  "src/setupTests.jsx": {
+    "imports": [
+      "@testing-library/jest-dom"
+    ],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/stores/mapStore.jsx": {
+    "imports": [
+      "zustand"
+    ],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/supabase.js": {
+    "imports": [
+      "@supabase/supabase-js"
+    ],
+    "contextsUsed": [],
+    "functions": [],
+    "componentsUsed": []
+  },
+  "src/ticketInfluence.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "calculateTicketInfluence"
+    ],
+    "componentsUsed": []
+  },
+  "src/utils/poissonEngine.jsx": {
+    "imports": [],
+    "contextsUsed": [],
+    "functions": [
+      "factorial",
+      "poisson",
+      "buildPoissonModel",
+      "predictMatch"
+    ],
+    "componentsUsed": []
+  }
 }

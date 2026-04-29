@@ -11,7 +11,6 @@ import { useSofa } from "../SofaContext";
 
 // 🔹 PROMENA: koristimo db1.js specijalno za Screen1
 // import { saveRows, loadRows } from "../db1";
-import { loadConfirmedLeagues } from "../db1";
 import { supabase } from "../supabase";
 const saveTeamsToSupabase = async (rowsToSave) => {
   try {
