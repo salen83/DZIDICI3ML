@@ -34,8 +34,8 @@ const saveTeamsToSupabase = async (rowsToSave) => {
       .eq("source", "screen1");
 
     const { error } = await supabase
-      .from("teams")
-      .insert(payload);
+  .from("teams")
+  .upsert(payload, { onConflict: "name,source" });
 
     if (error) console.error("❌ Teams insert error:", error);
     else console.log("✅ Teams saved:", payload.length);
@@ -173,6 +173,34 @@ const formatted = data.map((r, i) => ({
     }
   })();
 }, [setRows]);
+const saveLeaguesToSupabase = async (rowsToSave) => {
+  try {
+    const leagueSet = new Set();
+
+    rowsToSave.forEach(r => {
+      if (r.liga) leagueSet.add(r.liga.trim());
+    });
+
+    const payload = Array.from(leagueSet).map(liga => ({
+      name: liga
+    }));
+
+    if (payload.length === 0) return;
+
+    const { error } = await supabase
+      .from("leagues")
+      .upsert(payload, { onConflict: "name" });
+
+    if (error) {
+      console.error("❌ Leagues insert error:", error);
+    } else {
+      console.log("✅ Leagues saved:", payload.length);
+    }
+
+  } catch (err) {
+    console.error("❌ saveLeaguesToSupabase error:", err);
+  }
+};
 const saveToSupabase = async (rowsToSave) => {
     try {
       // ❗ prvo brišemo stare screen1 mečeve
@@ -211,7 +239,7 @@ const saveToSupabase = async (rowsToSave) => {
         console.log("✅ Saved to Supabase:", payload.length);
       }
 await saveTeamsToSupabase(rowsToSave);
-
+await saveLeaguesToSupabase(rowsToSave);
     } catch (err) {
       console.error("❌ saveToSupabase error:", err);
     }
@@ -257,21 +285,10 @@ await saveTeamsToSupabase(rowsToSave);
 
       const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
-          const confirmedLeagues = await loadConfirmedLeagues();
 
-        Object.entries(confirmedLeagues || {}).forEach(([liga, teams]) => {
-          const importedTeams = allRows
-            .filter(r => r.liga === liga)
-            .flatMap(r => [r.home, r.away]);
-
-          importedTeams.forEach(team => {
-            if (!teams.includes(team)) {
-              alert("⚠ Novi tim u potvrđenoj ligi: " + liga + " → " + team);
-            }
-          });
-        });
 setRows(allRows);
 await saveTeamsToSupabase(allRows);
+await saveLeaguesToSupabase(allRows);
 
 // 🔹 Čuvanje u Supabase
 await saveToSupabase(allRows);

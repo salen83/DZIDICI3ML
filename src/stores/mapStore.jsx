@@ -10,7 +10,7 @@ export const useMapStore = create((set) => ({
   selectedTeam1: null,
   selectedTeam2: null,
   selectedLeague1: null,
-  selectedLeague2: null,
+  selectedLeague2: [],
 
   searchTeam: "",
   searchResult: "",
@@ -24,7 +24,13 @@ export const useMapStore = create((set) => ({
   setSelectedTeam1: (val) => set({ selectedTeam1: val }),
   setSelectedTeam2: (val) => set({ selectedTeam2: val }),
   setSelectedLeague1: (val) => set({ selectedLeague1: val }),
-  setSelectedLeague2: (val) => set({ selectedLeague2: val }),
+  setSelectedLeague2: (val) =>
+  set((state) => ({
+    selectedLeague2:
+      typeof val === "function"
+        ? val(state.selectedLeague2)
+        : val
+  })),
 
   setSearchTeam: (val) => set({ searchTeam: val }),
   setSearchResult: (val) => set({ searchResult: val }),

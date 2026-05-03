@@ -81,32 +81,60 @@ await supabase.from("teams").upsert(
     name,
     source: "sofa"
   })),
-  { onConflict: "name", ignoreDuplicates: true }
-);
-
-await supabase.from("leagues").upsert(
-  Array.from(leaguesSet).map((name) => ({ name })),
-  { onConflict: "name" }
+  { onConflict: "name,source" }
 );
 
 await supabase.from("countries").upsert(
-  Array.from(countriesSet).map((name) => ({ name })),
+  Array.from(countriesSet).map((name) => ({
+    name
+  })),
   { onConflict: "name" }
 );
 
 // 3. UZMI ID MAP
-const { data: teamsData } = await supabase.from("teams").select("id,name");
-const { data: leaguesData } = await supabase.from("leagues").select("id,name");
-const { data: countriesData } = await supabase.from("countries").select("id,name");
+const { data: teamsData } = await supabase
+  .from("teams")
+  .select("id,name,source");
+
+const { data: leaguesData } = await supabase
+  .from("leagues")
+  .select("id,name");
+
+const { data: countriesData } = await supabase
+  .from("countries")
+  .select("id,name");
 
 const teamMap = {};
 const leagueMap = {};
 const countryMap = {};
 
-teamsData.forEach(t => teamMap[t.name] = t.id);
-leaguesData.forEach(l => leagueMap[l.name] = l.id);
-countriesData.forEach(c => countryMap[c.name] = c.id);
+teamsData.forEach(t => {
+  teamMap[t.name] = t.id;
+});
 
+leaguesData.forEach(l => {
+  leagueMap[l.name] = l.id;
+});
+
+countriesData.forEach(c => {
+  countryMap[c.name] = c.id;
+});
+
+// 4. LEAGUES (FIXED - bez bugova i bez undefined order problema)
+await supabase.from("leagues").upsert(
+  Array.from(leaguesSet).map((name) => {
+    const sampleRow = json.find(r => r.Liga === name);
+
+    const countryName = sampleRow?.Country?.trim() || null;
+
+    return {
+      name,
+      country_id: countryName ? countryMap[countryName] || null : null,
+      country: countryName || null   // 🔥 DODATO
+    };
+  }),
+  { onConflict: "name" }
+);
 // 4. MATCHES
 const normalized = json.map((r) => ({
   id: `${r.Domacin}-${r.Gost}-${r.Datum}-${r.Vreme}`,
