@@ -12,6 +12,7 @@ import { useSofa } from "../SofaContext";
 // 🔹 PROMENA: koristimo db1.js specijalno za Screen1
 // import { saveRows, loadRows } from "../db1";
 import { supabase } from "../supabase";
+import { mapMatchesToIds } from "../services/mapMatchesToIds";
 const saveTeamsToSupabase = async (rowsToSave) => {
   try {
     const teamSet = new Set();
@@ -244,6 +245,9 @@ await saveLeaguesToSupabase(rowsToSave);
       console.error("❌ saveToSupabase error:", err);
     }
   };
+const handleMapIds = async () => {
+  await mapMatchesToIds({ supabase, addLog });
+};
 
   // =========================
   // 🔹 IMPORT EXCEL
@@ -299,10 +303,10 @@ await saveToSupabase(allRows);
 
   const syncWithSofaScreen = async () => {
     try {
-      addLog("🔹 Pokrenut syncWithSofaScreen");
+      addLog("[SYNC] Pokrenut syncWithSofaScreen");
 
       const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
-      addLog(`🔹 Učitano iz SofaContext: ${syncJson.length} mečeva`);
+      addLog(`[SYNC] Učitano iz SofaContext: ${syncJson.length} mečeva`);
 
 const updatedRows = rows.map(row => {
   const clean = (v) =>
@@ -334,14 +338,14 @@ const updatedRows = rows.map(row => {
 
     // DEBUG ako timovi matchuju a ostalo ne
     if (sameHome && sameAway) {
-      addLog(`⚠️ DELIMIČAN MATCH: ${row.home} - ${row.away}`);
-      addLog(`   datum: ${row.datum} vs ${s.datum} → ${sameDate ? "OK" : "❌"}`);
-      addLog(`   liga: ${normalizedLeague} vs ${s.liga} → ${sameLeague ? "OK" : "❌"}`);
+    addLog(`[WARN] DELIMIČAN MATCH: ${row.home} - ${row.away}`);
+    addLog(`   datum: ${row.datum} vs ${s.datum}`);
+    addLog(`   liga: ${normalizedLeague} vs ${s.liga}`);
     }
   }
 
   if (!match) {
-    addLog(`❌ NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
+    addLog(`[ERROR] NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
     return row;
   }
 
@@ -352,7 +356,7 @@ const updatedRows = rows.map(row => {
     return { ...row, _syncedChanged: false };
   }
 
-  addLog(`⚠️ UPDATE: ${row.home} - ${row.away} → ${sofaFT}:${sofaSH}`);
+  addLog(`[UPDATE] ${row.home} - ${row.away} -> ${sofaFT}:${sofaSH}`);
 
   return {
     ...row,
@@ -364,10 +368,10 @@ const updatedRows = rows.map(row => {
 
       setRows(updatedRows);
       await saveToSupabase(updatedRows);
-      addLog("🔹 Sync završen");
+      addLog("[SYNC] Sync završen");
 
     } catch (err) {
-      addLog(`❌ Greška u sync: ${err}`);
+      addLog(`[ERROR] Greška u sync: ${err}`);
     }
   };
 
@@ -446,6 +450,7 @@ const updatedRows = rows.map(row => {
         <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
         <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
+        <button onClick={handleMapIds}>Map IDs</button>
         <button onClick={() => console.log(debugLogs)}>Prikaži debug log</button>
       </div>
 

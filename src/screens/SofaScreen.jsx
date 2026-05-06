@@ -26,6 +26,7 @@ export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
 
   const [logs, setLogs] = useState([]);
+  const [newLeague, setNewLeague] = useState("");
   const tableRef = useRef(null);
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
@@ -47,6 +48,21 @@ const handleScroll = (e) => {
   const log = (m) => {
     console.log("[SOFA]", m);
     setLogs((p) => [...p.slice(-80), m]);
+  };
+// ================= DODAJ ZENSKU LIGU =================
+  const addWomensLeague = async () => {
+    if (!newLeague.trim()) return;
+
+    const { error } = await supabase
+      .from("womens_leagues")
+      .insert([{ league_name: newLeague.trim() }]);
+
+    if (error) {
+      log("GRESKA: " + error.message);
+    } else {
+      log("Dodata liga: " + newLeague);
+      setNewLeague("");
+    }
   };
 // ================= IMPORT =================
 const handleImport = async (e) => {
@@ -284,6 +300,16 @@ setSofaRows(copy);
   style={{ display: "none" }}
   onChange={handleImport}
 />
+<div style={{ marginTop: 10 }}>
+    <input
+      placeholder="Unesi naziv zenske lige"
+      value={newLeague}
+      onChange={(e) => setNewLeague(e.target.value)}
+    />
+    <button onClick={addWomensLeague}>
+      ➕ Dodaj žensku ligu
+    </button>
+  </div>
 
      <div
   className="sofa-table-wrapper"
