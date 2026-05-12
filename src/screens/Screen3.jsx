@@ -3,13 +3,16 @@ import * as XLSX from 'xlsx';
 import './Screen3.css';
 import { MatchesContext } from "../MatchesContext";
 
+import { supabase } from "../supabase";
+
 export default function Screen3() {
   const { futureMatches, setFutureMatches } = useContext(MatchesContext);
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [editing, setEditing] = useState({row:null, col:null});
+  const [collapsedLeagues, setCollapsedLeagues] = useState({});
 
-  const rowHeight = 28;
+  const rowHeight = 40;
   const buffer = 15;
   const containerHeight = 600;
 
@@ -45,6 +48,71 @@ export default function Screen3() {
     return str;
   };
 
+// ===== SUPABASE SYNC (LEAGUES + TEAMS) =====
+const syncLeaguesAndTeams = async (rows) => {
+  const leagueSet = new Set();
+  const teamSet = new Set();
+
+  const leagues = [];
+  const teams = [];
+
+  rows.forEach(r => {
+    // LEAGUES
+    if (r.liga && !leagueSet.has(r.liga)) {
+      leagueSet.add(r.liga);
+      leagues.push({
+        name: r.liga,
+        country_id: null,
+        country: null
+      });
+    }
+
+    // TEAMS (HOME)
+    const homeKey = `${r.home}|screen3`;
+    if (r.home && !teamSet.has(homeKey)) {
+      teamSet.add(homeKey);
+      teams.push({
+        name: r.home,
+        country_id: null,
+        source: "screen3"
+      });
+    }
+
+    // TEAMS (AWAY)
+    const awayKey = `${r.away}|screen3`;
+    if (r.away && !teamSet.has(awayKey)) {
+      teamSet.add(awayKey);
+      teams.push({
+        name: r.away,
+        country_id: null,
+        source: "screen3"
+      });
+    }
+  });
+
+  // UPSERT LEAGUES
+  if (leagues.length) {
+    const { error } = await supabase
+      .from("leagues")
+      .upsert(leagues, { onConflict: "name" });
+
+    if (error) {
+      console.error("Leagues sync error:", error);
+    }
+  }
+
+  // UPSERT TEAMS
+  if (teams.length) {
+    const { error } = await supabase
+      .from("teams")
+      .upsert(teams, { onConflict: "name,source" });
+
+    if (error) {
+      console.error("Teams sync error:", error);
+    }
+  }
+};
+
   const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
     const dA = (a.datum || '').split('.').reverse().join('-') + ' ' + (a.vreme || '00:00');
     const dB = (b.datum || '').split('.').reverse().join('-') + ' ' + (b.vreme || '00:00');
@@ -61,15 +129,33 @@ export default function Screen3() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
-      const newRows = data.map((r) => ({
-        rb: 0,
-        datum: normalizeDate(r['Datum'] ?? r['datum'] ?? ''),
-        vreme: String(r['Time'] ?? r['Vreme'] ?? ''),
-        liga: r['Liga'] ?? '',
-        home: r['Home'] ?? '',
-        away: r['Away'] ?? '',
-        _new:true
-      }));
+const newRows = data.map((r) => ({
+  rb: 0,
+  datum: normalizeDate(r['Datum'] ?? r['datum'] ?? ''),
+  vreme: String(r['Time'] ?? r['Vreme'] ?? ''),
+  liga: r['Liga'] ?? '',
+  home: r['Home'] ?? '',
+  away: r['Away'] ?? '',
+
+  odd1: r['1'] ?? '',
+  oddX: r['X'] ?? '',
+  odd2: r['2'] ?? '',
+  odd2p: r['2+'] ?? '',
+  odd3p: r['3+'] ?? '',
+  oddGG: r['GG'] ?? '',
+  oddNG: r['NG'] ?? '',
+
+  _new:true
+}));
+
+// ===== SUPABASE SYNC ON IMPORT =====
+(async () => {
+  try {
+    await syncLeaguesAndTeams(newRows);
+  } catch (err) {
+    console.error("Supabase sync failed:", err);
+  }
+})();
 
       const allRows = sortRowsByDateDesc([...(futureMatches || []), ...newRows]);
       allRows.forEach((r,i)=>r.rb=i+1);
@@ -104,6 +190,12 @@ export default function Screen3() {
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
+  const toggleLeague = (liga) => {
+  setCollapsedLeagues(prev => ({
+    ...prev,
+    [liga]: !prev[liga]
+  }));
+};
 
   const handleCellChange = (rowIdx,key,value) => {
     const copy = [...futureMatches];
@@ -124,6 +216,12 @@ export default function Screen3() {
     while(ctx.measureText(text).width > maxWidth && size>min) { size -= 1; ctx.font = `${size}px Arial`; }
     return size;
   };
+  const groupedMatches = (futureMatches || []).reduce((acc, match) => {
+  const key = match.liga || "Nedefinisana liga";
+  if (!acc[key]) acc[key] = [];
+  acc[key].push(match);
+  return acc;
+}, {});
 
   return (
     <div className="screen3-container">
@@ -133,60 +231,104 @@ export default function Screen3() {
         <button onClick={deleteAllRows}>Obriši sve</button>
       </div>
 
-      <div className="screen3-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>
+      <div
+  className="screen3-table-wrapper"
+  style={{
+    height: containerHeight,
+    overflowY: 'auto',
+    overflowX: 'auto'
+  }}
+  ref={tableWrapperRef}
+  onScroll={handleScroll}
+>
         <div style={{height: startIndex*rowHeight}}></div>
 
-        {visibleRows?.map((r,i)=>{
-          const idx = startIndex+i;
-          const isEditing = editing.row===idx;
-          const isNew = r._new === true;
 
-          const teamText = `${r.home} - ${r.away}`;
-          const teamFontSize = getTeamFontSize(teamText, 140, 13, 7);
+{Object.entries(groupedMatches).map(([liga, matches]) => {
+  const isCollapsed = collapsedLeagues[liga];
 
-          const rowBgColor = idx % 2 === 0 ? '#e6f0fa' : '#ffffff';
+  return (
+    <div key={liga} className="league-block">
 
-          return (
-            <div key={idx} className="screen3-row" style={{height:rowHeight, backgroundColor: rowBgColor}}>
-              <div className="s3-col rb">{r.rb}</div>
+      <div
+        className="league-header"
+        onClick={() => toggleLeague(liga)}
+      >
+        <span>{isCollapsed ? "▶" : "▼"}</span>
 
-              <div className="s3-col info">
-                <div style={{display:'flex', flexDirection:'row', gap:'2px'}}>
-                  {(isNew || (isEditing && editing.col==='datum')) ?
-                    <input className="s3-edit-input" value={r.datum} onChange={e=>handleCellChange(idx,'datum',e.target.value)} onBlur={handleEditEnd}/> :
-                    <div className="s3-info-text" onClick={()=>handleEditStart(idx,'datum')} style={{fontSize:'9px'}}>{r.datum}</div>
-                  }
+        <span style={{ marginLeft: 8, fontWeight: "bold" }}>
+          {liga}
+        </span>
 
-                  {(isNew || (isEditing && editing.col==='vreme')) ?
-                    <input className="s3-edit-input" value={r.vreme} onChange={e=>handleCellChange(idx,'vreme',e.target.value)} onBlur={handleEditEnd}/> :
-                    <div className="s3-info-text" onClick={()=>handleEditStart(idx,'vreme')} style={{fontSize:'9px'}}>{r.vreme}</div>
-                  }
-                </div>
+        <span style={{ marginLeft: 10, opacity: 0.6 }}>
+          ({matches.length})
+        </span>
+      </div>
 
-                {(isNew || (isEditing && editing.col==='liga')) ?
-                  <input className="s3-edit-input" value={r.liga} onChange={e=>handleCellChange(idx,'liga',e.target.value)} onBlur={handleEditEnd}/> :
-                  <div className="s3-info-center" onClick={()=>handleEditStart(idx,'liga')} style={{fontWeight:'bold', fontSize:'13px'}}>{r.liga}</div>
-                }
-              </div>
-
-              <div className="s3-col teams" style={{fontWeight:'bold', fontSize:`${teamFontSize}px`}}>
-                {(isNew || (isEditing && editing.col==='home')) ?
-                  <input className="s3-edit-input" value={r.home} onChange={e=>handleCellChange(idx,'home',e.target.value)} onBlur={handleEditEnd}/> :
-                  <span onClick={()=>handleEditStart(idx,'home')}>{r.home}</span>
-                }
-                <span> - </span>
-                {(isNew || (isEditing && editing.col==='away')) ?
-                  <input className="s3-edit-input" value={r.away} onChange={e=>handleCellChange(idx,'away',e.target.value)} onBlur={handleEditEnd}/> :
-                  <span onClick={()=>handleEditStart(idx,'away')}>{r.away}</span>
-                }
-              </div>
-
-              <div className="s3-col delete"><button onClick={()=>deleteRow(idx)}>x</button></div>
+{!isCollapsed && (
+          <>
+           <div
+  className="s3-col odds league-odds-header"
+  style={{ marginLeft: "140px" }}
+>
+              <span>1</span>
+              <span>X</span>
+              <span>2</span>
+              <span>2+</span>
+              <span>3+</span>
+              <span>GG</span>
+              <span>NG</span>
             </div>
-          );
-        })}
 
-        <div style={{height:(totalRows-endIndex)*rowHeight}}></div>
+            {matches.map((r) => {
+        const idx = futureMatches.indexOf(r);
+
+        const teamText = `${r.home} - ${r.away}`;
+        const teamFontSize = getTeamFontSize(teamText, 140, 13, 7);
+
+        const rowBgColor = idx % 2 === 0 ? "#e6f0fa" : "#ffffff";
+
+return (
+  <div
+    key={idx}
+    className="screen3-row"
+    style={{ height: rowHeight, backgroundColor: rowBgColor }}
+  >
+    <div className="s3-col rb">{r.rb}</div>
+
+    <div className="s3-col info" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ fontSize: "9px", opacity: 0.8, marginBottom: "3px" }}>
+        {r.datum} {r.vreme}
+      </div>
+
+      <div style={{ fontWeight: "bold", display: "flex", flexDirection: "column", lineHeight: "15px" }}>
+        <span>{r.home}</span>
+        <span>{r.away}</span>
+      </div>
+    </div>
+
+<div className="s3-col odds">
+  <span>{r.odd1}</span>
+  <span>{r.oddX}</span>
+  <span>{r.odd2}</span>
+  <span>{r.odd2p}</span>
+  <span>{r.odd3p}</span>
+  <span>{r.oddGG}</span>
+  <span>{r.oddNG}</span>
+</div>
+
+    <div className="s3-col delete">
+      <button onClick={() => deleteRow(idx)}>x</button>
+    </div>
+  </div>
+);
+})}
+          </>
+        )}
+
+    </div>
+  );
+})}
       </div>
     </div>
   );

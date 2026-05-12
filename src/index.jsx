@@ -99,72 +99,6 @@ import eruda from "eruda";
 })();
 
 /* =========================
-   🧪 DEVTOOLS PANEL
-   ========================= */
-
-function DevToolsOverlay() {
-  const [open, setOpen] = React.useState(false);
-  const [logs, setLogs] = React.useState([]);
-
-  React.useEffect(() => {
-    window.__TOGGLE_DEVTOOLS__ = () => setOpen(v => !v);
-
-    const interval = setInterval(() => {
-      setLogs([...(window.__DEBUG_LOGS__ || [])].slice(-100));
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          position: "fixed",
-          bottom: 20,
-          right: 20,
-          zIndex: 99999,
-          padding: 10,
-          borderRadius: 10,
-          background: "black",
-          color: "white",
-          fontSize: 12
-        }}
-      >
-        DEV
-      </button>
-    );
-  }
-
-  return (
-    <div style={{
-      position: "fixed",
-      top: 0,
-      right: 0,
-      width: "100%",
-      height: "50%",
-      background: "rgba(0,0,0,0.95)",
-      color: "white",
-      zIndex: 999999,
-      overflow: "auto",
-      fontSize: 11
-    }}>
-      <button onClick={() => setOpen(false)}>CLOSE</button>
-
-      {logs.map((l, i) => (
-        <div key={i} style={{ borderBottom: "1px solid #333", padding: 5 }}>
-          <b>{l.type}</b> - {l.msg}
-          <pre style={{ whiteSpace: "pre-wrap", color: "#aaa" }}>
-            {l.stack}
-          </pre>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* =========================
    INIT SENTRY + LOGROCKET
    ========================= */
 
@@ -191,10 +125,9 @@ if (process.env.NODE_ENV === "development") {
 
 const AppWrapper = () => {
   return (
-    <>
-      <App />
-      <DevToolsOverlay />
-    </>
+<>
+  <App />
+</>
   );
 };
 

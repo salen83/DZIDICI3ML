@@ -14,7 +14,6 @@ if (import.meta.env.DEV) {
   try {
     eruda.init();
     brutalDebug();
-    window.BRUTAL = BrutalTracer;
   } catch {}
 }
 

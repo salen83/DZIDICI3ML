@@ -12,7 +12,7 @@
 }
 
 .screen3-table-wrapper {
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .screen3-row {
@@ -21,17 +21,22 @@
   border-bottom: 1px solid transparent;
   padding: 0;
   font-size: 12px;
-  height: 28px;
+  min-height: 48px;
+  height: auto;
+}
+.screen3-row {
+  min-width: max-content;
 }
 
 .s3-col {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   padding: 0 2px;
+  flex-shrink: 0;
 }
 
 /* Širine kolona ostaju iste */
@@ -39,9 +44,11 @@
 .s3-col.info {
   width: 105px; /* širina ostala ista */
   flex-direction: column;
-  align-items: flex-start;
-  font-size: 10px; /* manji font za datum/vreme */
-  margin-right: 10px;
+align-items: flex-start;
+justify-content: center;
+gap: 2px;
+font-size: 10px;
+  margin-right: 6px;
 }
 .s3-col.teams {
   width: 175px;
@@ -50,6 +57,16 @@
   font-weight: bold;
 }
 .s3-col.delete { width: 20px; }
+.s3-col.odds {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  align-items: center;
+  width: 310px;
+  font-size: 10px;
+  font-weight: 500;
+  column-gap: 8px;
+  white-space: nowrap;
+}
 
 /* tekst */
 .s3-info-text { font-size: 10px; line-height: 1.1; cursor: text; } /* datum i vreme manji */
@@ -66,4 +83,21 @@
   border: 1px solid #555;
   padding: 0 2px;
   margin: 0;
+}
+
+.league-odds-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 366px;
+  column-gap: 8px;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+
+.league-odds-header span {
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
 }

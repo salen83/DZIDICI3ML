@@ -29,7 +29,6 @@ import { MapScreenProvider } from "./MapScreenContext";
 import { LeagueTeamProvider } from "./LeagueTeamContext";
 
 import TicketPanel from "./components/TicketPanel";
-import DebugOverlay from "./debug/DebugOverlay";
 
 import "./App.css";
 
@@ -103,8 +102,6 @@ export default function App() {
 
                 <div>
 
-                  {/* 🔥 DEBUG OVERLAY GLOBAL */}
-                  <DebugOverlay />
 
                   <div className="top-bar">
                     <button
