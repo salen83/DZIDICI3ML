@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from "react";
-import { useMatches } from "../MatchesContext";
+import { useContext } from "react";
+import { MatchesContext } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 import "./LeagueTeamScreen.css";
 
 export default function LeagueTeamScreen({ onClose }) {
-  const { rows: screen1Rows } = useMatches();
+  const { futureMatches: screen3Rows } = useContext(MatchesContext);
   const { sofaRows } = useSofa();
 
-  const [openScreen1, setOpenScreen1] = useState(null);
+  const [openScreen3, setOpenScreen3] = useState(null);
   const [openSofa, setOpenSofa] = useState(null);
 
   // =====================
@@ -63,15 +64,15 @@ export default function LeagueTeamScreen({ onClose }) {
   };
 
   // =====================
-  // SCREEN1 I SOFA TIMOVI PO LIGAMA
+  // SCREEN3 I SOFA TIMOVI PO LIGAMA
   // =====================
-  const screen1Teams = useMemo(() => getTeamsByLeague(screen1Rows), [screen1Rows]);
+  const screen3Teams = useMemo(() => getTeamsByLeague(screen3Rows), [screen3Rows]);
   const sofaTeams = useMemo(() => getTeamsByLeague(sofaRows), [sofaRows]);
 
   // =====================
   // LISTA LIGA
   // =====================
-  const screen1Leagues = useMemo(() => Object.keys(screen1Teams).sort(), [screen1Teams]);
+  const screen3Leagues = useMemo(() => Object.keys(screen3Teams).sort(), [screen3Teams]);
   const sofaLeagues = useMemo(() => Object.keys(sofaTeams).sort(), [sofaTeams]);
 
   // =====================
@@ -83,23 +84,23 @@ export default function LeagueTeamScreen({ onClose }) {
 
       <div className="columns">
 
-        {/* SCREEN1 PANEL */}
+       {/* SCREEN3 PANEL */}
         <div className="panel">
-          <div className="panel-title">Screen1 Lige</div>
-          {screen1Leagues.map((liga, i) => (
+          <div className="panel-title">Screen3 Lige</div>
+           {screen3Leagues.map((liga, i) => (
             <div key={i} className="accordion-item">
               <div
                 className="accordion-header"
                 onClick={() =>
-                  setOpenScreen1(openScreen1 === liga ? null : liga)
+                 setOpenScreen3(openScreen3 === liga ? null : liga)
                 }
               >
-                {liga} <span>{openScreen1 === liga ? "▲" : "▼"}</span>
+                {liga} <span>{openScreen3 === liga ? "▲" : "▼"}</span>
               </div>
 
-              {openScreen1 === liga && (
+              {openScreen3 === liga && (
                 <div className="accordion-body">
-                  {screen1Teams[liga]?.map((t, idx) => (
+                  {screen3Teams[liga]?.map((t, idx) => (
                     <div key={idx} className="team">
                       {idx + 1}. {t}
                     </div>

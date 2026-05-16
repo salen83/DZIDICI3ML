@@ -147,11 +147,11 @@ export async function insertLeaguePairs(inserts) {
 
   return new Set((data || []).map(d => d.alias));
 }
-export async function insertTeamPairService(t1, t2) {
+export async function insertTeamPairService(screen3Team, sofaTeam) {
   const { data: existing } = await supabase
     .from("team_aliases")
     .select("*")
-    .in("alias", [t1, t2]);
+    .in("alias", [screen3Team, sofaTeam]);
 
   let teamId;
 
@@ -161,15 +161,15 @@ export async function insertTeamPairService(t1, t2) {
     let { data: team } = await supabase
       .from("teams")
       .select("id")
-      .eq("name", t1)
-      .eq("source", "screen1")
+      .eq("name", screen3Team)
+      .eq("source", "screen3")
       .maybeSingle();
 
     if (!team) {
       const res = await supabase
         .from("teams")
         .select("id")
-        .eq("name", t2)
+        .eq("name", sofaTeam)
         .eq("source", "sofa")
         .maybeSingle();
 
@@ -183,17 +183,17 @@ export async function insertTeamPairService(t1, t2) {
 
   const inserts = [];
 
-  if (!existing?.find(e => e.alias === t1)) {
+if (!existing?.find(e => e.alias === screen3Team)) {
     inserts.push({
-      alias: t1,
+      alias: screen3Team,
       team_id: teamId,
-      source: "screen1"
+      source: "screen3"
     });
   }
 
-  if (!existing?.find(e => e.alias === t2)) {
+if (!existing?.find(e => e.alias === sofaTeam)) {
     inserts.push({
-      alias: t2,
+      alias: sofaTeam,
       team_id: teamId,
       source: "sofa"
     });
@@ -203,7 +203,7 @@ export async function insertTeamPairService(t1, t2) {
     await supabase.from("team_aliases").insert(inserts);
   }
 }
-export async function insertLeaguePairService(l1, l2, countryArg) {
+export async function insertLeaguePairService(screen3League, l2, countryArg) {
 const rawL2 =
   typeof l2 === "object"
     ? l2.liga
@@ -218,12 +218,12 @@ const countryFromMap = countryArg || null;
   const { data: existing } = await supabase
     .from("league_aliases")
     .select("*")
-     .in("alias", [l1, cleanL2]);
+    .in("alias", [screen3League, cleanL2]);
 
   const { data: league } = await supabase
     .from("leagues")
     .select("id, country, name")
-    .eq("name", l1)
+    .eq("name", screen3League)
     .single();
 
   if (!league) return;
@@ -244,13 +244,13 @@ const finalCountry =
 
   const inserts = [];
 
-  // SCREEN1 alias
-  if (!existing?.find(e => e.alias === l1)) {
+  // SCREEN3 alias
+  if (!existing?.find(e => e.alias === screen3League)) {
     inserts.push({
-      alias: l1,
+      alias: screen3League,
       league_id: leagueId,
       country: finalCountry,
-      source: "screen1"
+      source: "screen3"
     });
   }
 

@@ -24,11 +24,19 @@ export const NormalisedTeamMapProvider = ({ children }) => {
         teamById[t.id] = t.name;
       });
 
-      const map = (aliases || []).map(a => ({
-        screen1: teamById[a.team_id],
-        sofa: a.alias,
-        team_id: a.team_id
-      }));
+const map = {};
+
+(aliases || []).forEach(a => {
+  const aliasKey = a.alias
+    ?.toString()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!aliasKey) return;
+
+  map[aliasKey] = teamById[a.team_id];
+});
 
       setTeamMap(map);
     };

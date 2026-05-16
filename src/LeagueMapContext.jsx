@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { useEffect } from "react";
+import { supabase } from "./supabase";
 
 const LeagueMapContext = createContext();
 
@@ -22,6 +24,47 @@ export function LeagueMapProvider({ children }) {
   });
 
   // 🚫 REMOVED useEffect auto-save (FIX #1)
+useEffect(() => {
+    const loadLeagueMap = async () => {
+
+const { data: aliases } = await supabase
+  .from("league_aliases")
+  .select("alias, league_id");
+
+const { data: leagues } = await supabase
+  .from("leagues")
+  .select("id, name");
+
+if (!aliases || !leagues) return;
+
+const leagueById = {};
+
+leagues.forEach(l => {
+  leagueById[l.id] = l.name;
+});
+
+const map = {};
+
+aliases.forEach(a => {
+
+  const aliasKey = a.alias
+    ?.toString()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!aliasKey) return;
+
+  map[aliasKey] = leagueById[a.league_id];
+});
+
+      console.log("✅ LEAGUE MAP LOADED:", map);
+
+      setLeagueMap(map);
+    };
+
+    loadLeagueMap();
+  }, []);
 
   const saveToStorage = useCallback((data) => {
     try {
@@ -31,80 +74,11 @@ export function LeagueMapProvider({ children }) {
     }
   }, []);
 
-  const registerLeague = useCallback((source, leagueName, teams = []) => {
-    if (!leagueName) return;
-
-    setLeagueMap(prev => {
-      const next = structuredClone(prev); // 🔥 NO mutation safety
-
-      if (!next[leagueName]) {
-        next[leagueName] = {
-          screen1: null,
-          sofa: null,
-          normalized: leagueName,
-          screen1Teams: [],
-          sofaTeams: []
-        };
-      }
-
-      if (source === "screen1") {
-        next[leagueName].screen1 = leagueName;
-        next[leagueName].screen1Teams = [
-          ...new Set([...(next[leagueName].screen1Teams || []), ...teams])
-        ];
-      }
-
-      if (source === "sofa") {
-        next[leagueName].sofa = leagueName;
-        next[leagueName].sofaTeams = [
-          ...new Set([...(next[leagueName].sofaTeams || []), ...teams])
-        ];
-      }
-
-      return next;
-    });
-  }, []);
-
-  const linkLeagues = useCallback((screen1Key, sofaKey, normalizedName) => {
-    setLeagueMap(prev => {
-      const next = structuredClone(prev);
-
-      if (!next[screen1Key] || !next[sofaKey]) return prev;
-
-      next[screen1Key].normalized = normalizedName;
-      next[sofaKey].normalized = normalizedName;
-
-      return next;
-    });
-  }, []);
-
-  const removeTeam = useCallback((leagueKey, source, teamName) => {
-    setLeagueMap(prev => {
-      const next = structuredClone(prev);
-      const field = source === "screen1" ? "screen1Teams" : "sofaTeams";
-
-      if (next[leagueKey]) {
-        next[leagueKey][field] =
-          next[leagueKey][field].filter(t => t !== teamName);
-      }
-
-      return next;
-    });
-  }, []);
-
-  // manual save only (OPTIONAL)
-  const persistLeagueMap = useCallback(() => {
-    saveToStorage(leagueMap);
-  }, [leagueMap, saveToStorage]);
 
   return (
     <LeagueMapContext.Provider value={{
       leagueMap,
       setLeagueMap,
-      registerLeague,
-      linkLeagues,
-      removeTeam,
-      persistLeagueMap
     }}>
       {children}
     </LeagueMapContext.Provider>

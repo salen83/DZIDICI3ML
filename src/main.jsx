@@ -5,8 +5,6 @@ import "./index.css";
 
 import LogRocket from "logrocket";
 import eruda from "eruda";
-import { brutalDebug } from "./brutalDebug";
-import { BrutalTracer } from "./brutalTracer";
 
 LogRocket.init("ovblkx/myapp");
 

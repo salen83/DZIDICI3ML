@@ -15,9 +15,18 @@ export default function Screen2() {
 
     rows.forEach(r => {
       if (!r.home || !r.away) return;
-      const [homeGoals, awayGoals] = (r.ft || "0:0").split(":").map(Number);
+       const ft = String(r.ft || "")
+  .replace(/\s+/g, "")
+  .replace("-", ":");
 
-      [[r.home, homeGoals, awayGoals],[r.away, awayGoals, homeGoals]].forEach(([team, gf, ga]) => {
+const match = ft.match(/^(\d+):(\d+)$/);
+
+if (!match) return;
+
+const homeGoals = parseInt(match[1], 10);
+const awayGoals = parseInt(match[2], 10);
+
+       [[r.home, homeGoals, awayGoals],[r.away, awayGoals, homeGoals]].forEach(([team, gf, ga]) => {
         if (!teams[team]) teams[team] = { games:0, goalsFor:0, goalsAgainst:0, GG:0, NG:0, twoPlus:0, sevenPlus:0, last5:[] };
         teams[team].games +=1;
         teams[team].goalsFor += gf;

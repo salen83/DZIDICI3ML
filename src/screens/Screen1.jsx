@@ -1,58 +1,28 @@
 import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import './Screen1.css';
 import { MatchesContext } from "../MatchesContext";
-import { useMapScreen } from "../MapScreenContext";
-import { useLeagueTeam } from "../LeagueTeamContext";
 import { useLeagueMap } from "../LeagueMapContext";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { convertSofaToSyncJSONRaw } from "./ScreenJson";
 import { useSofa } from "../SofaContext";
 
-// 🔹 PROMENA: koristimo db1.js specijalno za Screen1
-// import { saveRows, loadRows } from "../db1";
 import { supabase } from "../supabase";
 import { mapMatchesToIds } from "../services/mapMatchesToIds";
-const saveTeamsToSupabase = async (rowsToSave) => {
-  try {
-    const teamSet = new Set();
-
-    rowsToSave.forEach(r => {
-      if (r.home) teamSet.add(r.home.trim());
-      if (r.away) teamSet.add(r.away.trim());
-    });
-
-    const payload = Array.from(teamSet).map(team => ({
-      name: team,
-      source: "screen1"
-    }));
-
-    if (payload.length === 0) return;
-
-    await supabase
-      .from("teams")
-      .delete()
-      .eq("source", "screen1");
-
-    const { error } = await supabase
-  .from("teams")
-  .upsert(payload, { onConflict: "name,source" });
-
-    if (error) console.error("❌ Teams insert error:", error);
-    else console.log("✅ Teams saved:", payload.length);
-
-  } catch (err) {
-    console.error("❌ saveTeamsToSupabase error:", err);
-  }
-};
+import { syncMappedSofaToScreen1 } from "../services/syncMappedSofaToScreen1";
 
 export default function Screen1() {
   const { rows, setRows } = useContext(MatchesContext);
-  const { setMapData } = useMapScreen();
-  const { leagueTeamData, setLeagueTeamData } = useLeagueTeam();
   const { leagueMap } = useLeagueMap();
   const { teamMap } = useNormalisedTeamMap();
   const { sofaRows } = useSofa();
+const saveMappedSofaMatchToScreen1Table = async () => {
+  await syncMappedSofaToScreen1({
+    sofaRows,
+    teamMap,
+    leagueMap,
+    supabase
+  });
+};
 
   const tableWrapperRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -92,53 +62,6 @@ const sortRowsByDateDesc = (rowsToSort) =>
   });
 
   // =========================
-  // 🔥 puni MapScreen i LeagueTeamScreen
-  // =========================
-const updateMapAndLeagueTeam = useCallback((allRows) => {
-  setMapData(prev => {
-    const next = { ...prev };
-    allRows.forEach(r => {
-      if (!r.liga) return;
-      const key = r.liga.toLowerCase().trim();
-      if (!next[key]) {
-        next[key] = {
-          screen1: r.liga,
-          sofa: "",
-          screen1Teams: [],
-          sofaTeams: []
-        };
-      }
-      if (r.home && !next[key].screen1Teams.includes(r.home)) next[key].screen1Teams.push(r.home);
-      if (r.away && !next[key].screen1Teams.includes(r.away)) next[key].screen1Teams.push(r.away);
-    });
-    return next;
-  });
-
-  const newLeagueData = { ...leagueTeamData };
-  allRows.forEach(r => {
-    if (!r.liga) return;
-    const key = r.liga.toLowerCase().trim();
-    if (!newLeagueData[key]) {
-      newLeagueData[key] = {
-        screen1: r.liga,
-        sofa: "",
-        screen1Teams: [],
-        sofaTeams: []
-      };
-    }
-    if (r.home && !newLeagueData[key].screen1Teams.includes(r.home))
-      newLeagueData[key].screen1Teams.push(r.home);
-    if (r.away && !newLeagueData[key].screen1Teams.includes(r.away))
-      newLeagueData[key].screen1Teams.push(r.away);
-  });
-  setLeagueTeamData(newLeagueData);
-}, [leagueTeamData, setMapData, setLeagueTeamData]);
-
-useEffect(() => {
-  if (!rows) return;
-  updateMapAndLeagueTeam(rows);
-}, [rows, updateMapAndLeagueTeam]);
-  // =========================
   // 🔹 INIT IZ INDEXEDDB
   // =========================
 useEffect(() => {
@@ -146,9 +69,9 @@ useEffect(() => {
     try {
 
 const { data, error } = await supabase
-  .from("matches")
+  .from("screen1_matches")
   .select("*")
-  .eq("source", "screen1");
+  .order("match_date", { ascending: false });
       if (error) {
         console.error("❌ Supabase error:", error);
         return;
@@ -159,9 +82,9 @@ const formatted = data.map((r, i) => ({
   rb: i + 1,
   datum: r.match_date || "",
   vreme: r.match_time || "",
-  liga: r.raw_league || "",
-  home: r.raw_home || "",
-  away: r.raw_away || "",
+  liga: r.league || "",
+home: r.home || "",
+away: r.away || "",
   ft: r.ft || "",
   ht: r.ht || "",
   sh: r.sh || ""
@@ -174,206 +97,10 @@ const formatted = data.map((r, i) => ({
     }
   })();
 }, [setRows]);
-const saveLeaguesToSupabase = async (rowsToSave) => {
-  try {
-    const leagueSet = new Set();
 
-    rowsToSave.forEach(r => {
-      if (r.liga) leagueSet.add(r.liga.trim());
-    });
-
-    const payload = Array.from(leagueSet).map(liga => ({
-      name: liga
-    }));
-
-    if (payload.length === 0) return;
-
-    const { error } = await supabase
-      .from("leagues")
-      .upsert(payload, { onConflict: "name" });
-
-    if (error) {
-      console.error("❌ Leagues insert error:", error);
-    } else {
-      console.log("✅ Leagues saved:", payload.length);
-    }
-
-  } catch (err) {
-    console.error("❌ saveLeaguesToSupabase error:", err);
-  }
-};
-const saveToSupabase = async (rowsToSave) => {
-    try {
-      // ❗ prvo brišemo stare screen1 mečeve
-      const { error: deleteError } = await supabase
-        .from("matches")
-        .delete()
-        .eq("source", "screen1");
-
-      if (deleteError) {
-        console.error("❌ Delete error:", deleteError);
-        return;
-      }
-
-      // ❗ priprema podataka za insert
-      const payload = rowsToSave.map(r => ({
-        source: "screen1",
-        match_date: r.datum || "",
-        match_time: r.vreme || "",
-        raw_league: r.liga || "",
-        raw_home: r.home || "",
-        raw_away: r.away || "",
-        ft: r.ft || "",
-        ht: r.ht || "",
-        sh: r.sh || ""
-      }));
-
-      if (payload.length === 0) return;
-
-      const { error: insertError } = await supabase
-        .from("matches")
-        .insert(payload);
-
-      if (insertError) {
-        console.error("❌ Insert error:", insertError);
-      } else {
-        console.log("✅ Saved to Supabase:", payload.length);
-      }
-await saveTeamsToSupabase(rowsToSave);
-await saveLeaguesToSupabase(rowsToSave);
-    } catch (err) {
-      console.error("❌ saveToSupabase error:", err);
-    }
-  };
 const handleMapIds = async () => {
   await mapMatchesToIds({ supabase, addLog });
 };
-
-  // =========================
-  // 🔹 IMPORT EXCEL
-  // =========================
-  const importExcel = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-
-    reader.onload = async (e) => {
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const dataRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-
-      const newRows = dataRows.reduce((acc, r) => {
-        const datum = normalizeDate(r['Datum'] ?? '');
-        const vreme = String(r['Time'] ?? '');
-        const liga = r['Liga'] ?? '';
-        const home = r['Home'] ?? '';
-        const away = r['Away'] ?? '';
-        const ft = r['FT'] ?? '';
-        const ht = r['HT'] ?? '';
-        const sh = r['SH'] ?? '';
-
-        const exists = rows?.some(existing =>
-          existing.datum === datum &&
-          String(existing.vreme) === vreme &&
-          existing.liga?.toLowerCase().trim() === liga?.toLowerCase().trim() &&
-          existing.home?.toLowerCase().trim() === home?.toLowerCase().trim() &&
-          existing.away?.toLowerCase().trim() === away?.toLowerCase().trim()
-        );
-
-        if (!exists) {
-          acc.push({ rb:0, datum, vreme, liga, home, away, ft, ht, sh });
-        }
-        return acc;
-      }, []);
-
-      const allRows = sortRowsByDateDesc([...(rows||[]), ...newRows]);
-      allRows.forEach((r,i)=>r.rb=i+1);
-
-setRows(allRows);
-await saveTeamsToSupabase(allRows);
-await saveLeaguesToSupabase(allRows);
-
-// 🔹 Čuvanje u Supabase
-await saveToSupabase(allRows);
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
-
-  const syncWithSofaScreen = async () => {
-    try {
-      addLog("[SYNC] Pokrenut syncWithSofaScreen");
-
-      const syncJson = convertSofaToSyncJSONRaw(sofaRows, teamMap, leagueMap);
-      addLog(`[SYNC] Učitano iz SofaContext: ${syncJson.length} mečeva`);
-
-const updatedRows = rows.map(row => {
-  const clean = (v) =>
-    (typeof v === "object" ? v?.name : v || "")
-      .toString()
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
-
-  // 🔹 NORMALIZACIJA preko mapa
-  const leagueKey = row.liga?.toLowerCase().trim();
-  const normalizedLeague = leagueMap?.[leagueKey]?.normalized || row.liga;
-
-  const normalizedHome = teamMap?.[clean(row.home)] || row.home;
-  const normalizedAway = teamMap?.[clean(row.away)] || row.away;
-
-  let match = null;
-
-  for (const s of syncJson) {
-    const sameDate   = clean(s.datum) === clean(row.datum);
-    const sameLeague = clean(s.liga) === clean(normalizedLeague);
-    const sameHome   = clean(s.home) === clean(normalizedHome);
-    const sameAway   = clean(s.away) === clean(normalizedAway);
-
-    if (sameDate && sameLeague && sameHome && sameAway) {
-      match = s;
-      break;
-    }
-
-    // DEBUG ako timovi matchuju a ostalo ne
-    if (sameHome && sameAway) {
-    addLog(`[WARN] DELIMIČAN MATCH: ${row.home} - ${row.away}`);
-    addLog(`   datum: ${row.datum} vs ${s.datum}`);
-    addLog(`   liga: ${normalizedLeague} vs ${s.liga}`);
-    }
-  }
-
-  if (!match) {
-    addLog(`[ERROR] NEMA MATCH za: ${row.home} - ${row.away} (${row.datum})`);
-    return row;
-  }
-
-  const sofaFT = match.ft ?? '';
-  const sofaSH = match.sh ?? '';
-
-  if (row.ft === sofaFT && row.sh === sofaSH) {
-    return { ...row, _syncedChanged: false };
-  }
-
-  addLog(`[UPDATE] ${row.home} - ${row.away} -> ${sofaFT}:${sofaSH}`);
-
-  return {
-    ...row,
-    ft: sofaFT,
-    sh: sofaSH,
-    _syncedChanged: true
-  };
-});
-
-      setRows(updatedRows);
-      await saveToSupabase(updatedRows);
-      addLog("[SYNC] Sync završen");
-
-    } catch (err) {
-      addLog(`[ERROR] Greška u sync: ${err}`);
-    }
-  };
 
   const isRowComplete = (row) => {
     return (
@@ -393,9 +120,7 @@ const updatedRows = rows.map(row => {
     const newRows = [newRow, ...(rows||[])];
     newRows.forEach((r,i)=>r.rb=i+1);
     setRows(newRows);
-    await saveToSupabase(newRows);
 
-    updateMapAndLeagueTeam(newRows);
 
     if (tableWrapperRef.current) tableWrapperRef.current.scrollTop = 0;
     setScrollTop(0);
@@ -406,12 +131,10 @@ const updatedRows = rows.map(row => {
     copy.splice(index,1);
     copy.forEach((r,i)=>r.rb=i+1);
     setRows(copy);
-    await saveToSupabase(copy);
   };
 
   const deleteAllRows = async () => {
     setRows([]);
-    await saveToSupabase([]);
   };
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
@@ -427,10 +150,8 @@ const updatedRows = rows.map(row => {
       const sorted = sortRowsByDateDesc(copy);
       sorted.forEach((r,i)=>r.rb=i+1);
       setRows(sorted);
-      await saveToSupabase(sorted);
     } else {
       setRows(copy);
-      await saveToSupabase(copy);
     }
   };
 
@@ -447,11 +168,12 @@ const updatedRows = rows.map(row => {
     <div className="screen1-container">
       <button className="btn-small" onClick={deleteAllRows}>Izbrisi sve</button>
       <div className="screen1-topbar">
-        <input type="file" accept=".xls,.xlsx" onChange={importExcel} />
         <button onClick={addNewRow}>Dodaj novi mec</button>
-        <button onClick={syncWithSofaScreen}>Sync SofaScreen</button>
         <button onClick={handleMapIds}>Map IDs</button>
         <button onClick={() => console.log(debugLogs)}>Prikaži debug log</button>
+        <button onClick={saveMappedSofaMatchToScreen1Table}>
+  Test Screen1 Insert
+</button>
       </div>
 
       <div className="screen1-table-wrapper" style={{height:containerHeight, overflowY:'auto'}} ref={tableWrapperRef} onScroll={handleScroll}>

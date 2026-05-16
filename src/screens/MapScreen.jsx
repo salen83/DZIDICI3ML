@@ -1,6 +1,6 @@
 import { useMapStore } from "../stores/mapStore";
-import React, { useMemo, useEffect, useState } from "react";
-import { useMatches } from "../MatchesContext";
+import React, { useMemo, useEffect, useState, useContext } from "react";
+import { MatchesContext } from "../MatchesContext";
 import { useSofa } from "../SofaContext";
 import { supabase } from "../supabase";
 import {
@@ -20,26 +20,23 @@ import {
   getPairedTeamsSet,
   getPairedLeaguesSet
 } from "../services/mapService";
-import { BrutalTracer } from "../brutalTracer";
-window.BRUTAL = BrutalTracer;
-window.BRUTAL_TRACE = BrutalTracer;
 
 export default function MapScreen({ onClose }) {
 useEffect(() => {
-window.BRUTAL?.trace("lifecycle", { event: "MapScreen mounted" });
 }, []);
-  const { rows: screen1Rows } = useMatches();
+  const { futureMatches } = useContext(MatchesContext);
+  const screen3Rows = futureMatches;
   const { sofaRows } = useSofa();
-  const [pairedScreen1Teams, setPairedScreen1Teams] = useState(new Set());
+  const [pairedScreen3Teams, setPairedScreen3Teams] = useState(new Set());
   const [pairedSofaTeams, setPairedSofaTeams] = useState(new Set());
-  const [pairedScreen1Leagues, setPairedScreen1Leagues] = useState(new Set());
+  const [pairedScreen3Leagues, setPairedScreen3Leagues] = useState(new Set());
   const [pairedSofaLeagues, setPairedSofaLeagues] = useState(new Set());
 
 useEffect(() => {
   async function loadPairs() {
     const paired = await getPairedTeamsSet();
 
-    setPairedScreen1Teams(new Set(paired));
+    setPairedScreen3Teams(new Set(paired));
     setPairedSofaTeams(new Set(paired));
   }
 
@@ -62,13 +59,13 @@ useEffect(() => {
   async function loadLeaguePairs() {
     const pairedLeagues = await getPairedLeaguesSet();
 
-    const screen1 = new Set();
+    const screen3 = new Set();
     const sofa = new Set();
 
     pairedLeagues.forEach(v => {
       const [alias, country] = v.split("|||");
 
-      screen1.add((alias || "").trim());
+     screen3.add((alias || "").trim());
 
       if (country) {
         sofa.add(`${alias.trim()}|||${country.trim()}`);
@@ -77,7 +74,7 @@ useEffect(() => {
       }
     });
 
-    setPairedScreen1Leagues(screen1);
+    setPairedScreen3Leagues(screen3);
     setPairedSofaLeagues(sofa);
   }
 
@@ -97,14 +94,14 @@ const {
   // =====================
   // SVI TIMOVI
   // =====================
-  const screen1TeamsAll = useMemo(() => {
-    if (!screen1Rows) return [];
+const screen3TeamsAll = useMemo(() => {
+   if (!screen3Rows) return [];
     return Array.from(
-      new Set(screen1Rows.flatMap(r =>
+       new Set(screen3Rows.flatMap(r =>
         [r.Home || r.home, r.Away || r.away].filter(Boolean)
       ))
     ).sort((a, b) => a.localeCompare(b));
-  }, [screen1Rows]);
+}, [screen3Rows]);
 
 const sofaTeamsAll = useMemo(() => {
   if (!sofaRows) return [];
@@ -131,16 +128,16 @@ const sofaTeamsAll = useMemo(() => {
   // =====================
   // SVE LIGE
   // =====================
-  const screen1LeaguesAll = useMemo(() => {
-    if (!screen1Rows) return [];
+const screen3LeaguesAll = useMemo(() => {
+   if (!screen3Rows) return [];
     return Array.from(
 new Set(
-  screen1Rows
+  screen3Rows
 .map(r => (r.Liga || r.liga || "").trim())
     .filter(Boolean)
 )
     ).sort((a, b) => a.localeCompare(b));
-  }, [screen1Rows]);
+  }, [screen3Rows]);
 
 const sofaLeaguesAll = useMemo(() => {
   if (!sofaRows) return [];
@@ -182,8 +179,8 @@ if (liga && country && !map[`${liga}|||${country}`]) map[`${liga}|||${country}`]
   return map;
 }, [sofaRows]);
 
-const screen1Leagues = screen1LeaguesAll.filter(l =>
-  !pairedScreen1Leagues.has((l || "").trim())
+const screen3Leagues = screen3LeaguesAll.filter(l =>
+  !pairedScreen3Leagues.has((l || "").trim())
 );
 
 const sofaLeagues = sofaLeaguesAll.filter(l => {
@@ -206,7 +203,7 @@ const sofaLeagues = sofaLeaguesAll.filter(l => {
     !pairedSofaLeagues.has(normalizedKey);
 });
 
-const screen1Teams = screen1TeamsAll.filter(t => !pairedScreen1Teams.has(t));
+const screen3Teams = screen3TeamsAll.filter(t => !pairedScreen3Teams.has(t));
 const deletedLeagueKeys = useMemo(() => {
   return new Set(
     deletedSofaLeagues.map(l => `${l.liga}|||${l.country || ""}`)
@@ -311,11 +308,10 @@ const setSearchResult = useMapStore(s => s.setSearchResult);
   // UPAARIVANJE TIMOVA
   // =====================
 const confirmTeamPair = async (t1, t2) => {
-window.BRUTAL?.trace("team_pair_confirm", { t1, t2 });
   if (!window.confirm(`Upariti timove:\n${t1} ↔ ${t2}?`)) return;
 
   // odmah skloni iz kolona
-  setPairedScreen1Teams(prev => new Set([...prev, t1]));
+  setPairedScreen3Teams(prev => new Set([...prev, t1]));
   setPairedSofaTeams(prev => new Set([...prev, t2]));
 
   try {
@@ -329,8 +325,7 @@ window.BRUTAL?.trace("team_pair_confirm", { t1, t2 });
 };
 
   const handleTeamClick = (source, value) => {
-window.BRUTAL?.trace("team_click", { source, value });
-    if (source === "screen1") {
+      if (source === "screen3") {
       if (selectedTeam2) confirmTeamPair(value, selectedTeam2);
       else setSelectedTeam1(value);
     }
@@ -344,17 +339,12 @@ window.BRUTAL?.trace("team_click", { source, value });
   // UPAARIVANJE LIGA
   // =====================
 const confirmLeaguePair = async (screen1Liga, sofaObj) => {
-window.BRUTAL?.trace("league_pair_confirm", {
-  screen1Liga,
-  sofaLiga: sofaObj?.liga,
-  country: sofaObj?.country
-});
   const sofaLiga = sofaObj.liga;
   const country = sofaObj.country || "";
 
   if (!window.confirm(`Upariti lige:\n${screen1Liga} ↔ ${sofaLiga} (${country})?`)) return;
 
-  setPairedScreen1Leagues(prev =>
+setPairedScreen3Leagues(prev =>
     new Set([...prev, screen1Liga])
   );
 
@@ -377,9 +367,8 @@ window.BRUTAL?.trace("league_pair_confirm", {
 
   // 2. SUPABASE (ISTO KAO TIMOVI)
 const handleLeagueClick = (source, value) => {
-  window.BRUTAL?.trace("league_click", { source, value });
 
-  if (source === "screen1") {
+if (source === "screen3") {
     if (Array.isArray(selectedLeague2) && selectedLeague2.length > 0) {
       selectedLeague2.forEach(l2 => confirmLeaguePair(value, l2));
       setSelectedLeague2([]);
@@ -480,11 +469,10 @@ const updated = deletedSofaLeagues.filter(
   await supabase
   .from("deleted_sofa_leagues")
   .delete()
-  .eq("value", liga);
+  .eq("value", obj.liga);
 
-  setRestoredHighlight(prev => [...prev, liga]);
+setRestoredHighlight(prev => [...prev, obj.liga]);
 };
-
 // =====================
   // VRATI POJEDINACNI TIM
   // =====================
@@ -655,9 +643,9 @@ const isSelected = Array.isArray(selected)
     </div>
   )}
 </div>
-        {renderColumn("Timovi Screen1", screen1Teams, selectedTeam1, v => handleTeamClick("screen1", v))}
+        {renderColumn("Timovi Screen3", screen3Teams, selectedTeam1, v => handleTeamClick("screen3", v))}
         {renderColumn("Timovi Sofa", sofaTeams, selectedTeam2, v => handleTeamClick("sofa", v))}
-        {renderColumn("Lige Screen1", screen1Leagues, selectedLeague1, v => handleLeagueClick("screen1", v))}
+        {renderColumn("Lige Screen3", screen3Leagues, selectedLeague1, v => handleLeagueClick("screen3", v))}
         {renderColumn(
   "Lige Sofa",
   sofaLeagues,
@@ -701,22 +689,6 @@ const isSelected = Array.isArray(selected)
       <button onClick={() => setShowDeletedTeams(false)}>Zatvori</button>
     </div>
   )}
-{debugLog.length > 0 && (
-  <div style={{
-    marginTop: 20,
-    padding: 10,
-    background: "#111",
-    color: "#0f0",
-    maxHeight: 200,
-    overflowY: "auto",
-    fontSize: 12
-  }}>
-    <b>DEBUG LOG:</b>
-    {debugLog.map((log, i) => (
-      <div key={i}>{log}</div>
-    ))}
-  </div>
-)}
 
     </div>
   );
