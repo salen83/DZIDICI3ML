@@ -15,6 +15,7 @@ const {
   blockMatchImport
 } = useContext(MatchesContext);
 
+  const [hiddenScreen3Matches, setHiddenScreen3Matches] = useState([]);
   const [selectedLeft, setSelectedLeft] = useState(null);
   const [selectedRight, setSelectedRight] = useState(null);
 
@@ -24,7 +25,15 @@ const {
   const screen3Matches = useMemo(() => {
     if (!futureMatches) return [];
 
-    return futureMatches.map((m, i) => ({
+return futureMatches
+  .filter(m => {
+    return !hiddenScreen3Matches.some(h =>
+      h.home === (m.Home || m.home || "") &&
+      h.away === (m.Away || m.away || "") &&
+      h.league === (m.Liga || m.liga || "")
+    );
+  })
+  .map((m, i) => ({
       id: "s3_" + i,
 
       league:
@@ -47,7 +56,7 @@ const {
         m.time ||
         ""
     }));
-  }, [futureMatches]);
+}, [futureMatches, hiddenScreen3Matches]);
 
   // =========================
   // SOFA MATCHES
@@ -129,6 +138,14 @@ ${right.home} vs ${right.away}
         right.league,
         right.country || ""
       );
+setHiddenScreen3Matches(prev => [
+  ...prev,
+  {
+    home: left.home,
+    away: left.away,
+    league: left.league
+  }
+]);
 
 removeUpcomingMatch(right.original);
 
