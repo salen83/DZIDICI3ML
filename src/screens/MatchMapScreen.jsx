@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from "react";
+import React, { useContext, useMemo, useState, useEffect } from "react";
 import { MatchesContext } from "../MatchesContext";
 
 import {
@@ -15,10 +15,23 @@ const {
   blockMatchImport
 } = useContext(MatchesContext);
 
-  const [hiddenScreen3Matches, setHiddenScreen3Matches] = useState([]);
+  const [hiddenScreen3Matches, setHiddenScreen3Matches] = useState(() => {
+  try {
+    return JSON.parse(
+      localStorage.getItem("hiddenScreen3Matches")
+    ) || [];
+  } catch {
+    return [];
+  }
+});
   const [selectedLeft, setSelectedLeft] = useState(null);
   const [selectedRight, setSelectedRight] = useState(null);
-
+useEffect(() => {
+  localStorage.setItem(
+    "hiddenScreen3Matches",
+    JSON.stringify(hiddenScreen3Matches)
+  );
+}, [hiddenScreen3Matches]);
   // =========================
   // SCREEN3 MATCHES
   // =========================
