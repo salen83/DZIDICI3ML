@@ -17,7 +17,23 @@ const [teamAliases, setTeamAliases] = useState(() => {
 });
 
   const [futureMatches, setFutureMatches] = useState([]);
-  const [tickets, setTickets] = useState(() => {
+  const [upcomingSofaMatches, setUpcomingSofaMatches] = useState(() => {
+  try {
+    return JSON.parse(
+      localStorage.getItem("upcomingSofaMatches")
+    ) || [];
+  } catch {
+    return [];
+  }
+});
+   const [blockedImports, setBlockedImports] = useState(() => {
+  try {
+    return JSON.parse(localStorage.getItem("blockedImports")) || [];
+  } catch {
+    return [];
+  }
+});  
+const [tickets, setTickets] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("tickets")) || { otvoreni: [], dobitni: [], gubitni: [] };
     } catch {
@@ -126,6 +142,47 @@ const [teamAliases, setTeamAliases] = useState(() => {
 useEffect(() => {
   localStorage.setItem("teamAliases", JSON.stringify(teamAliases));
 }, [teamAliases]);
+useEffect(() => {
+  localStorage.setItem(
+    "upcomingSofaMatches",
+    JSON.stringify(upcomingSofaMatches)
+  );
+}, [upcomingSofaMatches]);
+const removeUpcomingMatch = (match) => {
+  setUpcomingSofaMatches(prev => {
+    const filtered = prev.filter(m =>
+      !(m.home === match.home &&
+        m.away === match.away &&
+        m.datum === match.datum &&
+        m.vreme === match.vreme &&
+        m.liga === match.liga)
+    );
+
+    return filtered;
+  });
+};
+useEffect(() => {
+  localStorage.setItem("blockedImports", JSON.stringify(blockedImports));
+}, [blockedImports]);
+const blockMatchImport = (match) => {
+  const key = {
+    liga: match.liga,
+    home: match.home,
+    away: match.away
+  };
+
+  setBlockedImports(prev => {
+    const exists = prev.find(x =>
+      x.liga === key.liga &&
+      x.home === key.home &&
+      x.away === key.away
+    );
+
+    if (exists) return prev;
+
+    return [...prev, key];
+  });
+};
 
   // --- Team stats za Poisson ---
   useEffect(()=>{
@@ -282,6 +339,11 @@ finishedMatches.forEach(r=>{
       rows, setRows,
       teamAliases, setTeamAliases,
       futureMatches, setFutureMatches,
+      upcomingSofaMatches,
+      setUpcomingSofaMatches,
+      removeUpcomingMatch,
+      blockMatchImport,
+      blockedImports,
       tickets, setTickets,
       activeTicket, setActiveTicket,
       toggleMatchInActiveTicket,
