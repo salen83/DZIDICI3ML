@@ -85,10 +85,10 @@ const leaguesSet = new Set();
 const countriesSet = new Set();
 
 json.forEach((r) => {
-  if (r.Domacin) teamsSet.add(r.Domacin);
-  if (r.Gost) teamsSet.add(r.Gost);
-  if (r.Liga) leaguesSet.add(r.Liga);
-  if (r.Country) countriesSet.add(r.Country);
+  if (r.home) teamsSet.add(r.home);
+  if (r.away) teamsSet.add(r.away);
+  if (r.league) leaguesSet.add(r.league);
+  if (r.country) countriesSet.add(r.country);
 });
 
 // 2. INSERT (ignore duplicates)
@@ -139,9 +139,9 @@ countriesData.forEach(c => {
 // 4. LEAGUES (FIXED - bez bugova i bez undefined order problema)
 await supabase.from("leagues").upsert(
   Array.from(leaguesSet).map((name) => {
-    const sampleRow = json.find(r => r.Liga === name);
+const sampleRow = json.find(r => r.league === name);
 
-    const countryName = sampleRow?.Country?.trim() || null;
+const countryName = sampleRow?.country?.trim() || null;
 
     return {
       name,
@@ -153,28 +153,29 @@ await supabase.from("leagues").upsert(
 );
 // 4. MATCHES
 const normalized = json.map((r) => ({
-  id: `${r.Domacin}-${r.Gost}-${r.Datum}-${r.Vreme}`,
-  datum: r.Datum || "",
-  vreme: r.Vreme || "",
+  id: `${r.home}-${r.away}-${r.date}-${r.time}`,
 
-  home_id: teamMap[r.Domacin] || null,
-  away_id: teamMap[r.Gost] || null,
-  league_id: leagueMap[r.Liga] || null,
-  country_id: countryMap[r.Country] || null,
+  datum: r.date || "",
+  vreme: r.time || "",
 
-  // za UI
-  liga: r.Liga || "",
-  home: r.Domacin || "",
-  away: r.Gost || "",
-  country: r.Country || "",
+  home_id: teamMap[r.home] || null,
+  away_id: teamMap[r.away] || null,
+  league_id: leagueMap[r.league] || null,
+  country_id: countryMap[r.country] || null,
 
-  ht: r["Prvo poluvreme"] || "",
-  sh: r["Drugo poluvreme"] || "",
-  ft: r.Ft || "",
-  extratime: r.Produzeci || "",
-  penalties: r.Penali || "",
+  liga: r.league || "",
+  home: r.home || "",
+  away: r.away || "",
+  country: r.country || "",
+
+  status: r.status || "",
+
+  ht: r.ht || "",
+  sh: r.sh || "",
+  ft: r.ft || "",
+  extratime: r.et || "",
+  penalties: r.pen || "",
 }));
-
 setSofaRows(normalized);
 log("IMPORT: " + normalized.length);
 
