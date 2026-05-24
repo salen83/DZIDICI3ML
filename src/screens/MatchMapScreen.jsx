@@ -75,7 +75,16 @@ time:
   m.Time ||
   m.time ||
   ""
-    }));
+}))
+      .sort((a, b) => {
+        if (a.league !== b.league) {
+          return a.league.localeCompare(b.league);
+        }
+
+        return `${a.date} ${a.time}`.localeCompare(
+          `${b.date} ${b.time}`
+        );
+      });
 }, [futureMatches, hiddenScreen3Matches]);
 
   // =========================
@@ -123,7 +132,16 @@ time:
   m.Time ||
   m.time ||
   ""
-    }));
+}))
+      .sort((a, b) => {
+        if (a.league !== b.league) {
+          return a.league.localeCompare(b.league);
+        }
+
+        return `${a.date} ${a.time}`.localeCompare(
+          `${b.date} ${b.time}`
+        );
+      });
 }, [upcomingSofaMatches]);
 
   // =========================
@@ -219,6 +237,24 @@ const handleDeleteSofaMatch = (match) => {
 removeUpcomingMatch(match.original);
 };
 
+// =========================
+// DELETE WHOLE LEAGUE
+// =========================
+const handleDeleteSofaLeague = (leagueName) => {
+  if (
+    !window.confirm(
+      `Obrisati sve Upcoming Sofa mečeve iz lige "${leagueName}"?`
+    )
+  ) {
+    return;
+  }
+
+  sofaMatches
+    .filter(m => m.league === leagueName)
+    .forEach(m => {
+      removeUpcomingMatch(m.original);
+    });
+};
 // =========================
 // BLOCK IMPORT
 // =========================
@@ -326,6 +362,14 @@ isRightColumn = false
     >
       ⛔ Block
     </button>
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleDeleteSofaLeague(match.league);
+  }}
+>
+  🗑 League
+</button>
   </div>
 )} 
      </div>
