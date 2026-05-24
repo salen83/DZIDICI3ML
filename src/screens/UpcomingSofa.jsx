@@ -262,6 +262,12 @@ const [upcomingSofaMatches, setUpcomingSofaMatches] = useState([]);
        liga:
   r['Liga'] ?? '',
 
+country:
+  r['Country'] ??
+  r['Drzava'] ??
+  r['Država'] ??
+  '',
+
 home:
   r['Domacin'] ??
   r['Home'] ??
@@ -568,7 +574,9 @@ away:
                     fontWeight: "bold"
                   }}
                 >
-                  {liga}
+                  {matches[0]?.country
+  ? `${matches[0].country} - ${liga}`
+  : liga}
                 </span>
 
                 <span
