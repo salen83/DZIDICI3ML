@@ -64,10 +64,17 @@ return futureMatches
         m.away ||
         "",
 
-      time:
-        m.Time ||
-        m.time ||
-        ""
+date:
+  m.Date ||
+  m.date ||
+  m.Datum ||
+  m.datum ||
+  "",
+
+time:
+  m.Time ||
+  m.time ||
+  ""
     }));
 }, [futureMatches, hiddenScreen3Matches]);
 
@@ -105,10 +112,17 @@ return upcomingSofaMatches.map((m, i) => ({
         m.Gost ||
         "",
 
-      time:
-        m.Time ||
-        m.time ||
-        ""
+date:
+  m.Date ||
+  m.date ||
+  m.Datum ||
+  m.datum ||
+  "",
+
+time:
+  m.Time ||
+  m.time ||
+  ""
     }));
 }, [upcomingSofaMatches]);
 
@@ -244,14 +258,24 @@ isRightColumn = false
             : "#f5f5f5"
         }}
       >
-        <div
-          style={{
-            fontWeight: "bold",
-            marginBottom: 5
-          }}
-        >
-          {match.league}
-        </div>
+<div
+  style={{
+    fontWeight: "bold",
+    marginBottom: 5
+  }}
+>
+  {match.league}
+</div>
+
+<div
+  style={{
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 6
+  }}
+>
+  {match.date || "?"} {match.time || ""}
+</div>
 
         <div>
           {match.home}
@@ -265,29 +289,18 @@ isRightColumn = false
           {match.away}
         </div>
 
-        {match.country && (
-          <div
-            style={{
-              marginTop: 5,
-              fontSize: 12,
-              color: "#777"
-            }}
-          >
-            {match.country}
-          </div>
-        )}
+{match.country && (
+  <div
+    style={{
+      marginBottom: 6,
+      fontSize: 12,
+      color: "#777"
+    }}
+  >
+    🌍 {match.country}
+  </div>
+)}
 
-        {match.time && (
-          <div
-            style={{
-              marginTop: 5,
-              fontSize: 12,
-              color: "#777"
-            }}
-          >
-            {match.time}
-          </div>
-        )}
 {isRightColumn && (
   <div
     style={{
