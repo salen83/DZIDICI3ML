@@ -520,13 +520,22 @@ isRightColumn = false
               padding: 10
             }}
           >
-            {sofaMatches.map(match =>
-renderMatch(
-  match,
-  selectedRight?.id === match.id,
-  () => handleRightClick(match),
-  true
-)
+{suggestedPairs
+  .sort((a, b) => b.score - a.score)
+  .map(pair =>
+    pair.right
+      ? renderMatch(
+          {
+            ...pair.right,
+            score: pair.score
+          },
+          selectedRight?.id === pair.right.id,
+          () => handleRightClick(pair.right),
+          true
+        )
+      : null
+)}
+
             )}
           </div>
         </div>
