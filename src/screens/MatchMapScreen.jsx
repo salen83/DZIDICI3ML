@@ -536,7 +536,6 @@ isRightColumn = false
       : null
 )}
 
-            )}
           </div>
         </div>
       </div>
