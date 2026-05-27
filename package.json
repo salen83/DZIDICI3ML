@@ -21,6 +21,7 @@
     "@sentry/tracing": "^7.120.4",
     "@supabase/supabase-js": "^2.103.3",
     "eruda": "^3.4.3",
+    "fuzzball": "^2.2.6",
     "jszip": "^3.10.1",
     "logrocket": "^12.1.0",
     "react": "^19.2.5",

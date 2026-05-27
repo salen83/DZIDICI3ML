@@ -6,6 +6,43 @@ import {
   insertLeaguePairService
 } from "../services/mapService";
 
+import * as fuzz from "fuzzball";
+
+function normalize(str = "") {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(fc|fk|cf|sc|ac)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function getMatchScore(left, right) {
+
+  const leagueScore = fuzz.token_set_ratio(
+    normalize(left.league),
+    normalize(right.league)
+  );
+
+  const homeScore = fuzz.token_set_ratio(
+    normalize(left.home),
+    normalize(right.home)
+  );
+
+  const awayScore = fuzz.token_set_ratio(
+    normalize(left.away),
+    normalize(right.away)
+  );
+
+  const total =
+    (leagueScore * 0.3) +
+    (homeScore * 0.35) +
+    (awayScore * 0.35);
+
+  return Math.round(total);
+}
+
 export default function MatchMapScreen({ onClose }) {
 
 const {
@@ -143,6 +180,33 @@ time:
         );
       });
 }, [upcomingSofaMatches]);
+const suggestedPairs = useMemo(() => {
+
+  return screen3Matches.map(left => {
+
+    let best = null;
+    let bestScore = 0;
+
+    for (const right of sofaMatches) {
+
+      const score =
+        getMatchScore(left, right);
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = right;
+      }
+    }
+
+    return {
+      left,
+      right: best,
+      score: bestScore
+    };
+
+  });
+
+}, [screen3Matches, sofaMatches]);
 
   // =========================
   // SAVE PAIR
@@ -324,6 +388,23 @@ isRightColumn = false
         <div>
           {match.away}
         </div>
+{match.score !== undefined && (
+  <div
+    style={{
+      marginTop: 6,
+      fontSize: 12,
+      fontWeight: "bold",
+      color:
+        match.score >= 95
+          ? "green"
+          : match.score >= 85
+          ? "orange"
+          : "red"
+    }}
+  >
+    Match: {match.score}%
+  </div>
+)}
 
 {match.country && (
   <div
@@ -410,13 +491,18 @@ isRightColumn = false
               padding: 10
             }}
           >
-            {screen3Matches.map(match =>
-              renderMatch(
-                match,
-                selectedLeft?.id === match.id,
-                () => handleLeftClick(match)
-              )
-            )}
+{suggestedPairs
+  .sort((a, b) => b.score - a.score)
+  .map(pair =>
+    renderMatch(
+      {
+        ...pair.left,
+        score: pair.score
+      },
+      selectedLeft?.id === pair.left.id,
+      () => handleLeftClick(pair.left)
+    )
+)}
           </div>
         </div>
 
