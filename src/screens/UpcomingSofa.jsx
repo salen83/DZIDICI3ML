@@ -480,21 +480,24 @@ away:
   // GROUP BY LEAGUE
   // =========================================
 
-  const groupedMatches =
-    (upcomingSofaMatches || []).reduce((acc, match) => {
+const groupedMatches =
+  (visibleRows || []).reduce((acc, match, visibleIdx) => {
 
-      const key =
-        match.liga || "Nedefinisana liga";
+    const key =
+      match.liga || "Nedefinisana liga";
 
-      if (!acc[key]) {
-        acc[key] = [];
-      }
+    if (!acc[key]) {
+      acc[key] = [];
+    }
 
-      acc[key].push(match);
+    acc[key].push({
+      ...match,
+      originalIndex: startIndex + visibleIdx
+    });
 
-      return acc;
+    return acc;
 
-    }, {});
+  }, {});
 
   // =========================================
   // RENDER
@@ -596,8 +599,7 @@ away:
 
                   {matches.map((r) => {
 
-                    const idx =
-                      upcomingSofaMatches.indexOf(r);
+const idx = r.originalIndex;
 
                     const rowBgColor =
                       idx % 2 === 0
@@ -676,7 +678,11 @@ away:
             </div>
           );
         })}
-
+<div
+  style={{
+    height: (totalRows - endIndex) * rowHeight
+  }}
+></div>
       </div>
 
     </div>
