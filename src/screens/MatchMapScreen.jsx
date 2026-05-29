@@ -72,18 +72,57 @@ useEffect(() => {
   // =========================
   // SCREEN3 MATCHES
   // =========================
-  const screen3Matches = useMemo(() => {
-    if (!futureMatches) return [];
+const screen3Matches = useMemo(() => {
 
-return futureMatches
-  .filter(m => {
-    return !hiddenScreen3Matches.some(h =>
-      h.home === (m.Home || m.home || "") &&
-      h.away === (m.Away || m.away || "") &&
-      h.league === (m.Liga || m.liga || "")
-    );
-  })
-  .map((m, i) => ({
+  if (!futureMatches) return [];
+
+  const seen = new Set();
+
+  return futureMatches
+
+    // HIDDEN FILTER
+    .filter(m => {
+
+      return !hiddenScreen3Matches.some(h =>
+
+        h.home === (m.Home || m.home || "") &&
+        h.away === (m.Away || m.away || "") &&
+        h.league === (m.Liga || m.liga || "")
+
+      );
+
+    })
+
+    // DEDUPE
+    .filter(m => {
+
+      const key = [
+
+        m.Liga || m.liga || "",
+
+        m.Home || m.home || "",
+
+        m.Away || m.away || "",
+
+        m.Date || m.date || m.Datum || m.datum || "",
+
+        m.Time || m.time || ""
+
+      ].join("|");
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+
+      return true;
+
+    })
+
+    // MAP
+    .map((m, i) => ({
+
       id: "s3_" + i,
 
       league:
@@ -101,37 +140,66 @@ return futureMatches
         m.away ||
         "",
 
-date:
-  m.Date ||
-  m.date ||
-  m.Datum ||
-  m.datum ||
-  "",
+      date:
+        m.Date ||
+        m.date ||
+        m.Datum ||
+        m.datum ||
+        "",
 
-time:
-  m.Time ||
-  m.time ||
-  ""
-}))
-      .sort((a, b) => {
-        if (a.league !== b.league) {
-          return a.league.localeCompare(b.league);
-        }
+      time:
+        m.Time ||
+        m.time ||
+        ""
 
-        return `${a.date} ${a.time}`.localeCompare(
-          `${b.date} ${b.time}`
-        );
-      });
+    }))
+
+    // SORT
+    .sort((a, b) => {
+
+      if (a.league !== b.league) {
+        return a.league.localeCompare(b.league);
+      }
+
+      return `${a.date} ${a.time}`.localeCompare(
+        `${b.date} ${b.time}`
+      );
+
+    });
+
 }, [futureMatches, hiddenScreen3Matches]);
 
   // =========================
   // SOFA MATCHES
   // =========================
-  const sofaMatches = useMemo(() => {
-    if (!upcomingSofaMatches) return [];
+const sofaMatches = useMemo(() => {
 
-return upcomingSofaMatches.map((m, i) => ({
-  original: m,
+  if (!upcomingSofaMatches) return [];
+
+  const seen = new Set();
+
+  return upcomingSofaMatches
+    .filter(m => {
+
+      const key = [
+        m.Liga || m.liga || "",
+        m.home || m.Home || "",
+        m.away || m.Away || "",
+        m.Date || m.date || m.Datum || m.datum || "",
+        m.Time || m.time || ""
+      ].join("|");
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+
+      return true;
+    })
+    .map((m, i) => ({
+      original: m,
+
       id: "sf_" + i,
 
       league:
@@ -158,27 +226,30 @@ return upcomingSofaMatches.map((m, i) => ({
         m.Gost ||
         "",
 
-date:
-  m.Date ||
-  m.date ||
-  m.Datum ||
-  m.datum ||
-  "",
+      date:
+        m.Date ||
+        m.date ||
+        m.Datum ||
+        m.datum ||
+        "",
 
-time:
-  m.Time ||
-  m.time ||
-  ""
-}))
-      .sort((a, b) => {
-        if (a.league !== b.league) {
-          return a.league.localeCompare(b.league);
-        }
+      time:
+        m.Time ||
+        m.time ||
+        ""
+    }))
+    .sort((a, b) => {
 
-        return `${a.date} ${a.time}`.localeCompare(
-          `${b.date} ${b.time}`
-        );
-      });
+      if (a.league !== b.league) {
+        return a.league.localeCompare(b.league);
+      }
+
+      return `${a.date} ${a.time}`.localeCompare(
+        `${b.date} ${b.time}`
+      );
+
+    });
+
 }, [upcomingSofaMatches]);
 const suggestedPairs = useMemo(() => {
 
