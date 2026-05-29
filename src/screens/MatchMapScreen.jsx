@@ -1,4 +1,5 @@
 import React, { useContext, useMemo, useState, useEffect } from "react";
+import { FixedSizeList as List } from "react-window";
 import { MatchesContext } from "../MatchesContext";
 
 import {
@@ -527,7 +528,20 @@ isRightColumn = false
      </div>
     );
   };
+const Row = ({ index, style, data }) => {
 
+  const item = data[index];
+
+  if (!item) {
+    return null;
+  }
+
+  return (
+    <div style={style}>
+      {item}
+    </div>
+  );
+};
   // =========================
   // RENDER
   // =========================
@@ -562,18 +576,28 @@ isRightColumn = false
               padding: 10
             }}
           >
-{suggestedPairs
-  .sort((a, b) => b.score - a.score)
-  .map(pair =>
-    renderMatch(
-      {
-        ...pair.left,
-        score: pair.score
-      },
-      selectedLeft?.id === pair.left.id,
-      () => handleLeftClick(pair.left)
-    )
-)}
+<List
+  height={700}
+  itemCount={suggestedPairs.length}
+  itemSize={170}
+  width={"100%"}
+  itemData={
+    suggestedPairs
+      .sort((a, b) => b.score - a.score)
+      .map(pair =>
+        renderMatch(
+          {
+            ...pair.left,
+            score: pair.score
+          },
+          selectedLeft?.id === pair.left.id,
+          () => handleLeftClick(pair.left)
+        )
+      )
+  }
+>
+  {Row}
+</List>
           </div>
         </div>
 
@@ -591,21 +615,31 @@ isRightColumn = false
               padding: 10
             }}
           >
-{suggestedPairs
-  .sort((a, b) => b.score - a.score)
-  .map(pair =>
-    pair.right
-      ? renderMatch(
-          {
-            ...pair.right,
-            score: pair.score
-          },
-          selectedRight?.id === pair.right.id,
-          () => handleRightClick(pair.right),
-          true
-        )
-      : null
-)}
+<List
+  height={700}
+  itemCount={suggestedPairs.length}
+  itemSize={240}
+  width={"100%"}
+  itemData={
+    suggestedPairs
+      .sort((a, b) => b.score - a.score)
+      .map(pair =>
+        pair.right
+          ? renderMatch(
+              {
+                ...pair.right,
+                score: pair.score
+              },
+              selectedRight?.id === pair.right.id,
+              () => handleRightClick(pair.right),
+              true
+            )
+          : null
+      )
+  }
+>
+  {Row}
+</List>
 
           </div>
         </div>
