@@ -1,5 +1,5 @@
 import React, { useContext, useMemo, useState, useEffect } from "react";
-import { FixedSizeList as List } from "react-window";
+import { Virtuoso } from "react-virtuoso";
 import { MatchesContext } from "../MatchesContext";
 
 import {
@@ -576,28 +576,20 @@ const Row = ({ index, style, data }) => {
               padding: 10
             }}
           >
-<List
-  height={700}
-  itemCount={suggestedPairs.length}
-  itemSize={170}
-  width={"100%"}
-  itemData={
-    suggestedPairs
-      .sort((a, b) => b.score - a.score)
-      .map(pair =>
-        renderMatch(
-          {
-            ...pair.left,
-            score: pair.score
-          },
-          selectedLeft?.id === pair.left.id,
-          () => handleLeftClick(pair.left)
-        )
-      )
-  }
->
-  {Row}
-</List>
+<Virtuoso
+  style={{ height: 700 }}
+  data={[...suggestedPairs].sort((a, b) => b.score - a.score)}
+  itemContent={(index, pair) => (
+    renderMatch(
+      {
+        ...pair.left,
+        score: pair.score
+      },
+      selectedLeft?.id === pair.left.id,
+      () => handleLeftClick(pair.left)
+    )
+  )}
+/>
           </div>
         </div>
 
@@ -615,31 +607,23 @@ const Row = ({ index, style, data }) => {
               padding: 10
             }}
           >
-<List
-  height={700}
-  itemCount={suggestedPairs.length}
-  itemSize={240}
-  width={"100%"}
-  itemData={
-    suggestedPairs
-      .sort((a, b) => b.score - a.score)
-      .map(pair =>
-        pair.right
-          ? renderMatch(
-              {
-                ...pair.right,
-                score: pair.score
-              },
-              selectedRight?.id === pair.right.id,
-              () => handleRightClick(pair.right),
-              true
-            )
-          : null
-      )
+<Virtuoso
+  style={{ height: 700 }}
+  data={[...suggestedPairs].sort((a, b) => b.score - a.score)}
+  itemContent={(index, pair) =>
+    pair.right
+      ? renderMatch(
+          {
+            ...pair.right,
+            score: pair.score
+          },
+          selectedRight?.id === pair.right.id,
+          () => handleRightClick(pair.right),
+          true
+        )
+      : null
   }
->
-  {Row}
-</List>
+/>
 
           </div>
         </div>
