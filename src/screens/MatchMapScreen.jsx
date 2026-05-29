@@ -252,17 +252,29 @@ const sofaMatches = useMemo(() => {
     });
 
 }, [upcomingSofaMatches]);
-const suggestedPairs = useMemo(() => {
+const sofaIndexByLeague = useMemo(() => {
+  const map = new Map();
 
+  for (const m of sofaMatches) {
+    const key = (m.league || "").toLowerCase();
+
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(m);
+  }
+
+  return map;
+}, [sofaMatches]);
+const suggestedPairs = useMemo(() => {
   return screen3Matches.map(left => {
+    const leagueKey = (left.league || "").toLowerCase();
+
+    const candidates = sofaIndexByLeague.get(leagueKey) || sofaMatches;
 
     let best = null;
     let bestScore = 0;
 
-    for (const right of sofaMatches) {
-
-      const score =
-        getMatchScore(left, right);
+    for (const right of candidates) {
+      const score = getMatchScore(left, right);
 
       if (score > bestScore) {
         bestScore = score;
@@ -275,11 +287,8 @@ const suggestedPairs = useMemo(() => {
       right: best,
       score: bestScore
     };
-
   });
-
-}, [screen3Matches, sofaMatches]);
-
+}, [screen3Matches, sofaMatches, sofaIndexByLeague]);
   // =========================
   // SAVE PAIR
   // =========================
