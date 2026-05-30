@@ -53,7 +53,7 @@ const {
   blockMatchImport
 } = useContext(MatchesContext);
 
-  const [hiddenScreen3Matches, setHiddenScreen3Matches] = useState(() => {
+const [hiddenScreen3Matches, setHiddenScreen3Matches] = useState(() => {
   try {
     return JSON.parse(
       localStorage.getItem("hiddenScreen3Matches")
@@ -62,14 +62,31 @@ const {
     return [];
   }
 });
-  const [selectedLeft, setSelectedLeft] = useState(null);
-  const [selectedRight, setSelectedRight] = useState(null);
+
+const [blockedLeagues, setBlockedLeagues] = useState(() => {
+  try {
+    return JSON.parse(localStorage.getItem("blockedLeagues")) || [];
+  } catch {
+    return [];
+  }
+});
+
+const [selectedLeft, setSelectedLeft] = useState(null);
+const [selectedRight, setSelectedRight] = useState(null);
+
 useEffect(() => {
   localStorage.setItem(
     "hiddenScreen3Matches",
     JSON.stringify(hiddenScreen3Matches)
   );
 }, [hiddenScreen3Matches]);
+
+useEffect(() => {
+  localStorage.setItem(
+    "blockedLeagues",
+    JSON.stringify(blockedLeagues)
+  );
+}, [blockedLeagues]);
   // =========================
   // SCREEN3 MATCHES
   // =========================
@@ -179,8 +196,15 @@ const sofaMatches = useMemo(() => {
 
   const seen = new Set();
 
-  return upcomingSofaMatches
-    .filter(m => {
+return upcomingSofaMatches
+  // ⛔ BLOCKED LEAGUES FILTER (NOVO)
+  .filter(m => {
+    const leagueKey = (m.Liga || m.liga || "").toLowerCase();
+    return !blockedLeagues.includes(leagueKey);
+  })
+
+  // EXISTING DEDUPE (NE DIRAJ)
+  .filter(m => {
 
       const key = [
         m.Liga || m.liga || "",
@@ -404,18 +428,19 @@ const handleDeleteSofaLeague = (leagueName) => {
 // BLOCK IMPORT
 // =========================
 const handleBlockImport = (match) => {
-  if (
-    !window.confirm(
-      "Blokirati budući import ovog meča i lige?"
-    )
-  ) {
+  if (!window.confirm("Blokirati celu ligu zauvek iz Upcoming Sofa?")) {
     return;
   }
 
-blockMatchImport(match.original);
-removeUpcomingMatch(match.original);
-};
+  const leagueKey = (match.league || "").toLowerCase();
 
+  setBlockedLeagues(prev => {
+    if (prev.includes(leagueKey)) return prev;
+    return [...prev, leagueKey];
+  });
+
+  removeUpcomingMatch(match.original);
+};
   // =========================
   // MATCH CARD
   // =========================
