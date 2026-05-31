@@ -67,6 +67,8 @@ const handleScroll = (e) => {
     }
   };
 // ================= IMPORT =================
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 const handleImport = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -74,141 +76,85 @@ const handleImport = async (e) => {
   try {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
-
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet);
-    console.log(json[0]);
 
-// ================= NORMALIZACIJA =================
+    log(`RAW rows: ${json.length}`);
 
-// 1. UNIQUE liste
-const teamsSet = new Set();
-const leaguesSet = new Set();
-const countriesSet = new Set();
+    // =========================
+    // 1. GLOBAL DEDUPE (KRITIČNO)
+    // =========================
+    const map = new Map();
 
-json.forEach((r) => {
-  if (r.home) teamsSet.add(r.home);
-  if (r.away) teamsSet.add(r.away);
-  if (r.league) leaguesSet.add(r.league);
-  if (r.country) countriesSet.add(r.country);
-});
+    for (const r of json) {
+      const key = `${r.home}-${r.away}-${r.date}-${r.time}`;
 
-// 2. INSERT (ignore duplicates)
-await supabase.from("teams").upsert(
-  Array.from(teamsSet).map((name) => ({
-    name,
-    source: "sofa"
-  })),
-  { onConflict: "name,source" }
-);
+      if (!map.has(key)) {
+        map.set(key, {
+          source: "sofa",
+          match_date: r.date || "",
+          match_time: r.time || "",
 
-await supabase.from("countries").upsert(
-  Array.from(countriesSet).map((name) => ({
-    name
-  })),
-  { onConflict: "name" }
-);
+          raw_home: r.home || "",
+          raw_away: r.away || "",
+          raw_league: r.league || "",
 
-// 3. UZMI ID MAP
-const { data: teamsData } = await supabase
-  .from("teams")
-  .select("id,name,source");
+          ht: r.ht || "",
+          sh: r.sh || "",
+          ft: r.ft || "",
+          extratime: r.et || "",
+          penalties: r.pen || "",
 
-const { data: leaguesData } = await supabase
-  .from("leagues")
-  .select("id,name");
+          country_id: null,
+          country_iso: countryAliasToISO[r.country] || null,
 
-const { data: countriesData } = await supabase
-  .from("countries")
-  .select("id,name");
+          home_team_id: null,
+          away_team_id: null,
+          league_id: null
+        });
+      }
+    }
 
-const teamMap = {};
-const leagueMap = {};
-const countryMap = {};
+    const rows = Array.from(map.values());
 
-teamsData.forEach(t => {
-  teamMap[t.name] = t.id;
-});
+    log(`UNIQUE rows: ${rows.length}`);
 
-leaguesData.forEach(l => {
-  leagueMap[l.name] = l.id;
-});
+    // =========================
+    // 2. SMALL CHUNKS (STABILNO)
+    // =========================
+    const CHUNK = 100;
 
-countriesData.forEach(c => {
-  countryMap[c.name] = c.id;
-});
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const batch = rows.slice(i, i + CHUNK);
 
-// 4. LEAGUES (FIXED - bez bugova i bez undefined order problema)
-await supabase.from("leagues").upsert(
-  Array.from(leaguesSet).map((name) => {
-const sampleRow = json.find(r => r.league === name);
+      log(`Uploading ${i + 1}-${i + batch.length}`);
 
-const countryName = sampleRow?.country?.trim() || null;
+      let retry = 0;
+      let success = false;
 
-    return {
-      name,
-      country_id: countryName ? countryMap[countryName] || null : null,
-      country: countryName || null   // 🔥 DODATO
-    };
-  }),
-  { onConflict: "name" }
-);
-// 4. MATCHES
-const normalized = json.map((r) => ({
-  id: `${r.home}-${r.away}-${r.date}-${r.time}`,
+      while (!success && retry < 3) {
+        const { error } = await supabase
+          .from("matches")
+          .upsert(batch, {
+            onConflict: "source,raw_home,raw_away,match_date,match_time"
+          });
 
-  datum: r.date || "",
-  vreme: r.time || "",
+        if (!error) {
+          success = true;
+        } else {
+          console.log("BATCH ERROR:", error);
+          retry++;
+          log(`Retry ${retry}...`);
+          await sleep(800 * retry);
+        }
+      }
 
-  home_id: teamMap[r.home] || null,
-  away_id: teamMap[r.away] || null,
-  league_id: leagueMap[r.league] || null,
-  country_id: countryMap[r.country] || null,
+      if (!success) {
+        throw new Error("Batch failed after retries");
+      }
+    }
 
-  liga: r.league || "",
-  home: r.home || "",
-  away: r.away || "",
-  country: r.country || "",
-  country_iso: countryAliasToISO[r.country] || "",
-  
-  status: r.status || "",
-
-  ht: r.ht || "",
-  sh: r.sh || "",
-  ft: r.ft || "",
-  extratime: r.et || "",
-  penalties: r.pen || "",
-}));
-setSofaRows(normalized);
-log("IMPORT: " + normalized.length);
-
-// 5. INSERT MATCHES
-const { error } = await supabase.from("matches").upsert(
-  normalized.map(r => ({
-    source: "sofa",
-
-    match_date: r.datum,
-    match_time: r.vreme,
-
-    raw_home: r.home,
-    raw_away: r.away,
-    raw_league: r.liga,
-    country_id: r.country_id,
-    country_iso: r.country_iso,    
-
-    home_team_id: r.home_id,
-    away_team_id: r.away_id,
-    league_id: r.league_id,
-
-    ht: r.ht,
-    sh: r.sh,
-    ft: r.ft,
-    extratime: r.extratime,
-    penalties: r.penalties
-  }))
-);
-
-if (error) console.log("INSERT ERROR:", error);
+    log(`DONE: ${rows.length} matches imported`);
 
   } catch (err) {
     log("IMPORT ERROR: " + err.message);
