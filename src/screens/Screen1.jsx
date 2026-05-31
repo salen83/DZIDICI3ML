@@ -5,6 +5,7 @@ import { useLeagueMap } from "../LeagueMapContext";
 import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { convertSofaToSyncJSONRaw } from "./ScreenJson";
 import { useSofa } from "../SofaContext";
+import countryAliasToISO from "../utils/countryAliasToISO";
 
 import { supabase } from "../supabase";
 import { mapMatchesToIds } from "../services/mapMatchesToIds";
@@ -83,8 +84,9 @@ const formatted = data.map((r, i) => ({
   datum: r.match_date || "",
   vreme: r.match_time || "",
   liga: r.league || "",
-home: r.home || "",
-away: r.away || "",
+  home: r.home || "",
+  away: r.away || "",
+  country: countryAliasToISO(r.country),
   ft: r.ft || "",
   ht: r.ht || "",
   sh: r.sh || ""

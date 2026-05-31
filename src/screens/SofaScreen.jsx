@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import "./SofaScreen.css";
 import { useSofa } from "../SofaContext";
 import { supabase } from "../supabase";
+import countryAliasToISO from "../utils/countryAliasToISO";
 
 // ================= SAFE ROW =================
 const safeRow = (r) => ({
@@ -18,6 +19,7 @@ away: r.raw_away || "",
   extratime: r.extratime || "",
   penalties: r.penalties || "",
   country: r.country_name || "",
+  country_iso: r.country_iso || "",
   source: r.source || "",
 });
 
@@ -167,7 +169,8 @@ const normalized = json.map((r) => ({
   home: r.home || "",
   away: r.away || "",
   country: r.country || "",
-
+  country_iso: countryAliasToISO[r.country] || "",
+  
   status: r.status || "",
 
   ht: r.ht || "",
@@ -191,6 +194,7 @@ const { error } = await supabase.from("matches").upsert(
     raw_away: r.away,
     raw_league: r.liga,
     country_id: r.country_id,
+    country_iso: r.country_iso,    
 
     home_team_id: r.home_id,
     away_team_id: r.away_id,
@@ -254,7 +258,8 @@ countriesData.forEach(c => {
 
 const normalized = allData.map(r => ({
   ...safeRow(r),
-  country: countryMap[r.country_id] || ""
+  country: countryMap[r.country_id] || "",
+  country_iso: r.country_iso || ""
 }));
 
 setSofaRows(normalized);

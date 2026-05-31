@@ -95,17 +95,18 @@ console.log({
       }
      console.log("✅ MATCH OK");
 
-      payload.push({
-        source: "screen1_mapped",
-        match_date: row.datum || "",
-        match_time: row.vreme || "",
-        league: mappedLeague,
-        home: mappedHome,
-        away: mappedAway,
-        ft: row.ft || "",
-        ht: row.ht || "",
-        sh: row.sh || ""
-      });
+payload.push({
+          source: "screen1_mapped",
+          match_date: row.datum || "",
+          match_time: row.vreme || "",
+          league: mappedLeague,
+          home: mappedHome,
+          away: mappedAway,
+          ft: row.ft || "",
+          ht: row.ht || "",
+          sh: row.sh || "",
+          country: row.country || ""
+        });
     }
 
     if (payload.length === 0) {

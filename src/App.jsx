@@ -35,8 +35,8 @@ import TicketPanel from "./components/TicketPanel";
 import "./App.css";
 
 const screens = [
-  { key: "screen1", title: "Rezultati" },
-  { key: "screen9", title: "Tiketi" },
+  { key: "screen1", title: "Rezultati" }, 
+  { key: "map", title: "MAP" },
   { key: "screen3", title: "Ponuda" },
   { key: "screen2", title: "Statistika timova" },
   { key: "screen2Liga", title: "Statistika lige" },
@@ -52,6 +52,7 @@ const screens = [
 
 export default function App() {
   const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
+  const [ticketMode, setTicketMode] = useState(false);
 
   const [jsonMode, setJsonMode] = useState(false);
   const [sofaMode, setSofaMode] = useState(false);
@@ -69,6 +70,7 @@ export default function App() {
   const renderNormalScreen = () => {
     switch (screens[currentScreenIndex].key) {
       case "screen1": return <Screen1 />;
+      case "map": return <MapScreen />;
       case "screen2": return <Screen2 />;
       case "screen2Liga": return <Screen2Liga />;
       case "screen3": return <Screen3 />;
@@ -77,7 +79,6 @@ export default function App() {
       case "screen6": return <Screen6 />;
       case "screen7": return <Screen7 />;
       case "screen8": return <Screen8 />;
-      case "screen9": return <Screen9 />;
       case "screen10": return <Screen10 />;
       case "screen11": return <Screen11 />;
       case "screen12": return <Screen12 />;
@@ -144,7 +145,12 @@ screens[currentScreenIndex].title}
 
                   {menuOpen && (
                     <div className="menu-panel">
-                      <button onClick={() => openMode(setMapMode)}>MAP</button>
+                      <button onClick={() => {
+  setMenuOpen(false);
+  setTicketMode(true);
+}}>
+  TIKETI
+</button>
                       <button onClick={() => openMode(setLeagueTeamMode)}>LEAGUE / TEAM</button>
                       <button onClick={() => openMode(setSofaMode)}>SOFA</button>
                       <button onClick={() => openMode(setUpcomingSofaMode)}>UPCOMING-SOFA</button>
@@ -159,16 +165,19 @@ screens[currentScreenIndex].title}
                   )}
 
                   <div className="screen-container">
-                      {leagueTeamMode ? <LeagueTeamScreen onClose={() => closeMode(setLeagueTeamMode)} /> :
-upcomingSofaMode ? <UpcomingSofa onClose={() => closeMode(setUpcomingSofaMode)} /> :
+{ticketMode ? (
+  <Screen9 onClose={() => setTicketMode(false)} />
+) : (
+  leagueTeamMode ? <LeagueTeamScreen onClose={() => closeMode(setLeagueTeamMode)} /> :
+  upcomingSofaMode ? <UpcomingSofa onClose={() => closeMode(setUpcomingSofaMode)} /> :
   teamMapMode ? <NormalisedTeamMapScreen onClose={() => closeMode(setTeamMapMode)} /> :
-  mapMode ? <MapScreen onClose={() => closeMode(setMapMode)} /> :
   sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
   jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
   leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
   matchMapMode ? <MatchMapScreen onClose={() => closeMode(setMatchMapMode)} /> :
   fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
-  renderNormalScreen()}
+  renderNormalScreen()
+)}
                   </div>
 
                   <TicketPanel />
