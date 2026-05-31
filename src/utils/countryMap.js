@@ -1,4 +1,6 @@
 const COUNTRY_MAP = {
+  "IL": { iso: "IL", label: "Israel", flag: "il" },
+  "IE": { iso: "IE", label: "Ireland", flag: "ie" },
   "BR": { iso: "BR", label: "Brazil", flag: "br" },
   "AR": { iso: "AR", label: "Argentina", flag: "ar" },
   "AU": { iso: "AU", label: "Australia", flag: "au" },

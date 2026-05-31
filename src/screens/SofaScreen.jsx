@@ -66,8 +66,10 @@ const handleScroll = (e) => {
       setNewLeague("");
     }
   };
-// ================= IMPORT =================
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+let countryNameToId = {};
+// ================= IMPORT =================
 
 const handleImport = async (e) => {
   const file = e.target.files[0];
@@ -81,13 +83,23 @@ const handleImport = async (e) => {
 
     log(`RAW rows: ${json.length}`);
 
+const { data: countriesData } = await supabase
+  .from("countries")
+  .select("id,name");
+
+countryNameToId = {};
+
+countriesData?.forEach(c => {
+  countryNameToId[c.name.trim()] = c.id;
+});
     // =========================
     // 1. GLOBAL DEDUPE (KRITIČNO)
     // =========================
     const map = new Map();
 
     for (const r of json) {
-      const key = `${r.home}-${r.away}-${r.date}-${r.time}`;
+const countryRaw = (r.country || "").trim();
+const key = `${(r.home||"").trim()}-${(r.away||"").trim()}-${r.date}-${r.time}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -105,8 +117,8 @@ const handleImport = async (e) => {
           extratime: r.et || "",
           penalties: r.pen || "",
 
-          country_id: null,
-          country_iso: countryAliasToISO[r.country] || null,
+country_id: countryNameToId[countryRaw] ?? null,
+country_iso: countryAliasToISO(countryRaw) || "",
 
           home_team_id: null,
           away_team_id: null,
