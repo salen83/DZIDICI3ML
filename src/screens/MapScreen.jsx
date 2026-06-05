@@ -12,9 +12,8 @@ export default function MapScreen({ onClose }) {
 
 if (rows) {
   rows.forEach(match => {
-const countryName = match.country;
-if (!countryName) return;
-    const leagueName = match.liga || "Unknown";
+const countryName = match.country || "Unknown";
+const leagueName = match.liga || "Unknown";
 
     if (!leaguesByCountry[countryName]) {
       leaguesByCountry[countryName] = [];

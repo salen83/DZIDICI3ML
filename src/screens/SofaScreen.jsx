@@ -32,6 +32,7 @@ export default function SofaScreen({ onClose }) {
   const tableRef = useRef(null);
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
+ const [blockedLeagues, setBlockedLeagues] = useState([]);
 
 const rowHeight = 32;
 const containerHeight = 600;
@@ -47,6 +48,12 @@ const handleScroll = (e) => {
   setScrollTop(e.target.scrollTop);
 };
 
+useEffect(() => {
+   const blocked = JSON.parse(
+localStorage.getItem("blockedSofaLeagues") || "[]"
+    );
+   setBlockedLeagues(blocked);
+  }, []);
   const log = (m) => {
     console.log("[SOFA]", m);
     setLogs((p) => [...p.slice(-80), m]);
@@ -98,6 +105,7 @@ countriesData?.forEach(c => {
     const map = new Map();
 
     for (const r of json) {
+if (blockedLeagues.includes(r.league)) continue;
 const countryRaw = (r.country || "").trim();
 const key = `${(r.home||"").trim()}-${(r.away||"").trim()}-${r.date}-${r.time}`;
 

@@ -1,4 +1,15 @@
 const COUNTRY_MAP = {
+  "CO": { iso: "CO", label: "Colombia", flag: "co" },
+  "UZ": { iso: "UZ", label: "Uzbekistan", flag: "uz" },
+  "TZ": { iso: "TZ", label: "Zanzibar", flag: "tz" },
+  "SA": { iso: "SA", label: "South America", flag: "sa" },
+  "ET": { iso: "ET", label: "Ethiopia", flag: "et" },
+  "IS": { iso: "IS", label: "Iceland", flag: "is" },
+  "LV": { iso: "LV", label: "Latvia", flag: "lv" },
+  "RW": { iso: "RW", label: "Rwanda", flag: "rw" },
+  "SL": { iso: "SL", label: "Sierra Leone", flag: "sl" },
+  "BA": { iso: "BA", label: "Bosnia & Herzegovina", flag: "ba" },
+  "AM": { iso: "AM", label: "Armenia", flag: "am" },
   "IL": { iso: "IL", label: "Israel", flag: "il" },
   "IE": { iso: "IE", label: "Ireland", flag: "ie" },
   "BR": { iso: "BR", label: "Brazil", flag: "br" },
@@ -55,11 +66,15 @@ const COUNTRY_MAP = {
 export function getCountryMeta(country) {
   if (!country) return null;
 
-  return COUNTRY_MAP[country] || {
-    iso: "",
-    label: country,
-    flag: ""
-  };
+const meta = COUNTRY_MAP[country];
+
+if (meta) return meta;
+
+return {
+  iso: country,
+  label: country,
+  flag: "" // nema zastavice ali ne puca UI
+};
 }
 export function getCountryIso(country) {
   return getCountryMeta(country)?.iso || "";
