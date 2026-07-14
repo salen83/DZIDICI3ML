@@ -206,24 +206,27 @@ const sofaMatches = useMemo(() => {
 return upcomingSofaMatches
   // ⛔ BLOCKED LEAGUES FILTER (NOVO)
   .filter(m => {
-const leagueKey = (
-  m.League ||
-  m.league ||
-  m.Liga ||
-  m.liga ||
-  ""
-).toLowerCase();
+    const leagueKey = (
+      m.League ||
+      m.league ||
+      m.Liga ||
+      m.liga ||
+      ""
+    ).toLowerCase();
+
+    return !blockedLeagues.includes(leagueKey);
   })
 
   // EXISTING DEDUPE (NE DIRAJ)
   .filter(m => {
 
-m.League || m.league || m.Liga || m.liga || "",
-m.Home || m.home || m.Domacin || m.domacin || "",
-m.Away || m.away || m.Gost || m.gost || "",
-m.Date || m.date || m.Datum || m.datum || "",
-m.Time || m.time || m.Vreme || m.vreme || ""
-      ].join("|");
+    const key = [
+      m.League || m.league || m.Liga || m.liga || "",
+      m.Home || m.home || m.Domacin || m.domacin || "",
+      m.Away || m.away || m.Gost || m.gost || "",
+      m.Date || m.date || m.Datum || m.datum || "",
+      m.Time || m.time || m.Vreme || m.vreme || ""
+    ].join("|");
 
       if (seen.has(key)) {
         return false;
