@@ -103,9 +103,9 @@ const screen3Matches = useMemo(() => {
 
       return !hiddenScreen3Matches.some(h =>
 
-        h.home === (m.Home || m.home || "") &&
-        h.away === (m.Away || m.away || "") &&
-        h.league === (m.Liga || m.liga || "")
+h.home === (m.Home || m.home || m.Domacin || m.domacin || "") &&
+h.away === (m.Away || m.away || m.Gost || m.gost || "") &&
+h.league === (m.League || m.league || m.Liga || m.liga || "")
 
       );
 
@@ -116,15 +116,15 @@ const screen3Matches = useMemo(() => {
 
       const key = [
 
-        m.Liga || m.liga || "",
+m.League || m.league || m.Liga || m.liga || "",
 
-        m.Home || m.home || "",
+m.Home || m.home || m.Domacin || m.domacin || "",
 
-        m.Away || m.away || "",
+m.Away || m.away || m.Gost || m.gost || "",
 
-        m.Date || m.date || m.Datum || m.datum || "",
+m.Date || m.date || m.Datum || m.datum || "",
 
-        m.Time || m.time || ""
+m.Time || m.time || m.Vreme || m.vreme || ""
 
       ].join("|");
 
@@ -143,33 +143,40 @@ const screen3Matches = useMemo(() => {
 
       id: "s3_" + i,
 
-      league:
-        m.Liga ||
-        m.liga ||
-        "",
+league:
+  m.League ||
+  m.league ||
+  m.Liga ||
+  m.liga ||
+  "",
 
-      home:
-        m.Home ||
-        m.home ||
-        "",
+home:
+  m.Home ||
+  m.home ||
+  m.Domacin ||
+  m.domacin ||
+  "",
 
-      away:
-        m.Away ||
-        m.away ||
-        "",
+away:
+  m.Away ||
+  m.away ||
+  m.Gost ||
+  m.gost ||
+  "",
 
-      date:
-        m.Date ||
-        m.date ||
-        m.Datum ||
-        m.datum ||
-        "",
+date:
+  m.Date ||
+  m.date ||
+  m.Datum ||
+  m.datum ||
+  "",
 
-      time:
-        m.Time ||
-        m.time ||
-        ""
-
+time:
+  m.Time ||
+  m.time ||
+  m.Vreme ||
+  m.vreme ||
+  ""
     }))
 
     // SORT
@@ -199,19 +206,23 @@ const sofaMatches = useMemo(() => {
 return upcomingSofaMatches
   // ⛔ BLOCKED LEAGUES FILTER (NOVO)
   .filter(m => {
-    const leagueKey = (m.Liga || m.liga || "").toLowerCase();
-    return !blockedLeagues.includes(leagueKey);
+const leagueKey = (
+  m.League ||
+  m.league ||
+  m.Liga ||
+  m.liga ||
+  ""
+).toLowerCase();
   })
 
   // EXISTING DEDUPE (NE DIRAJ)
   .filter(m => {
 
-      const key = [
-        m.Liga || m.liga || "",
-        m.home || m.Home || "",
-        m.away || m.Away || "",
-        m.Date || m.date || m.Datum || m.datum || "",
-        m.Time || m.time || ""
+m.League || m.league || m.Liga || m.liga || "",
+m.Home || m.home || m.Domacin || m.domacin || "",
+m.Away || m.away || m.Gost || m.gost || "",
+m.Date || m.date || m.Datum || m.datum || "",
+m.Time || m.time || m.Vreme || m.vreme || ""
       ].join("|");
 
       if (seen.has(key)) {
@@ -227,41 +238,45 @@ return upcomingSofaMatches
 
       id: "sf_" + i,
 
-      league:
-        m.Liga ||
-        m.liga ||
-        "",
+league:
+  m.League ||
+  m.league ||
+  m.Liga ||
+  m.liga ||
+  "",
 
-      country:
-        m.Country ||
-        m.country ||
-        "",
+country:
+  m.Country ||
+  m.country ||
+  "",
 
-      home:
-        m.home ||
-        m.Home ||
-        m.domacin ||
-        m.Domacin ||
-        "",
+home:
+  m.Home ||
+  m.home ||
+  m.Domacin ||
+  m.domacin ||
+  "",
 
-      away:
-        m.away ||
-        m.Away ||
-        m.gost ||
-        m.Gost ||
-        "",
+away:
+  m.Away ||
+  m.away ||
+  m.Gost ||
+  m.gost ||
+  "",
 
-      date:
-        m.Date ||
-        m.date ||
-        m.Datum ||
-        m.datum ||
-        "",
+date:
+  m.Date ||
+  m.date ||
+  m.Datum ||
+  m.datum ||
+  "",
 
-      time:
-        m.Time ||
-        m.time ||
-        ""
+time:
+  m.Time ||
+  m.time ||
+  m.Vreme ||
+  m.vreme ||
+  ""
     }))
     .sort((a, b) => {
 
@@ -275,7 +290,7 @@ return upcomingSofaMatches
 
     });
 
-}, [upcomingSofaMatches]);
+}, [upcomingSofaMatches, blockedLeagues]);
 const sofaIndexByLeague = useMemo(() => {
   const map = new Map();
 

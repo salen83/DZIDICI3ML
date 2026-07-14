@@ -30,10 +30,31 @@ export const mapMatchesToIds = async ({ supabase, addLog }) => {
     addLog?.("Ucitavam matches za mapiranje...");
 
     // uzmi samo one gdje fali ID
-    const { data: matches, error } = await supabase
-      .from("matches")
-      .select("*")
-      .or("home_team_id.is.null,away_team_id.is.null,league_id.is.null");
+let from = 0;
+const pageSize = 1000;
+let matches = [];
+let batch;
+
+while (true) {
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .or("home_team_id.is.null,away_team_id.is.null,league_id.is.null")
+    .range(from, from + pageSize - 1);
+
+  if (error) {
+    console.error(error);
+    break;
+  }
+
+  if (!data || data.length === 0) break;
+
+  matches = matches.concat(data);
+
+  if (data.length < pageSize) break;
+
+  from += pageSize;
+}
 
     if (error) {
       console.error(error);

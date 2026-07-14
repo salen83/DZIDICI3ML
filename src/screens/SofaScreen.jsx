@@ -90,8 +90,11 @@ const handleImport = async (e) => {
 
     log(`RAW rows: ${json.length}`);
 
-const { data: countriesData } = await supabase
-  .from("countries")
+console.log("SOFA FIRST ROW:", json[0]);
+console.log("SOFA COLUMNS:", Object.keys(json[0] || {}));
+
+const { data: countriesData, error } = await supabase
+  .from("sofa_countries")
   .select("id,name");
 
 countryNameToId = {};
@@ -107,17 +110,17 @@ countriesData?.forEach(c => {
     for (const r of json) {
 if (blockedLeagues.includes(r.league)) continue;
 const countryRaw = (r.country || "").trim();
-const key = `${(r.home||"").trim()}-${(r.away||"").trim()}-${r.date}-${r.time}`;
+const key = `${(r.home || r.Home || r["Home team"] || "").trim()}-${(r.away || r.Away || r["Away team"] || "").trim()}-${r.date || r.Date || r.match_date || ""}-${r.time || r.Time || r.match_time || ""}`;
 
       if (!map.has(key)) {
         map.set(key, {
           source: "sofa",
-          match_date: r.date || "",
-          match_time: r.time || "",
+          match_date: r.date || r.Date || r.match_date || "",
+          match_time: r.time || r.Time || r.match_time || "",
 
-          raw_home: r.home || "",
-          raw_away: r.away || "",
-          raw_league: r.league || "",
+          raw_home: r.home || r.Home || r["Home team"] || "",
+          raw_away: r.away || r.Away || r["Away team"] || "",
+          raw_league: r.league || r.League || "",
 
           ht: r.ht || "",
           sh: r.sh || "",
@@ -213,10 +216,9 @@ useEffect(() => {
     }
 
     if (alive) {
-const { data: countriesData } = await supabase
-  .from("countries")
+const { data: countriesData, error } = await supabase
+  .from("sofa_countries")
   .select("id,name");
-
 const countryMap = {};
 countriesData.forEach(c => {
   countryMap[c.id] = c.name;

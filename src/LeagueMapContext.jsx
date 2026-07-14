@@ -32,7 +32,7 @@ const { data: aliases } = await supabase
   .select("alias, league_id");
 
 const { data: leagues } = await supabase
-  .from("leagues")
+  .from("sofa_leagues")
   .select("id, name");
 
 if (!aliases || !leagues) return;

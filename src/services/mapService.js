@@ -73,18 +73,18 @@ export async function saveDeletedSofaTeams(teams) {
 export async function loadLeagueAliases() {
   const { data, error } = await supabase
     .from("league_aliases")
-    .select("alias,country");
+    .select("alias,country_id");
 
   if (error) {
     console.log("❌ loadLeagueAliases:", error);
     return new Set();
   }
 
-  return new Set(
-    (data || []).map(d =>
-      d.country ? `${d.alias}|||${d.country}` : d.alias
-    )
-  );
+return new Set(
+  (data || []).map(d =>
+    d.country_id ? `${d.alias}|||${d.country_id}` : d.alias
+  )
+);
 }
 
 export async function loadTeamAliases() {
@@ -158,19 +158,18 @@ export async function insertTeamPairService(screen3Team, sofaTeam) {
   if (existing && existing.length > 0) {
     teamId = existing[0].team_id;
   } else {
-    let { data: team } = await supabase
-      .from("teams")
-      .select("id")
-      .eq("name", screen3Team)
-      .eq("source", "screen3")
-      .maybeSingle();
+     let { data: team } = await supabase
+  .from("sofa_teams")
+  .select("id")
+  .eq("name", screen3Team)
+  .eq("source", "screen3")
+  .maybeSingle();
 
     if (!team) {
       const res = await supabase
-        .from("teams")
+        .from("sofa_teams")
         .select("id")
         .eq("name", sofaTeam)
-        .eq("source", "sofa")
         .maybeSingle();
 
       team = res.data;
@@ -221,22 +220,22 @@ const countryFromMap = countryArg || null;
     .in("alias", [screen3League, cleanL2]);
 
   const { data: league } = await supabase
-    .from("leagues")
-    .select("id, country, name")
+    .from("sofa_leagues")
+    .select("id, country_id, name")
     .eq("name", screen3League)
     .single();
 
   if (!league) return;
 
 const { data: dbLeague } = await supabase
-  .from("leagues")
-  .select("country")
+  .from("sofa_leagues")
+  .select("country_id")
   .ilike("name", `%${cleanL2.trim()}%`)
   .maybeSingle();
 
 const finalCountry =
-  dbLeague?.country ||
-  league?.country ||
+  dbLeague?.country_id ||
+  league?.country_id ||
   countryFromMap ||
   null;
 
@@ -249,7 +248,7 @@ const finalCountry =
     inserts.push({
       alias: screen3League,
       league_id: leagueId,
-      country: finalCountry,
+      country_id: finalCountry,
       source: "screen3"
     });
   }
@@ -259,7 +258,7 @@ const finalCountry =
     inserts.push({
       alias: cleanL2,
       league_id: leagueId,
-      country: finalCountry,
+      country_id: finalCountry,
       source: "sofa"
     });
   }
@@ -271,16 +270,16 @@ const finalCountry =
 export async function getPairedLeaguesSet() {
   const { data, error } = await supabase
     .from("league_aliases")
-    .select("alias,country");
+    .select("alias,country_id");
 
   if (error) {
     console.log("❌ getPairedLeaguesSet:", error);
     return new Set();
   }
 
-  return new Set(
-    (data || []).map(d =>
-      d.country ? `${d.alias}|||${d.country}` : d.alias
-    )
-  );
+return new Set(
+  (data || []).map(d =>
+    d.country_id ? `${d.alias}|||${d.country_id}` : d.alias
+  )
+);
 }
