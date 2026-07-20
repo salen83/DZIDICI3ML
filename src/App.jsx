@@ -22,6 +22,7 @@ import LeagueTeamScreen from "./screens/LeagueTeamScreen";
 import LeagueMapScreen from "./screens/LeagueMapScreen";
 import FullScreen from "./screens/FullScreen";
 import MatchMapScreen from "./screens/MatchMapScreen";
+import CountryMapScreen from "./screens/CountryMapScreen";
 
 import { MatchesProvider } from "./MatchesContext";
 import { NormalisedTeamMapProvider } from "./NormalisedTeamMapContext";
@@ -63,6 +64,7 @@ export default function App() {
   const [leagueMapMode, setLeagueMapMode] = useState(false);
   const [fullMode, setFullMode] = useState(false);
   const [matchMapMode, setMatchMapMode] = useState(false);
+  const [countryMapMode, setCountryMapMode] = useState(false);  
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [prevScreenIndex, setPrevScreenIndex] = useState(0);
@@ -118,13 +120,14 @@ export default function App() {
 
                     <button
                       onClick={() => setCurrentScreenIndex(i => Math.max(i - 1, 0))}
-                      disabled={currentScreenIndex === 0 || mapMode || sofaMode || upcomingSofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode || matchMapMode}
+                     disabled={currentScreenIndex === 0 || mapMode || sofaMode || upcomingSofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode || matchMapMode || countryMapMode}
                     >
                       ◀
                     </button>
 
                     <span style={{ margin: "0 10px" }}>
-{matchMapMode ? "MATCH MAP SCREEN" :
+{countryMapMode ? "COUNTRY MAP SCREEN" :
+matchMapMode ? "MATCH MAP SCREEN" :
 leagueTeamMode ? "LEAGUE / TEAM SCREEN" :
 upcomingSofaMode ? "UPCOMING-SOFA" :
 teamMapMode ? "NORMALISED TEAM MAP SCREEN" :
@@ -137,7 +140,7 @@ screens[currentScreenIndex].title}
 
                     <button
                       onClick={() => setCurrentScreenIndex(i => Math.min(i + 1, screens.length - 1))}
-                      disabled={currentScreenIndex === screens.length - 1 || mapMode || sofaMode || upcomingSofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode || matchMapMode}
+                      disabled={currentScreenIndex === screens.length - 1 || mapMode || sofaMode || upcomingSofaMode || jsonMode || teamMapMode || leagueTeamMode || leagueMapMode || matchMapMode || countryMapMode}
                     >
                       ▶
                     </button>
@@ -161,6 +164,9 @@ screens[currentScreenIndex].title}
                       <button onClick={() => openMode(setMatchMapMode)}>
   MATCH MAP
 </button>
+<button onClick={() => openMode(setCountryMapMode)}>
+  COUNTRY MAP
+</button>
                     </div>
                   )}
 
@@ -168,15 +174,16 @@ screens[currentScreenIndex].title}
 {ticketMode ? (
   <Screen9 onClose={() => setTicketMode(false)} />
 ) : (
-  leagueTeamMode ? <LeagueTeamScreen onClose={() => closeMode(setLeagueTeamMode)} /> :
-  upcomingSofaMode ? <UpcomingSofa onClose={() => closeMode(setUpcomingSofaMode)} /> :
-  teamMapMode ? <NormalisedTeamMapScreen onClose={() => closeMode(setTeamMapMode)} /> :
-  sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
-  jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
-  leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
-  matchMapMode ? <MatchMapScreen onClose={() => closeMode(setMatchMapMode)} /> :
-  fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
-  renderNormalScreen()
+leagueTeamMode ? <LeagueTeamScreen onClose={() => closeMode(setLeagueTeamMode)} /> :
+upcomingSofaMode ? <UpcomingSofa onClose={() => closeMode(setUpcomingSofaMode)} /> :
+teamMapMode ? <NormalisedTeamMapScreen onClose={() => closeMode(setTeamMapMode)} /> :
+sofaMode ? <SofaScreen onClose={() => closeMode(setSofaMode)} /> :
+jsonMode ? <ScreenJson onClose={() => closeMode(setJsonMode)} /> :
+leagueMapMode ? <LeagueMapScreen onClose={() => closeMode(setLeagueMapMode)} /> :
+matchMapMode ? <MatchMapScreen onClose={() => closeMode(setMatchMapMode)} /> :
+countryMapMode ? <CountryMapScreen onClose={() => closeMode(setCountryMapMode)} /> :
+fullMode ? <FullScreen onClose={() => closeMode(setFullMode)} /> :
+renderNormalScreen()
 )}
                   </div>
 

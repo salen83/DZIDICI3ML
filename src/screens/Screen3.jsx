@@ -16,11 +16,24 @@ export default function Screen3() {
   const buffer = 15;
   const containerHeight = 600;
 
-  // load from localStorage
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("futureMatches") || "[]");
-    setFutureMatches(saved);
-  }, [setFutureMatches]);
+// load from Supabase
+useEffect(() => {
+  async function loadMatches() {
+    const { data, error } = await supabase
+      .from("future_matches")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.error("Future matches load error:", error);
+      return;
+    }
+
+    setFutureMatches(data || []);
+  }
+
+  loadMatches();
+}, [setFutureMatches]);
 
   const totalRows = futureMatches?.length || 0;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
@@ -120,11 +133,11 @@ const syncLeaguesAndTeams = async (rows) => {
   });
 
   // ===== IMPORT =====
-  const importExcel = (event) => {
+const importExcel = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+reader.onload = async (e) => {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
@@ -149,44 +162,90 @@ const newRows = data.map((r) => ({
 }));
 
 // ===== SUPABASE SYNC ON IMPORT =====
-(async () => {
-  try {
-    await syncLeaguesAndTeams(newRows);
-  } catch (err) {
-    console.error("Supabase sync failed:", err);
-  }
-})();
+try {
+  await syncLeaguesAndTeams(newRows);
+} catch (err) {
+  console.error("Supabase sync failed:", err);
+}
 
-      const allRows = sortRowsByDateDesc([...(futureMatches || []), ...newRows]);
-      allRows.forEach((r,i)=>r.rb=i+1);
-      setFutureMatches(allRows);
-      localStorage.setItem('futureMatches', JSON.stringify(allRows));
+const allRows = sortRowsByDateDesc([...(futureMatches || []), ...newRows]);
+allRows.forEach((r,i)=>r.rb=i+1);
+
+const { data: insertedRows, error } = await supabase
+  .from("future_matches")
+  .insert(
+  newRows.map(({ _new, ...row }) => row)
+)
+  .select();
+
+console.log("Inserted:", insertedRows);
+console.error("Insert error:", error);
+
+setFutureMatches(allRows);
     };
     reader.readAsBinaryString(file);
   };
 
-  const addNewRow = () => {
-    const newRow = { rb:0, datum:'', vreme:'', liga:'', home:'', away:'', _new:true };
-    const newRows = [newRow, ...(futureMatches||[])];
-    newRows.forEach((r,i)=>r.rb=i+1);
-    setFutureMatches(newRows);
-    localStorage.setItem('futureMatches', JSON.stringify(newRows));
+const addNewRow = async () => {
+
+  const newRow = {
+    datum:'',
+    vreme:'',
+    liga:'',
+    home:'',
+    away:''
   };
 
-  const deleteRow = (index) => {
-    const copy = [...futureMatches];
-    copy.splice(index,1);
-    copy.forEach((r,i)=>r.rb=i+1);
-    setFutureMatches(copy);
-    localStorage.setItem('futureMatches', JSON.stringify(copy));
-  };
+  const { data, error } = await supabase
+    .from("future_matches")
+    .insert(newRow)
+    .select()
+    .single();
 
-  const deleteAllRows = () => {
-    if(window.confirm("Da li ste sigurni da želite da obrišete sve mečeve?")) {
-      setFutureMatches([]);
-      localStorage.setItem('futureMatches', JSON.stringify([]));
-    }
-  };
+  if(error){
+    console.error("Add match error:", error);
+    return;
+  }
+
+  setFutureMatches(prev => [data, ...prev]);
+};
+
+const deleteRow = async (index) => {
+
+  const row = futureMatches[index];
+
+  const { error } = await supabase
+    .from("future_matches")
+    .delete()
+    .eq("id", row.id);
+
+  if(error){
+    console.error("Delete error:", error);
+    return;
+  }
+
+  setFutureMatches(prev =>
+    prev.filter((_,i)=>i !== index)
+  );
+};
+
+const deleteAllRows = async () => {
+
+  if(!window.confirm("Da li ste sigurni da želite da obrišete sve mečeve?"))
+    return;
+
+  const { error } = await supabase
+    .from("future_matches")
+    .delete()
+    .neq("id",0);
+
+  if(error){
+    console.error("Delete all error:", error);
+    return;
+  }
+
+  setFutureMatches([]);
+};
 
   const handleEditStart = (rowIdx, colKey) => setEditing({row: rowIdx, col: colKey});
   const handleEditEnd = () => setEditing({row:null, col:null});
@@ -204,7 +263,6 @@ const newRows = data.map((r) => ({
     const sorted = sortRowsByDateDesc(copy);
     sorted.forEach((r,i)=>r.rb=i+1);
     setFutureMatches(sorted);
-    localStorage.setItem('futureMatches', JSON.stringify(sorted));
   };
 
   // funkcija za prilagodjavanje fonta timova da ne prelazi kolonu
