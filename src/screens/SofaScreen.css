@@ -15,7 +15,8 @@
 .sofa-row {
   display: flex;
   align-items: center;
-  height: 32px;
+  min-height: 45px;
+  height: 45px;
   border-bottom: 1px solid #e0e0e0;
   font-size: 12px;
 }
@@ -51,7 +52,7 @@
 
 /* ===== INFO ===== */
 .sofa-col.info {
-  width: 300px;
+  width: 150px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
@@ -64,6 +65,11 @@
   gap: 6px;
   font-size: 10px;
   width: 100%;
+}
+.sofa-col.info > div:last-child {
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 13px;
 }
 
 /* donji deo (liga) */
@@ -129,4 +135,22 @@
   .sofa-col.results {
     width: 60px;
   }
+.sofa-league-header {
+
+    height:32px;
+    display:flex;
+    align-items:center;
+
+    background:#222;
+    color:white;
+
+    cursor:pointer;
+
+    padding-left:10px;
+
+    margin-top:5px;
+
+    border-radius:4px;
+
+}
 }

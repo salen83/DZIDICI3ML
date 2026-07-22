@@ -1,231 +1,528 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useLeagueMap } from "../LeagueMapContext";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import "./LeagueMapScreen.css";
 
-export default function LeagueMapScreen({ onClose, openLeagueTeams }) {
-  const { leagueMap, setLeagueMap } = useLeagueMap();
-  const [openLists, setOpenLists] = useState({});
-  const wrapperRef = useRef(null);
+export default function LeagueMapScreen({ onClose }) {
 
-  // =====================
-  // UCITAVANJE IZ LOCALSTORAGE
-  // =====================
-useEffect(() => {
-  async function loadLeagues() {
+  const [mozzartLeagues, setMozzartLeagues] = useState([]);
+  const [sofaLeagues, setSofaLeagues] = useState([]);
+
+  const [selectedMozzart, setSelectedMozzart] = useState(null);
+  const [selectedSofa, setSelectedSofa] = useState(null);
+
+  const [search, setSearch] = useState("");
+
+  const [loadingMozzart, setLoadingMozzart] = useState(false);
+  const [loadingSofa, setLoadingSofa] = useState(false);
+
+  const [logs, setLogs] = useState([]);
+
+
+  const log = (msg) => {
+    console.log("[LEAGUE MAP]", msg);
+    setLogs(prev => [...prev.slice(-50), msg]);
+  };
+
+
+  // ===============================
+  // LOAD MOZART LIGAS
+  // ===============================
+
+  const loadMozzartLeagues = async () => {
+
+    setLoadingMozzart(true);
+
     try {
+
       const { data: aliases, error } = await supabase
         .from("league_aliases")
-        .select("*");
+        .select("alias")
+        .eq("source", "mozzart");
 
-      if (error) {
-        console.log("❌ load leagues error:", error);
-        return;
-      }
 
-      const grouped = {};
+      if (error) throw error;
 
-      aliases.forEach(a => {
-        if (!grouped[a.league_id]) {
-          grouped[a.league_id] = [];
-        }
-        grouped[a.league_id].push(a.alias);
-      });
 
-      const formatted = {};
+      const mapped = new Set(
+        aliases?.map(x => x.alias) || []
+      );
 
-      Object.entries(grouped).forEach(([leagueId, aliases]) => {
-        const screen1 = aliases[0]; // privremeno
-        const sofa = aliases.slice(1);
 
-        const key = `league||${screen1}||${sofa[0] || "x"}`;
+      const { data, error: err2 } = await supabase
+        .from("country_aliases")
+        .select("*")
+        .order("country_id")
+        .order("league_name");
 
-        formatted[key] = {
-          screen1,
-          sofa,
-          normalized: screen1
-        };
-      });
 
-      setLeagueMap(formatted);
+      if (err2) throw err2;
 
-      console.log("✅ leagues loaded", formatted);
 
-    } catch (err) {
-      console.log("❌ load error:", err);
+      const available = (data || []).filter(
+        league => !mapped.has(league.league_name)
+      );
+
+
+      setMozzartLeagues(available);
+
+const countryIds = [
+  ...new Set(
+    available.map(
+      l => l.country_id
+    )
+  )
+];
+
+
+console.log("MOZZART COUNTRY IDS:", countryIds);
+
+
+loadSofaLeagues(countryIds);
+
+      log(
+        "Mozzart neuparenih liga: " + available.length
+      );
+
+
+    } catch(e){
+
+      log(
+        "LOAD MOZART ERROR: " + e.message
+      );
+
+    } finally {
+
+      setLoadingMozzart(false);
+
     }
+
+  };
+
+
+
+  // ===============================
+  // LOAD SOFA LIGAS PO COUNTRY ID
+  // ===============================
+
+const loadSofaLeagues = async (countryIds) => {
+
+  if (!countryIds || countryIds.length === 0) return;
+
+  setLoadingSofa(true);
+
+  try {
+
+    const { data, error } = await supabase
+      .from("sofa_leagues")
+      .select("*")
+      .in("country_id", countryIds)
+      .order("country_id")
+      .order("name");
+
+
+    if(error) throw error;
+
+console.log("SOFA QUERY RESULT:", data);
+console.log("SOFA QUERY LENGTH:", data?.length);
+console.log(
+  "SOFA COUNTRY IDS:",
+  [...new Set((data || []).map(x => x.country_id))]
+);
+
+    setSofaLeagues(data || []);
+
+
+    log(
+      "Sofa liga pronađeno: " + (data?.length || 0)
+    );
+
+
+  } catch(e){
+
+    log(
+      "LOAD SOFA ERROR: " + e.message
+    );
+
+  } finally {
+
+    setLoadingSofa(false);
+
   }
 
-  loadLeagues();
-}, []);
-
-const handleNormalizedChange = (key, value) => {
-  if (!value && leagueMap[key]?.screen1) {
-    value = leagueMap[key].screen1;
-  }
-  setLeagueMap(prev => {
-    const next = {
-      ...prev,
-      [key]: {
-        ...prev[key],
-        normalized: value
-      }
-    };
-    localStorage.setItem("leagueMap", JSON.stringify(next));
-    return next;
-  });
 };
 
-  const handleDeleteLeague = (key) => {
-    setLeagueMap(prev => {
-      const next = { ...prev };
-      delete next[key];
-      localStorage.setItem("leagueMap", JSON.stringify(next));
-      return next;
-    });
-  };
 
-  const toggleList = (leagueKey, type) => {
-    const id = `${leagueKey}||${type}`;
-    setOpenLists(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  // klik van liste zatvara sve
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpenLists({});
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
-  const leagues = Object.entries(leagueMap || {});
+    loadMozzartLeagues();
+
+  }, []);
+  // ===============================
+  // SELECT MOZART LIGE
+  // ===============================
+
+const selectMozzart = (league) => {
+
+  setSelectedMozzart(league);
+
+};
+
+
+  // ===============================
+  // PAIR
+  // ===============================
+
+  const pairLeague = async () => {
+
+    if (!selectedMozzart || !selectedSofa) {
+
+      log("Izaberi obe lige pre uparivanja");
+      return;
+
+    }
+
+
+    try {
+
+      const { error } = await supabase
+        .from("league_aliases")
+        .insert([{
+
+          league_id: selectedSofa.id,
+
+          alias: selectedMozzart.league_name,
+
+          source: "mozzart",
+
+          country_id: selectedMozzart.country_id,
+
+          confidence: 100
+
+        }]);
+
+
+      if(error) throw error;
+
+
+
+      log(
+        "UPARIVANJE: " +
+        selectedMozzart.league_name +
+        " -> " +
+        selectedSofa.name
+      );
+
+
+
+      setMozzartLeagues(prev =>
+        prev.filter(
+          l => l.id !== selectedMozzart.id
+        )
+      );
+
+
+      setSelectedMozzart(null);
+      setSelectedSofa(null);
+      setSofaLeagues([]);
+
+
+
+    } catch(e){
+
+      log(
+        "PAIR ERROR: " + e.message
+      );
+
+    }
+
+  };
+
+
+
+  const filteredSofa = sofaLeagues.filter(
+    league =>
+      league.name
+        ?.toLowerCase()
+        .includes(
+          search.toLowerCase()
+        )
+  );
+
+
 
   return (
-    <div style={{ padding: 20 }} ref={wrapperRef}>
-      <h2>🏆 League Map Screen</h2>
 
-      <button onClick={onClose} style={{ marginBottom: 15 }}>
-        ⬅ Nazad
-      </button>
+    <div className="league-map-container">
 
-      {leagues.length === 0 ? (
-        <div style={{ color: "gray", fontStyle: "italic", marginTop: 20 }}>
-          Nema trenutno uparenih liga.
-        </div>
-      ) : (
-        <table
-          border="1"
-          cellPadding="6"
-          style={{ borderCollapse: "collapse", width: "100%", marginTop: 15 }}
+
+      <div className="league-map-toolbar">
+
+
+        <button onClick={onClose}>
+          ⬅ Exit
+        </button>
+
+
+        <button
+          className="pair-button"
+          disabled={
+            !selectedMozzart ||
+            !selectedSofa
+          }
+          onClick={pairLeague}
         >
-          <thead style={{ background: "#f0f0f0" }}>
-            <tr>
-              <th>#</th>
-              <th>Normalized Name</th>
-              <th>Screen1 Name</th>
-              <th>SofaScore Name</th>
-              <th>Akcija</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leagues.map(([key, l], i) => {
-              const screen1Open = openLists[`${key}||screen1`];
-              const sofaOpen = openLists[`${key}||sofa`];
+          ✅ Upari
+        </button>
 
-              return (
-                <tr key={key} style={{ verticalAlign: "top" }}>
-                  <td>{i + 1}</td>
 
-                  <td>
-                    <input
-                      value={l.normalized || l.screen1 || ""}
-                      onChange={e => handleNormalizedChange(key, e.target.value)}
-                      placeholder="npr. Premier League"
-                      style={{ width: "100%" }}
-                    />
-                  </td>
+        <button
+          onClick={loadMozzartLeagues}
+        >
+          🔄 Reload
+        </button>
 
-                  <td
-                    style={{ cursor: "pointer" }}
-                    onClick={() => toggleList(key, "screen1")}
-                  >
-                    <div style={{ fontWeight: "bold" }}>{l.screen1 || "-"}</div>
 
-                    {screen1Open && (
-                      <div style={{
-                        marginTop: 6,
-                        background: "#fafafa",
-                        border: "1px solid #ccc",
-                        padding: 6,
-                        maxHeight: 200,
-                        overflowY: "auto"
-                      }}>
-                        {(l.screen1Teams || []).length === 0 ? (
-                          <div style={{ color: "gray", fontStyle: "italic" }}>
-                            Nema timova
-                          </div>
-                        ) : (
-                          l.screen1Teams.map((t, idx) => (
-                            <div key={idx}>• {t}</div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </td>
+      </div>
 
-                  <td
-                    style={{ cursor: "pointer" }}
-                    onClick={() => toggleList(key, "sofa")}
-                  >
+
+
+      <div className="league-map-panels">
+
+
+
+        {/* ================= LEFT ================= */}
+
+        <div className="league-panel">
+
+
+          <div className="panel-title">
+            Mozzart lige
+            <span>
+              ({mozzartLeagues.length})
+            </span>
+          </div>
+
+
+
+          <div className="panel-list">
+
+
+          {
+            loadingMozzart &&
+
+            <div>
+              Loading...
+            </div>
+
+          }
+
+
+
+          {
+            mozzartLeagues.map(
+              league => (
+
+                <div
+
+                  key={league.id}
+
+                  className={
+                    "league-item " +
+                    (
+                      selectedMozzart?.id === league.id
+                      ?
+                      "selected"
+                      :
+                      ""
+                    )
+                  }
+
+
+                  onClick={() =>
+                    selectMozzart(league)
+                  }
+
+                >
+
                   <div>
-  <div style={{ fontWeight: "bold" }}>
-    {Array.isArray(l.sofa) ? l.sofa.join(", ") : (l.sofa || "-")}
-  </div>
+                    {league.league_name}
+                  </div>
 
-  {l.country && (
-    <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>
-      ({l.country})
-    </div>
-  )}
+
+                  <small>
+                    Country ID:
+                    {" "}
+                    {league.country_id}
+                  </small>
+
+
+                </div>
+
+              )
+
+            )
+          }
+
+
+          </div>
+
+
+        </div>
+
+
+
+
+
+        {/* ================= RIGHT ================= */}
+
+
+        <div className="league-panel">
+
+
+          <div className="panel-title">
+            SofaScore lige
+            <span>
+              ({
+                sofaLeagues.length
+              })
+            </span>
+          </div>
+
+
+
+          <input
+
+            className="league-search"
+
+            placeholder="Pretraga Sofa liga..."
+
+            value={search}
+
+            onChange={
+              e =>
+              setSearch(e.target.value)
+            }
+
+          />
+
+
+
+          <div className="panel-list">
+
+
+          {
+            loadingSofa &&
+
+            <div>
+              Loading...
+            </div>
+
+          }
+
+
+
+{
+sofaLeagues.length === 0 &&
+<div className="empty-message">
+Nema Sofa liga
 </div>
+}
 
-                    {sofaOpen && (
-                      <div style={{
-                        marginTop: 6,
-                        background: "#f7f7ff",
-                        border: "1px solid #ccc",
-                        padding: 6,
-                        maxHeight: 200,
-                        overflowY: "auto"
-                      }}>
-                        {(l.sofaTeams || []).length === 0 ? (
-                          <div style={{ color: "gray", fontStyle: "italic" }}>
-                            Nema timova
-                          </div>
-                        ) : (
-                          l.sofaTeams.map((t, idx) => (
-                            <div key={idx}>• {t}</div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </td>
 
-                  <td style={{ display: "flex", gap: 5 }}>
-                    <button onClick={() => openLeagueTeams?.(key)}>Timovi</button>
-                    <button onClick={() => handleDeleteLeague(key)}>Izbriši</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+
+          {
+            filteredSofa.map(
+              league => (
+
+                <div
+
+                  key={league.id}
+
+                  className={
+                    "league-item sofa " +
+
+                    (
+                      selectedSofa?.id === league.id
+
+                      ?
+
+                      "selected-sofa"
+
+                      :
+
+                      ""
+
+                    )
+
+                  }
+
+
+                  onClick={() =>
+                    setSelectedSofa(league)
+                  }
+
+                >
+
+
+                  <div>
+                    {league.name}
+                  </div>
+
+
+                  <small>
+                    ID:
+                    {" "}
+                    {league.id}
+                  </small>
+
+
+                </div>
+
+              )
+
+            )
+          }
+
+
+          </div>
+
+
+        </div>
+
+
+      </div>
+
+
+      {/* ================= LOG ================= */}
+
+      <div className="league-map-log">
+
+        <div className="log-title">
+          Log
+        </div>
+
+
+        {
+          logs.map(
+            (item, index) => (
+
+              <div
+                key={index}
+                className="log-row"
+              >
+                {item}
+              </div>
+
+            )
+          )
+        }
+
+
+      </div>
+
+
     </div>
+
   );
+
 }

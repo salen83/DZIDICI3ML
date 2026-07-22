@@ -1,0 +1,139 @@
+/* ===============================
+   LEAGUE MAP SCREEN
+================================ */
+
+.league-map-container {
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+
+/* ===============================
+   TOP BUTTON
+================================ */
+
+.league-map-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.league-map-actions button {
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+
+/* ===============================
+   PANELS
+================================ */
+
+.league-map-panels {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+
+.league-map-panel {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+}
+
+
+.league-map-panel-title {
+  background: #222;
+  color: white;
+  padding: 8px;
+  font-weight: bold;
+}
+
+
+/* ===============================
+   LEAGUE LIST
+================================ */
+
+.league-list {
+  height: 600px;
+  overflow-y: auto;
+}
+
+
+.league-item {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+
+.league-item:hover {
+  background: #f0f0f0;
+}
+
+
+.league-item.selected {
+  background: #d8ebff;
+  font-weight: bold;
+}
+
+
+/* ===============================
+   COUNTRY LABEL
+================================ */
+
+.league-country {
+  font-size: 11px;
+  color: #666;
+  margin-top: 3px;
+}
+
+
+/* ===============================
+   LOG
+================================ */
+
+.league-map-log {
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  height: 120px;
+  overflow-y: auto;
+  font-size: 12px;
+  background: #fafafa;
+}
+
+
+.log-title {
+  font-weight: bold;
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+
+.log-row {
+  padding: 3px 6px;
+}
+
+
+/* ===============================
+   MOBILE
+================================ */
+
+@media (max-width: 700px) {
+
+  .league-map-panels {
+    flex-direction: column;
+  }
+
+  .league-list {
+    height: 300px;
+  }
+
+}

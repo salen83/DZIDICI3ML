@@ -18,9 +18,10 @@ away: r.raw_away || "",
   ft: r.ft || "",
   extratime: r.extratime || "",
   penalties: r.penalties || "",
-  country: r.country_name || "",
-  country_iso: r.country_iso || "",
-  source: r.source || "",
+country: r.country_name || "",
+country_id: r.country_id || null,
+country_iso: r.country_iso || "",
+source: r.source || "",
 });
 
 // ================= COMPONENT =================
@@ -33,8 +34,9 @@ export default function SofaScreen({ onClose }) {
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
  const [blockedLeagues, setBlockedLeagues] = useState([]);
+const [collapsedLeagues, setCollapsedLeagues] = useState({});
 
-const rowHeight = 32;
+const rowHeight = 45;
 const containerHeight = 600;
 const buffer = 10;
 
@@ -107,36 +109,58 @@ countriesData?.forEach(c => {
     // =========================
     const map = new Map();
 
-    for (const r of json) {
-if (blockedLeagues.includes(r.league)) continue;
-const countryRaw = (r.country || "").trim();
-const key = `${(r.home || r.Home || r["Home team"] || "").trim()}-${(r.away || r.Away || r["Away team"] || "").trim()}-${r.date || r.Date || r.match_date || ""}-${r.time || r.Time || r.match_time || ""}`;
+for (const r of json) {
 
-      if (!map.has(key)) {
-        map.set(key, {
-          source: "sofa",
-          match_date: r.date || r.Date || r.match_date || "",
-          match_time: r.time || r.Time || r.match_time || "",
+  const league =
+    r.Liga || r.league || r.League || "";
 
-          raw_home: r.home || r.Home || r["Home team"] || "",
-          raw_away: r.away || r.Away || r["Away team"] || "",
-          raw_league: r.league || r.League || "",
+  if (blockedLeagues.includes(league)) continue;
 
-          ht: r.ht || "",
-          sh: r.sh || "",
-          ft: r.ft || "",
-          extratime: r.et || "",
-          penalties: r.pen || "",
+  const home =
+    r.Domacin || r.home || r.Home || r["Home team"] || "";
 
-country_id: countryNameToId[countryRaw] ?? null,
-country_iso: countryAliasToISO(countryRaw) || "",
+  const away =
+    r.Gost || r.away || r.Away || r["Away team"] || "";
 
-          home_team_id: null,
-          away_team_id: null,
-          league_id: null
-        });
-      }
-    }
+  const date =
+    r.Datum || r.date || r.Date || r.match_date || "";
+
+  const time =
+    r.Vreme || r.time || r.Time || r.match_time || "";
+
+  const countryRaw =
+    (r.Country || r.country || "").trim();
+
+  const key = `${home}-${away}-${date}-${time}`;
+
+  if (!map.has(key)) {
+
+    map.set(key, {
+      source: "sofa",
+
+      match_date: date,
+      match_time: time,
+
+      raw_home: home,
+      raw_away: away,
+      raw_league: league,
+
+      ht: r["Prvo poluvreme"] || r.ht || "",
+      sh: r["Drugo poluvreme"] || r.sh || "",
+      ft: r.FT || r.ft || "",
+      extratime: r.Produzeci || r.et || "",
+      penalties: r.Penali || r.pen || "",
+
+      country_id: countryNameToId[countryRaw] ?? null,
+      country_iso: countryAliasToISO(countryRaw) || "",
+
+      home_team_id: null,
+      away_team_id: null,
+      league_id: null
+    });
+
+  }
+}
 
     const rows = Array.from(map.values());
 
@@ -239,6 +263,35 @@ setSofaRows(normalized);
   }
 })();
 }, []);
+
+// ================= LEAGUE GROUPING =================
+
+const toggleLeague = (liga) => {
+  setCollapsedLeagues(prev => ({
+    ...prev,
+    [liga]: !prev[liga]
+  }));
+};
+
+
+const groupedRows = sofaRows.reduce((acc, row) => {
+
+  const key = `${row.liga}|${row.country_id}`;
+
+  if (!acc[key]) {
+    acc[key] = {
+      liga: row.liga || "Nedefinisana liga",
+      country: row.country || "",
+      country_id: row.country_id,
+      matches: []
+    };
+  }
+
+  acc[key].matches.push(row);
+
+  return acc;
+
+}, {});
   // ================= UPDATE =================
   const updateCell = (index, key, value) => {
     const copy = [...sofaRows];
@@ -296,9 +349,6 @@ setSofaRows(copy);
         <div className="sofa-row header">
           <div className="sofa-col rb">#</div>
           <div className="sofa-col info">Info</div>
-          <div className="sofa-col country">Country</div>
-          <div className="sofa-col source">Source</div>
-          <div className="sofa-col teams">Home-Away</div>
           <div className="sofa-col results">1H</div>
           <div className="sofa-col results">2H</div>
           <div className="sofa-col results">FT</div>
@@ -308,73 +358,126 @@ setSofaRows(copy);
         </div>
 <div style={{ height: startIndex * rowHeight }} />
 
-        {/* ROWS */}
-        {visibleRows.map((r, i) => {
-  const index = startIndex + i;
-  return (
-          <div key={`${r.id}-${index}`} className="sofa-row">
+{/* GROUPED ROWS */}
 
-            {/* RB */}
-            <div className="sofa-col rb">
-              {index + 1}
-            </div>
+{Object.entries(groupedRows).map(([key, group]) => {
 
-            {/* INFO */}
-            <div className="sofa-col info">
-              <div className="info-top">
-                <span>{r.datum}</span>
-                <span>{r.vreme}</span>
-              </div>
-              <div className="info-bottom">
-              <span className="liga-cell" title={r.liga}>
-  {r.liga}
+const collapsed = collapsedLeagues[key];
+
+return (
+
+<div key={key}>
+
+<div
+className="sofa-league-header"
+onClick={() => toggleLeague(key)}
+>
+
+<span>
+{collapsed ? "▶" : "▼"}
 </span>
-              </div>
-            </div>
-           <div className="sofa-col source">
-  {r.source}
+
+<span style={{marginLeft:8,fontWeight:"bold"}}>
+{group.liga}
+</span>
+
+<span style={{marginLeft:12}}>
+{group.country} ({group.country_id})
+</span>
+
+<span style={{marginLeft:8,opacity:0.6}}>
+({group.matches.length})
+</span>
+
 </div>
 
-            {/* COUNTRY */}
-            <div className="sofa-col country">
-              <input value={r.country} onChange={(e)=>updateCell(index,"country",e.target.value)} />
-            </div>
+{!collapsed && group.matches.map((r,index)=>{
 
-            {/* TEAMS */}
-            <div className="sofa-col teams">
-              <input value={r.home} onChange={(e)=>updateCell(index,"home",e.target.value)} />
-              {" - "}
-              <input value={r.away} onChange={(e)=>updateCell(index,"away",e.target.value)} />
-            </div>
+return (
 
-            {/* RESULTS */}
-            <div className="sofa-col results">
-              <input value={r.ht} onChange={(e)=>updateCell(index,"ht",e.target.value)} />
-            </div>
+<div 
+key={r.id}
+className="sofa-row"
+>
 
-            <div className="sofa-col results">
-              <input value={r.sh} onChange={(e)=>updateCell(index,"sh",e.target.value)} />
-            </div>
 
-            <div className="sofa-col results">
-              <input value={r.ft} onChange={(e)=>updateCell(index,"ft",e.target.value)} />
-            </div>
+<div className="sofa-col rb">
+{index+1}
+</div>
 
-            <div className="sofa-col results">
-              <input value={r.extratime} onChange={(e)=>updateCell(index,"extratime",e.target.value)} />
-            </div>
+<div
+className="sofa-col info"
+style={{
+display:"flex",
+flexDirection:"column",
+justifyContent:"center"
+}}
+>
 
-            <div className="sofa-col results">
-              <input value={r.penalties} onChange={(e)=>updateCell(index,"penalties",e.target.value)} />
-            </div>
+<div style={{
+fontSize:"9px",
+opacity:0.8,
+marginBottom:"3px"
+}}>
+{r.datum} {r.vreme}
+</div>
 
-            <div className="sofa-col delete">
-              <button onClick={()=>deleteRow(index)}>x</button>
-            </div>
+<div style={{
+fontWeight:"bold",
+display:"flex",
+flexDirection:"column",
+lineHeight:"15px"
+}}>
+<span>{r.home}</span>
+<span>{r.away}</span>
+</div>
 
-          </div>
-);
+</div>
+
+<div className="sofa-col results">
+{r.ht}
+</div>
+
+<div className="sofa-col results">
+{r.sh}
+</div>
+
+<div className="sofa-col results">
+{r.ft}
+</div>
+
+<div className="sofa-col results">
+{r.extratime}
+</div>
+
+<div className="sofa-col results">
+{r.penalties}
+</div>
+
+
+<div className="sofa-col delete">
+
+<button onClick={()=>deleteRow(index)}>
+x
+</button>
+
+</div>
+
+
+</div>
+
+)
+
+
 })}
+
+
+</div>
+
+)
+
+})}
+
       </div>
 <div style={{ height: (total - endIndex) * rowHeight }} />
 
