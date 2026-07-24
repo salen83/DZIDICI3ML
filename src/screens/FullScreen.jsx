@@ -9,6 +9,7 @@ export default function FullScreen({ onClose }) {
   const [openCountry, setOpenCountry] = useState(null);
   const [openLeague, setOpenLeague] = useState(null);
   const [confirmedLeagues, setConfirmedLeagues] = useState({});
+const [importStatus, setImportStatus] = useState("");
 
   const leaguesByCountry = {};
   if (rows) {
@@ -148,10 +149,84 @@ export default function FullScreen({ onClose }) {
 
     alert("Liga '" + leagueName + "' je potvrđena.");
   };
+const importSofaTeams = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+
+    let teams = [];
+
+    if (file.name.endsWith(".json")) {
+      teams = JSON.parse(text);
+    } else {
+const lines = text.trim().split("\n");
+
+const header = lines[0].split(",");
+
+const leagueIndex = header.findIndex(h =>
+  h.trim().toLowerCase() === "leagueid"
+);
+
+const idIndex = header.findIndex(h =>
+  h.trim().toLowerCase() === "teamid"
+);
+
+const nameIndex = header.findIndex(h =>
+  h.trim().toLowerCase() === "teamname"
+);
+
+teams = lines.slice(1).map(line => {
+  const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
+    .map(v => v.replace(/^"|"$/g, ""));
+
+  return {
+    league_id: Number(values[leagueIndex]),
+    id: Number(values[idIndex]),
+    name: values[nameIndex]
+  };
+});
+}
+const rows = teams.map(t => ({
+  id: Number(t.id || t.teamId),
+  league_id: Number(t.league_id || t.leagueId),
+  name: t.name || t.teamName
+}));
+
+    const { error } = await supabase
+      .from("sofa_teams")
+      .upsert(rows);
+
+    if (error) throw error;
+
+    setImportStatus(
+      "✅ Ubačeno timova: " + rows.length
+    );
+
+  } catch (err) {
+    setImportStatus(
+      "❌ Greška: " + err.message
+    );
+  }
+};
 
   return (
     <div className="full-screen-container">
       <button className="close-button" onClick={onClose}>X Close</button>
+<div style={{margin:"15px 0"}}>
+  <h3>Sofa Teams Import</h3>
+
+  <input
+    type="file"
+    accept=".json,.csv"
+    onChange={importSofaTeams}
+  />
+
+  <div>
+    {importStatus}
+  </div>
+</div>
       <ul>
         {Object.entries(leaguesByCountry).map(([country, leagues], index) => (
           <li key={index} className="country-block">
