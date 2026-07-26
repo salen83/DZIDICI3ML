@@ -10,6 +10,8 @@ export default function FullScreen({ onClose }) {
   const [openLeague, setOpenLeague] = useState(null);
   const [confirmedLeagues, setConfirmedLeagues] = useState({});
 const [importStatus, setImportStatus] = useState("");
+const [sofaLeagueId, setSofaLeagueId] = useState("");
+const [sofaCountryId, setSofaCountryId] = useState("");
 
   const leaguesByCountry = {};
   if (rows) {
@@ -152,6 +154,10 @@ const [importStatus, setImportStatus] = useState("");
 const importSofaTeams = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
+if (!sofaLeagueId || !sofaCountryId) {
+  setImportStatus("❌ Unesi League ID i Country ID");
+  return;
+}
 
   try {
     const text = await file.text();
@@ -164,10 +170,6 @@ const importSofaTeams = async (event) => {
 const lines = text.trim().split("\n");
 
 const header = lines[0].split(",");
-
-const leagueIndex = header.findIndex(h =>
-  h.trim().toLowerCase() === "leagueid"
-);
 
 const idIndex = header.findIndex(h =>
   h.trim().toLowerCase() === "teamid"
@@ -182,26 +184,96 @@ teams = lines.slice(1).map(line => {
     .map(v => v.replace(/^"|"$/g, ""));
 
   return {
-    league_id: Number(values[leagueIndex]),
     id: Number(values[idIndex]),
     name: values[nameIndex]
   };
 });
 }
-const rows = teams.map(t => ({
-  id: Number(t.id || t.teamId),
-  league_id: Number(t.league_id || t.leagueId),
-  name: t.name || t.teamName
+const leagueRows = teams.map(t => ({
+    league_id: Number(sofaLeagueId),
+    team_id: Number(t.id || t.teamId)
 }));
 
-    const { error } = await supabase
-      .from("sofa_teams")
-      .upsert(rows);
+const teamRows = teams.map(t => ({
+    id: Number(t.id || t.teamId),
+    name: t.name || t.teamName,
+    country_id: Number(sofaCountryId)
+}));
 
-    if (error) throw error;
+console.log("=== IMPORT START ===");
+console.log("Broj timova:", rows.length);
+console.log("Prvi tim:", rows[0]);
+console.log("Svi timovi:", rows);
+
+console.log("Provera postojećih timova...");
+
+const ids = teamRows.map(t => t.id);
+
+
+const { data: existing, error: checkError } = await supabase
+  .from("sofa_teams")
+  .select("id")
+  .in("id", ids);
+
+
+if (checkError) {
+  throw checkError;
+}
+
+
+const existingIds = existing.map(t => t.id);
+
+
+const newTeams = teamRows.filter(
+  t => !existingIds.includes(t.id)
+);
+
+
+console.log("Novi timovi za unos:", newTeams);
+
+
+if (newTeams.length > 0) {
+
+  const { error: insertTeamsError } = await supabase
+    .from("sofa_teams")
+    .insert(newTeams);
+
+
+  if (insertTeamsError) {
+    throw insertTeamsError;
+  }
+
+}
+
+
+console.log("Svi timovi postoje u sofa_teams");
+
+
+console.log("Upis veze liga-tim...");
+
+const { data: inserted, error } = await supabase
+  .from("sofa_league_teams")
+  .upsert(leagueRows)
+  .select();
+
+console.log("Supabase response data:", inserted);
+console.log("Supabase response error:", error);
+
+if (error) {
+  console.error("DETALJNA GREŠKA:", {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code
+  });
+
+  throw error;
+}
+console.log("Timovi uspešno ubačeni u sofa_teams");
+console.log("=== IMPORT KRAJ ===");
 
     setImportStatus(
-      "✅ Ubačeno timova: " + rows.length
+"✅ Ubačeno timova: " + leagueRows.length
     );
 
   } catch (err) {
@@ -215,11 +287,25 @@ const rows = teams.map(t => ({
     <div className="full-screen-container">
       <button className="close-button" onClick={onClose}>X Close</button>
 <div style={{margin:"15px 0"}}>
-  <h3>Sofa Teams Import</h3>
+  <h3>Sofa League Teams Import</h3>
+
+  <input
+    type="number"
+    placeholder="League ID"
+    value={sofaLeagueId}
+    onChange={(e)=>setSofaLeagueId(e.target.value)}
+  />
+
+  <input
+    type="number"
+    placeholder="Country ID"
+    value={sofaCountryId}
+    onChange={(e)=>setSofaCountryId(e.target.value)}
+  />
 
   <input
     type="file"
-    accept=".json,.csv"
+    accept=".csv,.json"
     onChange={importSofaTeams}
   />
 

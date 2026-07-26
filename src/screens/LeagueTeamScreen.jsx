@@ -85,11 +85,29 @@ const { data: leagues } = await supabase
   .in("id", ids)
   .order("name");
 
-const { data: teams } = await supabase
+const { data: teams1 } = await supabase
   .from("sofa_teams")
   .select("*")
   .in("league_id", ids)
   .order("name");
+
+
+const { data: teams2 } = await supabase
+  .from("sofa_league_teams")
+  .select("*")
+  .in("league_id", ids);
+
+
+// spoji oba izvora
+const teams = [
+  ...(teams1 || []),
+  ...(teams2 || []).map(t => ({
+      id: t.team_id,
+      name: t.team_name,
+      league_id: t.league_id,
+      country_id: t.country_id
+  }))
+];
 
   setSofaLeagues(leagues || []);
   setSofaTeams(teams || []);
