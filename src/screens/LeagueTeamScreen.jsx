@@ -15,7 +15,8 @@ const [sofaLeagues, setSofaLeagues] = useState([]);
 const [sofaTeams, setSofaTeams] = useState([]);
 const [leagueAliases, setLeagueAliases] = useState([]); 
 const [selectedScreenTeam, setSelectedScreenTeam] = useState(null);
- // =====================
+const [teamSearch, setTeamSearch] = useState(""); 
+// =====================
   // FUNKCIJA ZA TIMOVE PO LIGAMA
   // =====================
   const getTeamsByLeague = (rows) => {
@@ -92,12 +93,39 @@ const { data: teams1 } = await supabase
   .order("name");
 
 
-const { data: teams2 } = await supabase
-  .from("sofa_league_teams")
-  .select("*")
-  .in("league_id", ids);
+async function loadAllSofaLeagueTeams(ids) {
+  let all = [];
+  let from = 0;
+  const step = 1000;
 
+  while (true) {
+    const { data, error } = await supabase
+      .from("sofa_league_teams")
+      .select("*")
+      .in("league_id", ids)
+      .range(from, from + step - 1);
 
+    if (error) throw error;
+
+    all = [...all, ...(data || [])];
+
+    if (!data || data.length < step) {
+      break;
+    }
+
+    from += step;
+  }
+
+  return all;
+}
+
+const teams2 = await loadAllSofaLeagueTeams(ids);
+
+console.log("teams2 ukupno:", teams2.length);
+console.log(
+  "teams2 liga 853:",
+  teams2.filter(t => t.league_id === 853)
+);
 // spoji oba izvora
 const teams = [
   ...(teams1 || []),
@@ -108,6 +136,11 @@ const teams = [
       country_id: t.country_id
   }))
 ];
+console.log("Svi sofaTeams:", teams.length);
+console.log(
+  "Sofa teams liga 853:",
+  teams.filter(t => t.league_id === 853)
+);
 
   setSofaLeagues(leagues || []);
   setSofaTeams(teams || []);
@@ -166,6 +199,15 @@ const visibleSofaLeagues = useMemo(() => {
 
   return sofaLeagues.filter(l => ids.has(l.id));
 }, [sofaLeagues, leagueAliases]);
+console.log(
+  "liga 853 u sofaLeagues:",
+  sofaLeagues.find(l => l.id === 853)
+);
+
+console.log(
+  "timovi koji ce se prikazati za 853:",
+  sofaTeams.filter(t => t.league_id === 853)
+);
 console.log("Sofa leagues:", sofaLeagues.length);
 console.log("Aliases:", leagueAliases.length);
 console.log("Visible:", visibleSofaLeagues.length);
@@ -218,7 +260,14 @@ console.log("Visible:", visibleSofaLeagues.length);
 
         {/* SOFA PANEL PO LIGAMA */}
 <div className="panel">
-  <div className="panel-title">Sofa Lige</div>
+<div className="panel-title">Sofa Lige</div>
+
+<input
+  className="league-search"
+  placeholder="Pretraga timova..."
+  value={teamSearch}
+  onChange={(e) => setTeamSearch(e.target.value)}
+/>
 
 {visibleSofaLeagues.map((liga) => (
   <div
@@ -227,9 +276,10 @@ console.log("Visible:", visibleSofaLeagues.length);
   >
     <div
       className="accordion-header"
-      onClick={() =>
-        setOpenSofa(openSofa === liga.id ? null : liga.id)
-      }
+onClick={() => {
+  setOpenSofa(openSofa === liga.id ? null : liga.id);
+  setTeamSearch("");
+}}
     >
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <span>{liga.name}</span>
@@ -239,9 +289,16 @@ console.log("Visible:", visibleSofaLeagues.length);
 
     {openSofa === liga.id && (
       <div className="accordion-body">
-        {sofaTeams
-          .filter(t => t.league_id === liga.id)
-          .map((t, idx) => (
+{sofaTeams
+  .filter(t =>
+    Number(t.league_id) === Number(liga.id)
+  )
+  .filter(t =>
+    (t.name || "")
+      .toLowerCase()
+      .includes(teamSearch.toLowerCase())
+  )
+  .map((t, idx) => (
 <div
   key={t.id}
   className="team"

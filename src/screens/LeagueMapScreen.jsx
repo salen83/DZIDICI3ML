@@ -65,6 +65,8 @@ export default function LeagueMapScreen({ onClose }) {
 
       setMozzartLeagues(available);
 
+console.log("MOZZART AVAILABLE:", available);
+
 const countryIds = [
   ...new Set(
     available.map(
