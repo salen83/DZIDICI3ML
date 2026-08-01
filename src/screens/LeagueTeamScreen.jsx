@@ -76,9 +76,12 @@ async function loadSofa() {
 
 const { data: aliases } = await supabase
   .from("league_aliases")
-  .select("league_id");
+  .select("league_id, type");
 
 const ids = (aliases || []).map(a => a.league_id);
+
+console.log("League IDs:", ids);
+console.log("Sadrži 10307?", ids.includes(10307), ids.includes("10307"));
 
 const { data: leagues } = await supabase
   .from("sofa_leagues")
@@ -86,12 +89,41 @@ const { data: leagues } = await supabase
   .in("id", ids)
   .order("name");
 
-const { data: teams1 } = await supabase
-  .from("sofa_teams")
-  .select("*")
-  .in("league_id", ids)
-  .order("name");
+async function loadAllSofaTeams(ids) {
+  let all = [];
+  let from = 0;
+  const step = 1000;
 
+  while (true) {
+    const { data, error } = await supabase
+      .from("sofa_teams")
+      .select("*")
+      .in("league_id", ids)
+      .range(from, from + step - 1);
+
+    if (error) throw error;
+
+    all = [...all, ...(data || [])];
+
+    if (!data || data.length < step) {
+      break;
+    }
+
+    from += step;
+  }
+
+  return all;
+}
+
+const teams1 = await loadAllSofaTeams(ids);
+
+console.log("teams1 ukupno:", teams1?.length);
+console.table(
+  (teams1 || []).filter(t => Number(t.league_id) === 10307)
+);
+console.table(
+  (teams1 || []).filter(t => Number(t.league_id) === 10307)
+);
 
 async function loadAllSofaLeagueTeams(ids) {
   let all = [];
@@ -122,26 +154,49 @@ async function loadAllSofaLeagueTeams(ids) {
 const teams2 = await loadAllSofaLeagueTeams(ids);
 
 console.log("teams2 ukupno:", teams2.length);
+console.table(
+  teams2.filter(t => Number(t.league_id) === 10307)
+);
 console.log(
   "teams2 liga 853:",
   teams2.filter(t => t.league_id === 853)
 );
-// spoji oba izvora
+// spoji izvore prema type
+const leagueTypeMap = {};
+
+(aliases || []).forEach(a => {
+  leagueTypeMap[Number(a.league_id)] = a.type;
+});
+
 const teams = [
-  ...(teams1 || []),
-  ...(teams2 || []).map(t => ({
+  ...(teams1 || [])
+    .filter(t => leagueTypeMap[Number(t.league_id)] === "league"),
+
+  ...(teams2 || [])
+    .filter(t => leagueTypeMap[Number(t.league_id)] === "cup")
+    .map(t => ({
       id: t.team_id,
       name: t.team_name,
       league_id: t.league_id,
       country_id: t.country_id
-  }))
+    }))
 ];
+console.log(
+  "Ima li 55509 u teams1:",
+  teams1?.find(t => t.id === 55509)
+);
 console.log("Svi sofaTeams:", teams.length);
+console.table(
+  teams.filter(t => Number(t.league_id) === 10307)
+);
 console.log(
   "Sofa teams liga 853:",
   teams.filter(t => t.league_id === 853)
 );
-
+console.log(
+  "PROVERA SVIH TIMOVA ZA LIGU:",
+  sofaTeams.filter(t => Number(t.league_id) === 10307)
+);
   setSofaLeagues(leagues || []);
   setSofaTeams(teams || []);
   setLeagueAliases(aliases || []);
@@ -214,6 +269,15 @@ console.log("Visible:", visibleSofaLeagues.length);
   // =====================
   // RENDER
   // =====================
+console.table(
+  sofaTeams
+    .filter(t => Number(t.league_id) === 10307)
+    .map(t => ({
+      id: t.id,
+      name: t.name,
+      league_id: t.league_id
+    }))
+);
   return (
     <div className="league-wrapper">
       <button className="back-btn" onClick={onClose}>⬅ Nazad</button>

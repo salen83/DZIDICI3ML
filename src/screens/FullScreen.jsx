@@ -189,17 +189,31 @@ teams = lines.slice(1).map(line => {
   };
 });
 }
+const isDomesticLeague = window.confirm(
+  "Da li je ovo domaća liga?\n\nOK = domaća liga\nCancel = kup / međunarodno / prijateljske / kvalifikacije"
+);
+
 const leagueRows = teams.map(t => ({
-    league_id: Number(sofaLeagueId),
-    team_id: Number(t.id || t.teamId)
+  league_id: Number(sofaLeagueId),
+  team_id: Number(t.id || t.teamId),
+  country_id: Number(sofaCountryId),
+  team_name: t.name || t.teamName
 }));
 
 const teamRows = teams.map(t => ({
-    id: Number(t.id || t.teamId),
-    name: t.name || t.teamName,
-    country_id: Number(sofaCountryId)
+  id: Number(t.id || t.teamId),
+  name: t.name || t.teamName,
+  league_id: Number(sofaLeagueId),
+  country_id: Number(sofaCountryId)
 }));
 
+console.log("========================================");
+console.log("IMPORT FAJL:", file.name);
+console.log("leagueRows:", leagueRows);
+console.table(leagueRows);
+console.log("teamRows:", teamRows);
+console.table(teamRows);
+console.log("========================================");
 console.log("=== IMPORT START ===");
 console.log("Broj timova:", rows.length);
 console.log("Prvi tim:", rows[0]);
@@ -232,50 +246,54 @@ const newTeams = teamRows.filter(
 console.log("Novi timovi za unos:", newTeams);
 
 
-if (newTeams.length > 0) {
+if (isDomesticLeague) {
 
-  const { error: insertTeamsError } = await supabase
-    .from("sofa_teams")
-    .insert(newTeams);
+  if (newTeams.length > 0) {
 
+    const { error: insertTeamsError } = await supabase
+      .from("sofa_teams")
+      .insert(newTeams);
 
-  if (insertTeamsError) {
-    throw insertTeamsError;
+    if (insertTeamsError) throw insertTeamsError;
   }
 
-}
+} else {
 
+  if (newTeams.length > 0) {
 
-console.log("Svi timovi postoje u sofa_teams");
+    const teamsWithoutLeague = newTeams.map(t => ({
+      id: t.id,
+      name: t.name,
+      country_id: null,
+      league_id: null
+    }));
 
+    const { error: insertTeamsError } = await supabase
+      .from("sofa_teams")
+      .insert(teamsWithoutLeague);
 
-console.log("Upis veze liga-tim...");
+    if (insertTeamsError) throw insertTeamsError;
+  }
 
-const { data: inserted, error } = await supabase
-  .from("sofa_league_teams")
-  .upsert(leagueRows)
-  .select();
+      const { data: inserted, error } = await supabase
+        .from("sofa_league_teams")
+        .upsert(leagueRows)
+        .select();
 
-console.log("Supabase response data:", inserted);
-console.log("Supabase response error:", error);
+      console.log("Supabase response data:", inserted);
+      console.log("Supabase response error:", error);
 
-if (error) {
-  console.error("DETALJNA GREŠKA:", {
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
-    code: error.code
-  });
+      if (error) {
+        throw error;
+      }
 
-  throw error;
-}
-console.log("Timovi uspešno ubačeni u sofa_teams");
-console.log("=== IMPORT KRAJ ===");
+      console.log("Timovi uspešno ubačeni u sofa_league_teams");
+      console.log("=== IMPORT KRAJ ===");
 
-    setImportStatus(
-"✅ Ubačeno timova: " + leagueRows.length
-    );
-
+      setImportStatus(
+        "✅ Ubačeno timova: " + leagueRows.length
+      );
+  }
   } catch (err) {
     setImportStatus(
       "❌ Greška: " + err.message
