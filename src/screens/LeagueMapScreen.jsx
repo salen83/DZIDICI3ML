@@ -16,7 +16,9 @@ export default function LeagueMapScreen({ onClose }) {
   const [loadingSofa, setLoadingSofa] = useState(false);
 
   const [logs, setLogs] = useState([]);
-
+  const [additionalMode, setAdditionalMode] = useState(false);
+  const [manualMozzart, setManualMozzart] = useState("");
+  const [manualSearching, setManualSearching] = useState(false);
 
   const log = (msg) => {
     console.log("[LEAGUE MAP]", msg);
@@ -169,6 +171,121 @@ const selectMozzart = (league) => {
 
 };
 
+  // ===============================
+  // FIND MOZzART LEAGUE FOR ADDITIONAL PAIRING
+  // ===============================
+
+  const findAdditionalMozzartLeague = async () => {
+
+    const value = manualMozzart.trim();
+
+    if (!value) {
+      log("Unesi Mozzart ID ili naziv lige");
+      return;
+    }
+
+    setManualSearching(true);
+
+    try {
+
+      let query = supabase
+        .from("country_aliases")
+        .select("*");
+
+      // Ako je unos broj -> tražimo po ID-u
+      if (/^\d+$/.test(value)) {
+
+        query = query.eq("id", Number(value));
+
+      } else {
+
+        // Ako nije broj -> tražimo po nazivu
+        query = query.ilike(
+          "league_name",
+          `%${value}%`
+        );
+
+      }
+
+      const { data, error } = await query.limit(10);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+
+        log(
+          "Mozzart liga nije pronađena: " +
+          value
+        );
+
+        return;
+      }
+
+      if (data.length > 1) {
+
+        log(
+          "Pronađeno je više Mozzart liga. Budi precizniji sa nazivom ili koristi ID."
+        );
+
+        return;
+      }
+
+      const league = data[0];
+
+      // Proveravamo da li ova Mozzart liga već ima mapping
+      const { data: existingMappings, error: mappingError } =
+        await supabase
+          .from("league_aliases")
+          .select("league_id, alias")
+          .eq("source", "mozzart")
+          .eq("alias", league.league_name);
+
+      if (mappingError) throw mappingError;
+
+      if (existingMappings && existingMappings.length > 0) {
+
+        const confirmed = window.confirm(
+          `Mozzart liga "${league.league_name}" već ima ` +
+          `${existingMappings.length} uparivanje/a.\n\n` +
+          `Da li želiš da dodaš još jedno uparivanje sa SofaScore ligom?`
+        );
+
+        if (!confirmed) {
+
+          log(
+            "Dodatno uparivanje otkazano za: " +
+            league.league_name
+          );
+
+          return;
+        }
+
+      }
+
+      setSelectedMozzart(league);
+
+      // Učitavamo Sofa lige samo za country ID ove Mozzart lige
+      await loadSofaLeagues([league.country_id]);
+
+      log(
+        "Izabrana Mozzart liga za dodatno uparivanje: " +
+        league.league_name
+      );
+
+    } catch (e) {
+
+      log(
+        "ADDITIONAL SEARCH ERROR: " +
+        e.message
+      );
+
+    } finally {
+
+      setManualSearching(false);
+
+    }
+
+  };
 
   // ===============================
   // PAIR
@@ -216,16 +333,23 @@ const selectMozzart = (league) => {
 
 
 
-      setMozzartLeagues(prev =>
-        prev.filter(
-          l => l.id !== selectedMozzart.id
-        )
-      );
+if (!additionalMode) {
+
+  setMozzartLeagues(prev =>
+    prev.filter(
+      l => l.id !== selectedMozzart.id
+    )
+  );
+
+}
 
 
-      setSelectedMozzart(null);
-      setSelectedSofa(null);
-      setSofaLeagues([]);
+setSelectedMozzart(null);
+setSelectedSofa(null);
+setSofaLeagues([]);
+
+setAdditionalMode(false);
+setManualMozzart("");
 
 
 
@@ -264,6 +388,22 @@ const selectMozzart = (league) => {
           ⬅ Exit
         </button>
 
+          <button
+            onClick={() => {
+
+              setAdditionalMode(prev => !prev);
+
+              setSelectedMozzart(null);
+              setSelectedSofa(null);
+              setSofaLeagues([]);
+              setManualMozzart("");
+
+            }}
+          >
+            {additionalMode
+              ? "✖ Zatvori dodatno"
+              : "➕ Dodatno uparivanje"}
+          </button>
 
         <button
           className="pair-button"
@@ -295,14 +435,78 @@ const selectMozzart = (league) => {
         {/* ================= LEFT ================= */}
 
         <div className="league-panel">
+            {additionalMode && (
 
+              <div className="additional-pair-box">
 
-          <div className="panel-title">
-            Mozzart lige
-            <span>
-              ({mozzartLeagues.length})
-            </span>
-          </div>
+                <div className="panel-title">
+                  Dodatno uparivanje
+                </div>
+
+                <input
+                  className="league-search"
+                  placeholder="Mozzart ID ili naziv lige..."
+                  value={manualMozzart}
+                  onChange={e =>
+                    setManualMozzart(e.target.value)
+                  }
+                  onKeyDown={e => {
+
+                    if (e.key === "Enter") {
+                      findAdditionalMozzartLeague();
+                    }
+
+                  }}
+                />
+
+                <button
+                  className="pair-button"
+                  disabled={
+                    manualSearching ||
+                    !manualMozzart.trim()
+                  }
+                  onClick={
+                    findAdditionalMozzartLeague
+                  }
+                >
+                  {manualSearching
+                    ? "Tražim..."
+                    : "🔎 Pronađi ligu"}
+                </button>
+
+                {selectedMozzart && (
+
+                  <div className="selected-additional-league">
+
+                    <strong>
+                      {selectedMozzart.league_name}
+                    </strong>
+
+                    <small>
+                      Mozzart ID: {selectedMozzart.id}
+                      {" | "}
+                      Country ID: {selectedMozzart.country_id}
+                    </small>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+<div className="panel-title">
+  {additionalMode
+    ? "Mozzart liga za dodatno uparivanje"
+    : "Mozzart lige"}
+
+  {!additionalMode && (
+    <span>
+      ({mozzartLeagues.length})
+    </span>
+  )}
+</div>
 
 
 
@@ -320,8 +524,9 @@ const selectMozzart = (league) => {
 
 
 
-          {
-            mozzartLeagues.map(
+{
+  !additionalMode &&
+  mozzartLeagues.map(
               league => (
 
                 <div
