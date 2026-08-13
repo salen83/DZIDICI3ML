@@ -1,221 +1,359 @@
 export const syncMappedSofaToScreen1 = async ({
-  sofaRows,
-  teamMap,
-  leagueMap,
   supabase
 }) => {
   try {
     console.log("🚀 syncMappedSofaToScreen1 START");
 
-    if (!sofaRows || sofaRows.length === 0) {
-      console.log("❌ Nema sofaRows");
-      return;
-    }
 
-    console.log("SOFA SAMPLE:", sofaRows[0]);
+    // =========================================
+    // PAGINATION
+    // =========================================
 
-    const clean = (v) =>
-      (typeof v === "object" ? v?.name : v || "")
-        .toString()
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .trim();
-
-    // =========================
-    // PAGINATION FIX
-    // =========================
-    const fetchAll = async (table) => {
+const fetchAll = async (
+  table,
+  select = "*",
+  filterColumn = null,
+  filterValue = null
+) => {
       const pageSize = 1000;
       let from = 0;
-      let to = 999;
       let all = [];
 
       while (true) {
-        const { data, error } = await supabase
-          .from(table)
-          .select("*")
-          .range(from, to);
+let query = supabase
+  .from(table)
+  .select(select);
+
+if (filterColumn) {
+  query = query.eq(filterColumn, filterValue);
+}
+
+const { data, error } = await query
+  .range(from, from + pageSize - 1);
 
         if (error) {
-          console.log(`❌ ${table} error:`, error);
+          throw new Error(
+            `GRESKA pri citanju ${table}: ${error.message}`
+          );
+        }
+
+        if (!data || data.length === 0) {
           break;
         }
 
-        if (!data || data.length === 0) break;
+        all = [...all, ...data];
 
-        all = all.concat(data);
-
-        if (data.length < pageSize) break;
+        if (data.length < pageSize) {
+          break;
+        }
 
         from += pageSize;
-        to += pageSize;
       }
 
       return all;
     };
+const matches = await fetchAll(
+  "matches",
+  "*",
+  "source",
+  "sofa"
+);
 
-    const teamAliases = await fetchAll("team_aliases");
-    const leagueAliases = await fetchAll("league_aliases");
+console.log("📦 MATCHES ZA SCREEN1:", matches.length);
 
-    console.log("TEAM ALIASES LENGTH:", teamAliases?.length);
-    console.log("LEAGUE ALIASES LENGTH:", leagueAliases?.length);
+if (!matches || matches.length === 0) {
+  console.log("❌ Nema Sofa mečeva u matches tabeli.");
 
-    console.log("TEAM ALIASES SAMPLE:", teamAliases?.[0]);
-    console.log("LAST TEAM ALIAS:", teamAliases?.[teamAliases.length - 1]);
+  return {
+    inserted: 0,
+    failedMappings: []
+  };
+}
+    // =========================================
+    // UCITAJ ALIAS TABELE
+    // =========================================
+
+    const teamAliases = await fetchAll(
+      "team_aliases",
+      "team_id,alias"
+    );
+
+    const leagueAliases = await fetchAll(
+      "league_aliases",
+      "league_id,alias,source"
+    );
+console.log("🔎 PRVI TEAM ALIASI:", teamAliases.slice(0, 10));
+console.log("🔎 PRVI LEAGUE ALIASI:", leagueAliases.slice(0, 10));
+
+    console.log(
+      "TEAM ALIASES:",
+      teamAliases.length
+    );
+
+    console.log(
+      "LEAGUE ALIASES:",
+      leagueAliases.length
+    );
+
+    // =========================================
+    // TEAM MAP
+    // team_id -> Mozzart alias
+    // =========================================
 
     const teamAliasMap = {};
-    const leagueAliasMap = {};
 
-    // =========================
-    // TEAM MAP
-    // =========================
-    const teamGroups = {};
-
-    teamAliases.forEach(a => {
-      if (!teamGroups[a.team_id]) {
-        teamGroups[a.team_id] = {};
-      }
-
-      teamGroups[a.team_id][a.source] = a.alias;
-    });
-
-    Object.values(teamGroups).forEach(g => {
-      if (g.sofa && g.screen3) {
-        teamAliasMap[clean(g.sofa)] = g.screen3;
-      }
-    });
-
-    console.log("TEST CERRO:", teamAliasMap["cerro porteño"]);
-    console.log("TEST CRISTAL:", teamAliasMap["club sporting cristal"]);
-
-    // =========================
-    // LEAGUE MAP
-    // =========================
-    const leagueGroups = {};
-
-    leagueAliases.forEach(a => {
-      if (!leagueGroups[a.league_id]) {
-        leagueGroups[a.league_id] = {};
-      }
-
-      leagueGroups[a.league_id][a.source] = a.alias;
-    });
-
-    Object.values(leagueGroups).forEach(g => {
-      if (g.sofa && g.screen3) {
-        leagueAliasMap[clean(g.sofa)] = g.screen3;
-      }
-    });
-
-    const payload = [];
-    const failedMappings = [];
-
-    console.log("📊 sofaRows length:", sofaRows?.length);
-
-    for (const row of sofaRows) {
-      const homeKey = clean(row.home);
-      const awayKey = clean(row.away);
-
-      const leagueKey = clean(row.liga)
-        .replace(/,\s*group\s+[a-z0-9]+/i, "")
-        .trim();
-
-      const mappedHome = teamAliasMap[homeKey];
-      const mappedAway = teamAliasMap[awayKey];
-      const mappedLeague = leagueAliasMap[leagueKey];
-
-      console.log({
-        homeKey,
-        awayKey,
-        leagueKey,
-        mappedHome,
-        mappedAway,
-        mappedLeague
-      });
-
-      if (!mappedHome || !mappedAway || !mappedLeague) {
-        failedMappings.push({
-          id: row.id,
-          source: row.source,
-          liga: row.liga,
-          home: row.home,
-          away: row.away,
-          mappedHome,
-          mappedAway,
-          mappedLeague
-        });
-
-        console.log("❌ MAP FAIL:", {
-          liga: row.liga,
-          home: row.home,
-          away: row.away
-        });
-
+    for (const a of teamAliases) {
+      if (!a?.team_id || !a?.alias) {
         continue;
       }
 
-      console.log("✅ MATCH OK");
+      // Ako postoji vise aliasa za isti team_id,
+      // uzimamo prvi koji postoji.
+      if (!teamAliasMap[a.team_id]) {
+        teamAliasMap[a.team_id] = a.alias;
+      }
+    }
+
+    // =========================================
+    // LEAGUE MAP
+    // league_id -> Mozzart alias
+    // =========================================
+
+    const leagueAliasMap = {};
+
+    for (const a of leagueAliases) {
+      if (!a?.league_id || !a?.alias) {
+        continue;
+      }
+
+      // Prioritet ima Mozzart alias.
+      if (
+        a.source === "mozzart" ||
+        !leagueAliasMap[a.league_id]
+      ) {
+        leagueAliasMap[a.league_id] = a.alias;
+      }
+    }
+
+    console.log(
+      "TEAM MAP SIZE:",
+      Object.keys(teamAliasMap).length
+    );
+
+    console.log(
+      "LEAGUE MAP SIZE:",
+      Object.keys(leagueAliasMap).length
+    );
+
+    // =========================================
+    // PREVOD JEDNOG SOFA MECА
+    // =========================================
+
+    const payload = [];
+    const failedMappings = [];
+console.log(
+  "🔎 PRVI MATCH:",
+  matches.slice(0, 10).map(row => ({
+    id: row.id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    league_id: row.league_id,
+    raw_home: row.raw_home,
+    raw_away: row.raw_away,
+    raw_league: row.raw_league
+  }))
+);
+
+
+for (const row of matches) {
+
+      const homeTeamId =
+        row.home_team_id != null
+          ? Number(row.home_team_id)
+          : null;
+
+      const awayTeamId =
+        row.away_team_id != null
+          ? Number(row.away_team_id)
+          : null;
+
+      const leagueId =
+        row.league_id != null
+          ? Number(row.league_id)
+          : null;
+
+      const mappedHome =
+        Number.isFinite(homeTeamId)
+          ? teamAliasMap[homeTeamId]
+          : null;
+
+      const mappedAway =
+        Number.isFinite(awayTeamId)
+          ? teamAliasMap[awayTeamId]
+          : null;
+
+      const mappedLeague =
+        Number.isFinite(leagueId)
+          ? leagueAliasMap[leagueId]
+          : null;
+
+      const finalHome =
+        mappedHome || "NEMAPIRAN TIM";
+
+      const finalAway =
+        mappedAway || "NEMAPIRAN TIM";
+
+      const finalLeague =
+        mappedLeague || "NEMAPIRANA LIGA";
+
+      // =======================================
+      // LOG MAPIRANJA
+      // =======================================
+
+console.log("MATCH -> SCREEN1:", {
+  id: row.id,
+
+  league_id: leagueId,
+  raw_league: row.raw_league,
+  mappedLeague: finalLeague,
+
+  home_team_id: homeTeamId,
+  raw_home: row.raw_home,
+  mappedHome: finalHome,
+
+  away_team_id: awayTeamId,
+  raw_away: row.raw_away,
+  mappedAway: finalAway
+});
+
+      // =======================================
+      // EVIDENCIJA NEMAPIRANIH
+      // ALI MEC SE NE ODBACUJE
+      // =======================================
+
+      if (
+        !mappedHome ||
+        !mappedAway ||
+        !mappedLeague
+      ) {
+        failedMappings.push({
+          id: row.id,
+
+          league_id: leagueId,
+          sofaLeague: row.raw_league,
+          mappedLeague: mappedLeague || null,
+
+          home_team_id: homeTeamId,
+          sofaHome: row.raw_home,
+          mappedHome: mappedHome || null,
+
+          away_team_id: awayTeamId,
+          sofaAway: row.raw_away,
+          mappedAway: mappedAway || null
+        });
+      }
+
+      // =======================================
+      // SVAKI MEC IDE U PAYLOAD
+      // =======================================
 
       payload.push({
-sofa_id: row.id,
+        sofa_id: row.id,
+
         source: "screen1_mapped",
-        match_date: row.datum || "",
-        match_time: row.vreme || "",
-        league: mappedLeague,
-        home: mappedHome,
-        away: mappedAway,
+
+        match_date: row.match_date || "",
+        match_time: row.match_time || "",
+
+        league: finalLeague,
+
+        home: finalHome,
+        away: finalAway,
+
         ft: row.ft || "",
         ht: row.ht || "",
         sh: row.sh || "",
+
         country: row.country || ""
       });
     }
 
-    if (payload.length === 0) {
-      console.log("📦 FINAL PAYLOAD:", payload.length);
-      console.log("❌ Nema mapped meceva");
+    console.log(
+      "📦 PAYLOAD:",
+      payload.length
+    );
 
-      return {
-        inserted: 0,
-        failedMappings
-      };
-    }
+    console.log(
+      "⚠️ FAILED MAPPINGS:",
+      failedMappings.length
+    );
 
-    console.log("🚀 INSERT START");
+    // =========================================
+    // POSTOJEĆI SCREEN1
+    // =========================================
 
-    const { data: existing } = await supabase
-      .from("screen1_matches")
-      .select("match_date, match_time, league, home, away");
+    const existing = await fetchAll(
+      "screen1_matches",
+      "id,sofa_id,match_date,match_time,league,home,away"
+    );
+
+    console.log(
+      "SCREEN1 EXISTING:",
+      existing.length
+    );
+
+    // =========================================
+    // DEDUPE
+    // =========================================
 
     const makeKey = (m) =>
       [
-        m.match_date,
-        m.match_time,
-        clean(m.league),
-        clean(m.home),
-        clean(m.away)
+        m.sofa_id ?? "",
+        m.match_date ?? "",
+        m.match_time ?? "",
+        m.league ?? "",
+        m.home ?? "",
+        m.away ?? ""
       ].join("|");
 
     const existingKeys = new Set(
-      (existing || []).map(makeKey)
+      existing.map(makeKey)
     );
 
-    const uniquePayload = payload.filter(m => {
-      const key = makeKey(m);
+    const uniquePayload = [];
+
+    for (const match of payload) {
+
+      const key = makeKey(match);
 
       if (existingKeys.has(key)) {
-        console.log("⛔ DUPLICATE:", key);
-        return false;
+        console.log(
+          "⛔ SCREEN1 DUPLICATE:",
+          key
+        );
+
+        continue;
       }
 
       existingKeys.add(key);
-      return true;
-    });
 
-    console.log("📦 FINAL UNIQUE:", uniquePayload.length);
+      uniquePayload.push(match);
+    }
+
+    console.log(
+      "📦 UNIQUE PAYLOAD:",
+      uniquePayload.length
+    );
+
+    // =========================================
+    // INSERT
+    // =========================================
 
     if (uniquePayload.length === 0) {
-      console.log("❌ Sve su duplikati");
+
+      console.log(
+        "ℹ️ Nema novih Screen1 meceva."
+      );
 
       return {
         inserted: 0,
@@ -229,18 +367,40 @@ sofa_id: row.id,
       .select();
 
     if (error) {
-      console.log("❌ INSERT ERROR:", error);
-      return;
+
+      console.error(
+        "❌ SCREEN1 INSERT ERROR:",
+        error
+      );
+
+      return {
+        inserted: 0,
+        failedMappings,
+        error
+      };
     }
 
-    console.log("✅ INSERTED:", data.length, "matches");
+    console.log(
+      "✅ SCREEN1 INSERTED:",
+      data?.length || 0
+    );
 
     return {
-      inserted: data.length,
+      inserted: data?.length || 0,
       failedMappings
     };
 
   } catch (err) {
-    console.log("❌ ERROR:", err);
+
+    console.error(
+      "❌ syncMappedSofaToScreen1 ERROR:",
+      err
+    );
+
+    return {
+      inserted: 0,
+      failedMappings: [],
+      error: err
+    };
   }
 };

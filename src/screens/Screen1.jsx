@@ -17,24 +17,28 @@ const { rows, setRows } = useContext(MatchesContext);
 const { leagueMap } = useLeagueMap(); 
 const { teamMap } = useNormalisedTeamMap();
 const { sofaRows } = useSofa(); 
-const saveMappedSofaMatchToScreen1Table = async () => { 
-const result = await syncMappedSofaToScreen1({ 
-sofaRows,
-teamMap,
-leagueMap,
-supabase
-});
+const saveMappedSofaMatchToScreen1Table = async () => {
+  const result = await syncMappedSofaToScreen1({
+    sofaRows,
+    supabase
+  });
 
-if (result?.failedMappings) {
-setFailedMappings(result.failedMappings);
-setCurrentFailIndex(0); 
+  if (result?.failedMappings) {
+    setFailedMappings(result.failedMappings);
+    setCurrentFailIndex(0);
 
-console.log(
-"❌ FAILED MAPPINGS:", 
-result.failedMappings.length 
-);
-}
+    console.log(
+      "⚠️ FAILED MAPPINGS:",
+      result.failedMappings.length
+    );
+  }
+
+  console.log(
+    "✅ SCREEN1 INSERTED:",
+    result?.inserted || 0
+  );
 };
+
 
 const tableWrapperRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0); 

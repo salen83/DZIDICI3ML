@@ -78,6 +78,13 @@ localStorage.getItem("blockedSofaLeagues") || "[]"
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 let countryNameToId = {};
+
+const normalizeMatchPart = (value) => {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+};
 // ================= IMPORT =================
 
 const handleImport = async (e) => {
@@ -95,116 +102,570 @@ const handleImport = async (e) => {
 console.log("SOFA FIRST ROW:", json[0]);
 console.log("SOFA COLUMNS:", Object.keys(json[0] || {}));
 
-const { data: countriesData, error } = await supabase
-  .from("sofa_countries")
-  .select("id,name");
+console.log(
+  "SOFA AWAY TEAM ID TEST:",
+  json.slice(0, 10).map((r, i) => ({
+    row: i,
+    awayTeamIdExact: r["Away Team ID"],
+    away_team_id: r.away_team_id,
+    AwayTeamID: r.AwayTeamID,
+    awayTeamId: r.awayTeamId,
+  }))
+);
 
-countryNameToId = {};
+    // =========================================
+    // 1. UCITAJ SVE DOZVOLJENE LEAGUE ID
+    // =========================================
+      let leagueAliases = [];
+      let leagueAliasFrom = 0;
+      const leagueAliasPageSize = 1000;
 
-countriesData?.forEach(c => {
-  countryNameToId[c.name.trim()] = c.id;
-});
-    // =========================
-    // 1. GLOBAL DEDUPE (KRITIČNO)
-    // =========================
+      while (true) {
+        const { data: leagueAliasPage, error: leagueAliasError } =
+          await supabase
+            .from("league_aliases")
+            .select("league_id")
+            .range(
+              leagueAliasFrom,
+              leagueAliasFrom + leagueAliasPageSize - 1
+            );
+
+        if (leagueAliasError) {
+          throw new Error(
+            "GRESKA pri ucitavanju league_aliases: " +
+            leagueAliasError.message
+          );
+        }
+
+        if (!leagueAliasPage || leagueAliasPage.length === 0) {
+          break;
+        }
+
+        leagueAliases = [...leagueAliases, ...leagueAliasPage];
+
+        if (leagueAliasPage.length < leagueAliasPageSize) {
+          break;
+        }
+
+        leagueAliasFrom += leagueAliasPageSize;
+      }
+
+      // Set = jedinstveni league_id
+      // Ako isti league_id ima vise aliasa,
+      // ovde se pojavljuje samo jednom.
+      const allowedLeagueIds = new Set(
+        (leagueAliases || [])
+          .map(x => Number(x.league_id))
+          .filter(Number.isFinite)
+      );
+
+      log(`league_aliases rows: ${leagueAliases.length}`);
+      log(`Allowed unique League IDs: ${allowedLeagueIds.size}`);
+
+    // =========================================
+    // 2. GLOBAL DEDUPE
+    // =========================================
+
     const map = new Map();
 
-for (const r of json) {
+    let filteredOut = 0;
+    let blockedOut = 0;
+    let accepted = 0;
 
-  const league =
-    r.Liga || r.league || r.League || "";
+    for (const r of json) {
 
-  if (blockedLeagues.includes(league)) continue;
+      // =======================================
+      // LEAGUE ID IZ SOFASCORE EXCELA
+      // =======================================
 
-  const home =
-    r.Domacin || r.home || r.Home || r["Home team"] || "";
+      const leagueIdRaw =
+        r["League ID"] ??
+        r.league_id ??
+        r.LeagueID ??
+        r.leagueId ??
+        null;
 
-  const away =
-    r.Gost || r.away || r.Away || r["Away team"] || "";
+      const leagueId = Number(leagueIdRaw);
 
-  const date =
-    r.Datum || r.date || r.Date || r.match_date || "";
+      // Ako nema validan League ID -> odbaci
+      if (!Number.isFinite(leagueId)) {
+        filteredOut++;
+        continue;
+      }
 
-  const time =
-    r.Vreme || r.time || r.Time || r.match_time || "";
+      // =======================================
+      // FILTER PREKO league_aliases
+      // =======================================
 
-  const countryRaw =
-    (r.Country || r.country || "").trim();
+      if (!allowedLeagueIds.has(leagueId)) {
+        filteredOut++;
+        continue;
+      }
 
-  const key = `${home}-${away}-${date}-${time}`;
+      // =======================================
+      // OSTALI PODACI
+      // =======================================
 
-  if (!map.has(key)) {
+      const league =
+        r.Liga ||
+        r.league ||
+        r.League ||
+        r["League Name"] ||
+        "";
 
-    map.set(key, {
-      source: "sofa",
+      if (blockedLeagues.includes(league)) {
+        blockedOut++;
+        continue;
+      }
 
-      match_date: date,
-      match_time: time,
+      const home =
+        r.Domacin ||
+        r.home ||
+        r.Home ||
+        r["Home team"] ||
+        r["Home Team"] ||
+        "";
 
-      raw_home: home,
-      raw_away: away,
-      raw_league: league,
+      const away =
+        r.Gost ||
+        r.away ||
+        r.Away ||
+        r["Away team"] ||
+        r["Away Team"] ||
+        "";
 
-      ht: r["Prvo poluvreme"] || r.ht || "",
-      sh: r["Drugo poluvreme"] || r.sh || "",
-      ft: r.FT || r.ft || "",
-      extratime: r.Produzeci || r.et || "",
-      penalties: r.Penali || r.pen || "",
+      const date =
+        r.Datum ||
+        r.date ||
+        r.Date ||
+        r.match_date ||
+        "";
 
-      country_id: countryNameToId[countryRaw] ?? null,
-      country_iso: countryAliasToISO(countryRaw) || "",
+      const time =
+        r.Vreme ||
+        r.time ||
+        r.Time ||
+        r.match_time ||
+        "";
 
-      home_team_id: null,
-      away_team_id: null,
-      league_id: null
-    });
+      // =======================================
+      // COUNTRY ID
+      // =======================================
 
-  }
+      const countryIdRaw =
+        r["Country ID"] ??
+        r.country_id ??
+        r.CountryID ??
+        r.countryId ??
+        null;
+
+      const countryId = Number(countryIdRaw);
+
+      // =======================================
+      // TEAM ID
+      // =======================================
+
+      const homeTeamIdRaw =
+        r["Home Team ID"] ??
+        r.home_team_id ??
+        r.HomeTeamID ??
+        r.homeTeamId ??
+        null;
+
+      const awayTeamIdRaw =
+        r["Away Team ID"] ??
+        r.away_team_id ??
+        r.AwayTeamID ??
+        r.awayTeamId ??
+        null;
+
+      const homeTeamId = Number(homeTeamIdRaw);
+      const awayTeamId = Number(awayTeamIdRaw);
+
+if (!Number.isFinite(homeTeamId) || !Number.isFinite(awayTeamId)) {
+  console.log("SOFA INVALID TEAM ID:", {
+    league_id: leagueId,
+    home: home,
+    away: away,
+    homeTeamIdRaw,
+    awayTeamIdRaw,
+    homeTeamId,
+    awayTeamId,
+    date,
+    time,
+  });
 }
+      // =======================================
+      // COUNTRY NAME
+      // =======================================
+
+      const countryRaw =
+        (
+          r.Country ||
+          r.country ||
+          r["Country Name"] ||
+          ""
+        ).trim();
+
+// =======================================
+// UNIQUE MATCH KEY
+// =======================================
+//
+// NE koristimo team_id kao deo kljuca.
+//
+// Razlog:
+// Sofa Excel moze imati isti mec vise puta,
+// a kod nemapiranih timova team_id je NULL.
+//
+// Prirodni kljuc utakmice je:
+// league + home naziv + away naziv + datum + vreme.
+//
+
+const normalizeMatchPart = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const key = [
+  leagueId,
+  normalizeMatchPart(home),
+  normalizeMatchPart(away),
+  date,
+  time
+].join("|");
+
+// =======================================
+// MERGE DUPLICATA
+// =======================================
+//
+// Ako isti mec postoji vise puta u Excelu,
+// NE odbacujemo drugi red.
+//
+// Umesto toga spajamo rezultate.
+// Tako red bez rezultata + red sa rezultatom
+// postaju jedan kompletan mec.
+//
+
+const existing = map.get(key);
+
+if (existing) {
+  const resultFields = [
+    "ht",
+    "sh",
+    "ft",
+    "extratime",
+    "penalties"
+  ];
+
+  for (const field of resultFields) {
+    if (
+      (!existing[field] || existing[field] === "") &&
+      r[
+        field === "ht" ? "1H" :
+        field === "sh" ? "2H" :
+        field === "ft" ? "90 MIN" :
+        field === "extratime" ? "Produzeci" :
+        "Penali"
+      ]
+    ) {
+      existing[field] =
+        r[
+          field === "ht" ? "1H" :
+          field === "sh" ? "2H" :
+          field === "ft" ? "90 MIN" :
+          field === "extratime" ? "Produzeci" :
+          "Penali"
+        ];
+    }
+  }
+
+  // Ako prvi red nije imao ID,
+  // a drugi ga ima, uzmi ID iz drugog reda.
+  if (
+    !Number.isFinite(existing.home_team_id) &&
+    Number.isFinite(homeTeamId)
+  ) {
+    existing.home_team_id = homeTeamId;
+  }
+
+  if (
+    !Number.isFinite(existing.away_team_id) &&
+    Number.isFinite(awayTeamId)
+  ) {
+    existing.away_team_id = awayTeamId;
+  }
+
+  continue;
+}
+
+      map.set(key, {
+        source: "sofa",
+
+        match_date: date,
+        match_time: time,
+
+        raw_home: home,
+        raw_away: away,
+        raw_league: league,
+
+ht:
+  r["1H"] ??
+  r.ht ??
+  "",
+
+sh:
+  r["2H"] ??
+  r.sh ??
+  "",
+
+ft:
+  r["90 MIN"] ??
+  r.ft ??
+  "",
+
+extratime:
+  r["Produzeci"] ??
+  r.et ??
+  "",
+
+penalties:
+  r["Penali"] ??
+  r.pen ??
+  "",
+
+        // =====================================
+        // ID-JEVI IZ SOFASCORE EXCELA
+        // =====================================
+
+        country_id:
+          Number.isFinite(countryId)
+            ? countryId
+            : null,
+
+        country_iso:
+          countryAliasToISO(countryRaw) || "",
+
+        home_team_id:
+          Number.isFinite(homeTeamId)
+            ? homeTeamId
+            : null,
+
+        away_team_id:
+          Number.isFinite(awayTeamId)
+            ? awayTeamId
+            : null,
+
+        league_id: leagueId
+      });
+
+      accepted++;
+    }
 
     const rows = Array.from(map.values());
 
+    log(`FILTERED OUT: ${filteredOut}`);
+    log(`BLOCKED: ${blockedOut}`);
+    log(`ACCEPTED: ${accepted}`);
     log(`UNIQUE rows: ${rows.length}`);
 
-    // =========================
-    // 2. SMALL CHUNKS (STABILNO)
-    // =========================
-    const CHUNK = 100;
+console.log(
+  "SOFA ROWS TEAM ID TEST:",
+  rows.slice(0, 10).map((r, i) => ({
+    row: i,
+    league_id: r.league_id,
+    home_team_id: r.home_team_id,
+    away_team_id: r.away_team_id,
+    raw_home: r.raw_home,
+    raw_away: r.raw_away,
+  }))
+);
+// =========================================
+// 3. UPLOAD U CHUNK-OVIMA
+// =========================================
+//
+// Pre upisa ucitavamo postojece Sofa meceve
+// i trazimo ih po prirodnom kljucu:
+//
+// source + league_id + raw_home + raw_away
+// + match_date + match_time
+//
+// Ovo je posebno vazno za nemapirane timove
+// gde su home_team_id / away_team_id NULL.
+//
 
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const batch = rows.slice(i, i + CHUNK);
+const { data: existingSofaRows, error: existingSofaError } =
+  await supabase
+    .from("matches")
+    .select(`
+      id,
+      source,
+      league_id,
+      raw_home,
+      raw_away,
+      match_date,
+      match_time,
+      home_team_id,
+      away_team_id,
+      ht,
+      sh,
+      ft,
+      extratime,
+      penalties
+    `)
+    .eq("source", "sofa");
 
-      log(`Uploading ${i + 1}-${i + batch.length}`);
+if (existingSofaError) {
+  throw new Error(
+    "GRESKA pri ucitavanju postojecih Sofa meceva: " +
+    existingSofaError.message
+  );
+}
 
-      let retry = 0;
-      let success = false;
+// =========================================
+// MAPA POSTOJECIH MECEVA
+// =========================================
 
-      while (!success && retry < 3) {
-        const { error } = await supabase
-          .from("matches")
-          .upsert(batch, {
-            onConflict: "source,raw_home,raw_away,match_date,match_time"
-          });
+const existingMap = new Map();
 
-        if (!error) {
-          success = true;
-        } else {
-          console.log("BATCH ERROR:", error);
-          retry++;
-          log(`Retry ${retry}...`);
-          await sleep(800 * retry);
-        }
-      }
+for (const r of existingSofaRows || []) {
+  const existingKey = [
+    Number(r.league_id),
+    normalizeMatchPart(r.raw_home),
+    normalizeMatchPart(r.raw_away),
+    r.match_date || "",
+    r.match_time || ""
+  ].join("|");
 
-      if (!success) {
-        throw new Error("Batch failed after retries");
-      }
+  existingMap.set(existingKey, r);
+}
+
+log(`Existing Sofa matches: ${existingMap.size}`);
+
+// =========================================
+// PRIPREMA NOVIH REDOVA
+// =========================================
+
+const rowsToUpsert = [];
+
+for (const row of rows) {
+
+  const rowKey = [
+    Number(row.league_id),
+    normalizeMatchPart(row.raw_home),
+    normalizeMatchPart(row.raw_away),
+    row.match_date || "",
+    row.match_time || ""
+  ].join("|");
+
+  const existing = existingMap.get(rowKey);
+
+  if (existing) {
+
+    // =====================================
+    // POSTOJECA UTAKMICA -> UPDATE
+    // =====================================
+
+    rowsToUpsert.push({
+      ...row,
+      id: existing.id
+    });
+
+  } else {
+
+    // =====================================
+    // NOVA UTAKMICA -> INSERT
+    // =====================================
+
+    rowsToUpsert.push({
+      ...row
+    });
+  }
+}
+
+// =========================================
+// CHUNK UPLOAD
+// =========================================
+
+const CHUNK = 100;
+
+for (let i = 0; i < rowsToUpsert.length; i += CHUNK) {
+
+  const batch = rowsToUpsert.slice(i, i + CHUNK);
+
+  console.log(
+    "SOFA BATCH:",
+    batch.map(r => ({
+      id: r.id || null,
+      league_id: r.league_id,
+      home_team_id: r.home_team_id,
+      away_team_id: r.away_team_id,
+      raw_home: r.raw_home,
+      raw_away: r.raw_away,
+      ht: r.ht,
+      sh: r.sh,
+      ft: r.ft
+    }))
+  );
+
+  log(
+    `Uploading ${i + 1}-${i + batch.length}`
+  );
+
+  let retry = 0;
+  let success = false;
+
+  while (!success && retry < 3) {
+
+    const { error } = await supabase
+      .from("matches")
+      .upsert(batch, {
+        onConflict: "id"
+      });
+
+    if (!error) {
+
+      success = true;
+
+    } else {
+
+      console.log(
+        "BATCH ERROR:",
+        error
+      );
+
+      retry++;
+
+      log(`Retry ${retry}...`);
+
+      await sleep(800 * retry);
     }
+  }
 
-    log(`DONE: ${rows.length} matches imported`);
+  if (!success) {
+    throw new Error(
+      "Batch failed after retries"
+    );
+  }
+}
+
+log(
+  `DONE: ${rowsToUpsert.length} matches imported`
+);
 
   } catch (err) {
-    log("IMPORT ERROR: " + err.message);
+
+    console.error("SOFA IMPORT ERROR:", err);
+
+    log(
+      "IMPORT ERROR: " +
+      (err?.message || String(err))
+    );
+
+  } finally {
+
+    // Omogucava ponovni import istog fajla
+    e.target.value = "";
   }
 };
 
@@ -395,9 +856,9 @@ onClick={() => toggleLeague(key)}
 
 return (
 
-<div 
-key={r.id}
-className="sofa-row"
+<div
+  key={`${key}-${r.id}-${index}`}
+  className="sofa-row"
 >
 
 
