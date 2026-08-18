@@ -33,7 +33,6 @@ export default function SofaScreen({ onClose }) {
   const tableRef = useRef(null);
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
- const [blockedLeagues, setBlockedLeagues] = useState([]);
 const [collapsedLeagues, setCollapsedLeagues] = useState({});
 
 const rowHeight = 45;
@@ -50,12 +49,6 @@ const handleScroll = (e) => {
   setScrollTop(e.target.scrollTop);
 };
 
-useEffect(() => {
-   const blocked = JSON.parse(
-localStorage.getItem("blockedSofaLeagues") || "[]"
-    );
-   setBlockedLeagues(blocked);
-  }, []);
   const log = (m) => {
     console.log("[SOFA]", m);
     setLogs((p) => [...p.slice(-80), m]);
@@ -213,11 +206,6 @@ console.log(
         r["League Name"] ||
         "";
 
-      if (blockedLeagues.includes(league)) {
-        blockedOut++;
-        continue;
-      }
-
       const home =
         r.Domacin ||
         r.home ||
@@ -281,6 +269,74 @@ console.log(
 
       const homeTeamId = Number(homeTeamIdRaw);
       const awayTeamId = Number(awayTeamIdRaw);
+
+        // =======================================
+        // DEBUG PROBLEMATICNIH TIMOVA IZ EXCELA
+        // =======================================
+        const problematicTeams = [
+          "Persik Kediri",
+          "FC Jurong",
+          "Burapha United",
+          "Pattaya United",
+          "Hải Phòng",
+          "Hưng Yên FC",
+          "Newcastle United WFC",
+          "Inter",
+          "Melaka FC",
+          "Phnom Penh Crown",
+          "Pfk Aral",
+          "Bukhoro Davlat Universiteti",
+          "Respublika Football Academy",
+          "Metallurg Bekabad",
+          "PFC Shurtan",
+          "FC Kattaqorgon",
+          "PFC Terdu",
+          "FC Yaypan Fergana",
+          "Pakhtakor Tashkent II",
+          "Lochin",
+          "Argentinos Juniors",
+          "Platense",
+          "FK Smederevo 1924",
+          "FK Bor 1919",
+          "CE Europa",
+          "SE AEM",
+          "Bushrod Queens",
+          "Determine Girls",
+          "Rayon Sports FC",
+          "Mathare United",
+          "CD Alba Fundación Femenino",
+          "Levante UD",
+          "Logroño United",
+          "Cacereño Femenino",
+          "Alhama Club de Fútbol",
+          "Villarreal CF",
+          "El Porvenir",
+          "Estudiantes de La Plata"
+        ];
+
+        if (
+          problematicTeams.includes(String(home).trim()) ||
+          problematicTeams.includes(String(away).trim())
+        ) {
+          console.log("!!! PROBLEM TEAM IZ EXCELA !!!", {
+            home,
+            away,
+            league_id: leagueId,
+            homeTeamIdRaw,
+            awayTeamIdRaw,
+            homeTeamIdColumn: r["Home Team ID"],
+            awayTeamIdColumn: r["Away Team ID"],
+            home_team_id: r.home_team_id,
+            away_team_id: r.away_team_id,
+            HomeTeamID: r.HomeTeamID,
+            AwayTeamID: r.AwayTeamID,
+            homeTeamId: r.homeTeamId,
+            awayTeamId: r.awayTeamId,
+            date,
+            time,
+            fullRow: r
+          });
+        }
 
 if (!Number.isFinite(homeTeamId) || !Number.isFinite(awayTeamId)) {
   console.log("SOFA INVALID TEAM ID:", {
@@ -471,14 +527,21 @@ penalties:
 
 console.log(
   "SOFA ROWS TEAM ID TEST:",
-  rows.slice(0, 10).map((r, i) => ({
-    row: i,
-    league_id: r.league_id,
-    home_team_id: r.home_team_id,
-    away_team_id: r.away_team_id,
-    raw_home: r.raw_home,
-    raw_away: r.raw_away,
-  }))
+  rows
+    .filter(r =>
+      Number.isFinite(r.home_team_id) ||
+      Number.isFinite(r.away_team_id)
+    )
+    .map((r, i) => ({
+      row: i,
+      league_id: r.league_id,
+      home_team_id: r.home_team_id,
+      away_team_id: r.away_team_id,
+      raw_home: r.raw_home,
+      raw_away: r.raw_away,
+      match_date: r.match_date,
+      match_time: r.match_time
+    }))
 );
 // =========================================
 // 3. UPLOAD U CHUNK-OVIMA
@@ -593,6 +656,17 @@ for (let i = 0; i < rowsToUpsert.length; i += CHUNK) {
 
   const batch = rowsToUpsert.slice(i, i + CHUNK);
 
+console.log("=== BATCH DEBUG ===", {
+  from: i + 1,
+  to: i + batch.length,
+  count: batch.length,
+  atalanta: batch.find(
+    r =>
+      r.raw_home === "Cittadella" &&
+      r.raw_away === "Atalanta U23"
+  )
+});
+
   console.log(
     "SOFA BATCH:",
     batch.map(r => ({
@@ -617,6 +691,35 @@ for (let i = 0; i < rowsToUpsert.length; i += CHUNK) {
 
   while (!success && retry < 3) {
 
+console.log("!!! PROVERA FINAL BATCH !!!", {
+  from: i + 1,
+  to: i + batch.length,
+  count: batch.length,
+  atalanta: batch.find(
+    r =>
+      r.raw_away === "Atalanta U23" ||
+      r.raw_home === "Atalanta U23"
+  )
+});
+
+console.log("!!! SALJEM SUPABASE !!!", batch.find(
+  r =>
+    r.raw_away === "Atalanta U23" ||
+    r.raw_home === "Atalanta U23"
+));
+
+console.table(
+  batch.map(r => ({
+    id: r.id,
+    league_id: r.league_id,
+    raw_home: r.raw_home,
+    raw_away: r.raw_away,
+    home_team_id: r.home_team_id,
+    away_team_id: r.away_team_id,
+    match_date: r.match_date,
+    match_time: r.match_time
+  }))
+);
     const { error } = await supabase
       .from("matches")
       .upsert(batch, {
@@ -624,8 +727,55 @@ for (let i = 0; i < rowsToUpsert.length; i += CHUNK) {
       });
 
     if (!error) {
+console.log("!!! UPSERT PROSAO !!!", {
+  error,
+  atalanta: batch.find(
+    r =>
+      r.raw_away === "Atalanta U23" ||
+      r.raw_home === "Atalanta U23"
+  )
+});
 
-      success = true;
+const debugRow = batch.find(
+  r =>
+    r.raw_home === "Cittadella" &&
+    r.raw_away === "Atalanta U23"
+);
+
+if (debugRow?.id) {
+  const { data: verifyRow, error: verifyError } =
+    await supabase
+      .from("matches")
+      .select(`
+        id,
+        league_id,
+        home_team_id,
+        away_team_id,
+        raw_home,
+        raw_away,
+        match_date,
+        match_time
+      `)
+      .eq("id", debugRow.id)
+      .single();
+
+  console.log("=== ATALANTA SUPABASE VERIFY ===", {
+    sent: {
+      id: debugRow.id,
+      league_id: debugRow.league_id,
+      home_team_id: debugRow.home_team_id,
+      away_team_id: debugRow.away_team_id,
+      raw_home: debugRow.raw_home,
+      raw_away: debugRow.raw_away,
+      match_date: debugRow.match_date,
+      match_time: debugRow.match_time
+    },
+    received: verifyRow,
+    error: verifyError
+  });
+}
+
+success = true;
 
     } else {
 

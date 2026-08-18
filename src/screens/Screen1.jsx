@@ -2,7 +2,6 @@ import React, { useState, useContext, useRef, useCallback, useEffect } from 'rea
 import './Screen1.css'; 
 import { MatchesContext } from "../MatchesContext";
 import { useLeagueMap } from "../LeagueMapContext"; 
-import { useNormalisedTeamMap } from "../NormalisedTeamMapContext";
 import { convertSofaToSyncJSONRaw } from "./ScreenJson"; 
 import { useSofa } from "../SofaContext"; 
 import countryAliasToISO from "../utils/countryAliasToISO";
@@ -15,7 +14,6 @@ import FailedMappingPanel from "../components/FailedMappingPanel";
 export default function Screen1() { 
 const { rows, setRows } = useContext(MatchesContext);
 const { leagueMap } = useLeagueMap(); 
-const { teamMap } = useNormalisedTeamMap();
 const { sofaRows } = useSofa(); 
 const saveMappedSofaMatchToScreen1Table = async () => {
   const result = await syncMappedSofaToScreen1({
@@ -47,19 +45,7 @@ const [debugLogs, setDebugLogs] = useState([]);
 const [failedMappings, setFailedMappings] = useState([]);
 const [currentFailIndex, setCurrentFailIndex] = useState(0); 
 const [failFix, setFailFix] = useState({});
-const teamIdToName = React.useMemo(() => {
-  const map = {};
 
-  if (teamMap) {
-    Object.values(teamMap).forEach(t => {
-      if (t?.id && t?.name) {
-        map[t.id] = t.name;
-      }
-    });
-  }
-
-  return map;
-}, [teamMap]);
 const addLog = (msg) => {
 setDebugLogs(prev => [...prev, msg]);
 console.log(msg);
@@ -84,16 +70,6 @@ return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).pa
  } 
 return String(val); 
 }; 
-function normalize(str = "") {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\b(fc|fk|cf|sc|ac)\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
  
 const sortRowsByDateDesc = (rowsToSort) =>
 [...rowsToSort].sort((a, b) => {
@@ -299,7 +275,7 @@ return (
     />
   ) : (
     <span onClick={() => handleEditStart(idx, "home")}>
-{teamIdToName[r.home] || r.home}
+{r.home}
     </span>
   )}
 
@@ -314,7 +290,7 @@ return (
     />
   ) : (
     <span onClick={() => handleEditStart(idx, "away")}>
-{teamIdToName[r.away] || r.away}
+{r.away}
     </span>
   )}
 
