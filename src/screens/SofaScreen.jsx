@@ -29,7 +29,6 @@ export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
 
   const [logs, setLogs] = useState([]);
-  const [newLeague, setNewLeague] = useState("");
   const tableRef = useRef(null);
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
@@ -53,21 +52,7 @@ const handleScroll = (e) => {
     console.log("[SOFA]", m);
     setLogs((p) => [...p.slice(-80), m]);
   };
-// ================= DODAJ ZENSKU LIGU =================
-  const addWomensLeague = async () => {
-    if (!newLeague.trim()) return;
 
-    const { error } = await supabase
-      .from("womens_leagues")
-      .insert([{ league_name: newLeague.trim() }]);
-
-    if (error) {
-      log("GRESKA: " + error.message);
-    } else {
-      log("Dodata liga: " + newLeague);
-      setNewLeague("");
-    }
-  };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 let countryNameToId = {};
@@ -89,6 +74,23 @@ const handleImport = async (e) => {
     const workbook = XLSX.read(data);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet);
+
+const newcastleDebug = json.find(
+  r =>
+    String(r.Home || "").trim() === "Newcastle United WFC" ||
+    String(r.Away || "").trim() === "Newcastle United WFC"
+);
+
+console.log("=== NEWCASTLE DEBUG ===", newcastleDebug);
+
+console.log("=== NEWCASTLE TEAM IDS ===", {
+  home: newcastleDebug?.["Home Team ID"],
+  away: newcastleDebug?.["Away Team ID"],
+  homeSnake: newcastleDebug?.home_team_id,
+  awaySnake: newcastleDebug?.away_team_id,
+  homeCamel: newcastleDebug?.homeTeamId,
+  awayCamel: newcastleDebug?.awayTeamId,
+});
 
     log(`RAW rows: ${json.length}`);
 
@@ -938,17 +940,6 @@ setSofaRows(copy);
   style={{ display: "none" }}
   onChange={handleImport}
 />
-<div style={{ marginTop: 10 }}>
-    <input
-      placeholder="Unesi naziv zenske lige"
-      value={newLeague}
-      onChange={(e) => setNewLeague(e.target.value)}
-    />
-    <button onClick={addWomensLeague}>
-      ➕ Dodaj žensku ligu
-    </button>
-  </div>
-
      <div
   className="sofa-table-wrapper"
   style={{ height: containerHeight, overflowY: "auto" }}

@@ -18,19 +18,44 @@ export default function Screen3() {
 
 // load from Supabase
 useEffect(() => {
-  async function loadMatches() {
+async function loadMatches() {
+  let allData = [];
+  let from = 0;
+  const pageSize = 1000;
+
+  while (true) {
     const { data, error } = await supabase
       .from("future_matches")
       .select("*")
-      .order("id", { ascending: false });
+      .order("id", { ascending: false })
+      .range(from, from + pageSize - 1);
 
     if (error) {
       console.error("Future matches load error:", error);
       return;
     }
 
-    setFutureMatches(data || []);
+    allData = [...allData, ...(data || [])];
+
+    if (!data || data.length < pageSize) break;
+
+    from += pageSize;
   }
+
+  console.log("===== FUTURE MATCHES FROM SUPABASE =====");
+  console.log("UKUPAN BROJ MECEVA:", allData.length);
+
+  const leagueCounts = allData.reduce((acc, match) => {
+    const liga = match.liga || "Nedefinisana liga";
+    acc[liga] = (acc[liga] || 0) + 1;
+    return acc;
+  }, {});
+
+  console.table(leagueCounts);
+  console.log("LIGE:", Object.keys(leagueCounts));
+
+  setFutureMatches(allData);
+}
 
   loadMatches();
 }, [setFutureMatches]);

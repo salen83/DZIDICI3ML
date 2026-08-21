@@ -69,21 +69,39 @@ if (!matches || matches.length === 0) {
     failedMappings: []
   };
 }
-    // =========================================
-    // UCITAJ ALIAS TABELE
-    // =========================================
+      // =========================================
+      // UCITAJ ALIAS I COUNTRY TABELE
+      // =========================================
 
-    const teamAliases = await fetchAll(
-      "team_aliases",
-      "team_id,alias"
-    );
+      const teamAliases = await fetchAll(
+        "team_aliases",
+        "team_id,alias"
+      );
 
-    const leagueAliases = await fetchAll(
-      "league_aliases",
-      "league_id,alias,source"
-    );
-console.log("🔎 PRVI TEAM ALIASI:", teamAliases.slice(0, 10));
-console.log("🔎 PRVI LEAGUE ALIASI:", leagueAliases.slice(0, 10));
+      const leagueAliases = await fetchAll(
+        "league_aliases",
+        "league_id,alias,source"
+      );
+
+      const sofaCountries = await fetchAll(
+        "sofa_countries",
+        "id,name"
+      );
+
+      console.log(
+        "🔎 PRVI TEAM ALIASI:",
+        teamAliases.slice(0, 10)
+      );
+
+      console.log(
+        "🔎 PRVI LEAGUE ALIASI:",
+        leagueAliases.slice(0, 10)
+      );
+
+      console.log(
+        "🔎 PRVI SOFA COUNTRIES:",
+        sofaCountries.slice(0, 10)
+      );
 
     console.log(
       "TEAM ALIASES:",
@@ -95,56 +113,91 @@ console.log("🔎 PRVI LEAGUE ALIASI:", leagueAliases.slice(0, 10));
       leagueAliases.length
     );
 
-    // =========================================
-    // TEAM MAP
-    // team_id -> Mozzart alias
-    // =========================================
+      // =========================================
+      // TEAM MAP
+      // team_id -> alias
+      // =========================================
 
-    const teamAliasMap = {};
+      const teamAliasMap = {};
 
-    for (const a of teamAliases) {
-      if (!a?.team_id || !a?.alias) {
-        continue;
+      for (const a of teamAliases) {
+        if (!a?.team_id || !a?.alias) {
+          continue;
+        }
+
+        if (!teamAliasMap[a.team_id]) {
+          teamAliasMap[a.team_id] = a.alias;
+        }
       }
 
-      // Ako postoji vise aliasa za isti team_id,
-      // uzimamo prvi koji postoji.
-      if (!teamAliasMap[a.team_id]) {
-        teamAliasMap[a.team_id] = a.alias;
+      // =========================================
+      // LEAGUE MAP
+      // league_id -> alias
+      // =========================================
+
+      const leagueAliasMap = {};
+
+      for (const a of leagueAliases) {
+        if (!a?.league_id || !a?.alias) {
+          continue;
+        }
+
+        if (
+          a.source === "mozzart" ||
+          !leagueAliasMap[a.league_id]
+        ) {
+          leagueAliasMap[a.league_id] = a.alias;
+        }
       }
-    }
 
-    // =========================================
-    // LEAGUE MAP
-    // league_id -> Mozzart alias
-    // =========================================
+      // =========================================
+      // COUNTRY MAP
+      // country_id -> country name
+      // =========================================
 
-    const leagueAliasMap = {};
+      const countryMap = {};
 
-    for (const a of leagueAliases) {
-      if (!a?.league_id || !a?.alias) {
-        continue;
+      for (const country of sofaCountries) {
+        if (!country?.id || !country?.name) {
+          continue;
+        }
+
+        countryMap[country.id] = country.name;
       }
 
-      // Prioritet ima Mozzart alias.
-      if (
-        a.source === "mozzart" ||
-        !leagueAliasMap[a.league_id]
-      ) {
-        leagueAliasMap[a.league_id] = a.alias;
-      }
-    }
+      console.log(
+        "TEAM MAP SIZE:",
+        Object.keys(teamAliasMap).length
+      );
 
-    console.log(
-      "TEAM MAP SIZE:",
-      Object.keys(teamAliasMap).length
-    );
+      console.log(
+        "LEAGUE MAP SIZE:",
+        Object.keys(leagueAliasMap).length
+      );
 
-    console.log(
-      "LEAGUE MAP SIZE:",
-      Object.keys(leagueAliasMap).length
-    );
+      console.log(
+        "COUNTRY MAP SIZE:",
+        Object.keys(countryMap).length
+      );
 
+      // =========================================
+      // KRAJ MAPA
+      // =========================================
+
+      console.log(
+        "TEAM MAP SIZE:",
+        Object.keys(teamAliasMap).length
+      );
+
+      console.log(
+        "LEAGUE MAP SIZE:",
+        Object.keys(leagueAliasMap).length
+      );
+
+      console.log(
+        "COUNTRY MAP SIZE:",
+        Object.keys(countryMap).length
+      );
     // =========================================
     // PREVOD JEDNOG SOFA MECА
     // =========================================
@@ -286,7 +339,10 @@ console.log("MATCH -> SCREEN1:", {
           ht: row.ht || "",
           sh: row.sh || "",
 
-          country: row.country || ""
+country:
+  row.country_id != null
+    ? countryMap[Number(row.country_id)] || ""
+    : ""
         });
     }
 
