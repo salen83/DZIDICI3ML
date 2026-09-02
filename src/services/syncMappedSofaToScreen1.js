@@ -371,152 +371,82 @@ country:
     );
 
       // =========================================
-      // AZURIRAJ POSTOJECE SCREEN1 REDOVE
+      // BULK SYNC SCREEN1 PREKO RPC
       // =========================================
 
-      const existingBySofaId = new Map(
-        existing
-          .filter(row => row.sofa_id != null)
-          .map(row => [Number(row.sofa_id), row])
+      console.log(
+        "⚡ ŠALJEM SCREEN1 MEČEVE U BULK RPC:",
+        payload.length
       );
 
-      const uniquePayload = [];
-      let updated = 0;
-
-      for (const match of payload) {
-
-        const existingRow =
-          existingBySofaId.get(Number(match.sofa_id));
-
-        // -----------------------------------------
-        // POSTOJI -> UPDATE
-        // -----------------------------------------
-
-        if (existingRow) {
-
-          const { error: updateError } = await supabase
-            .from("screen1_matches")
-            .update({
-              match_date: match.match_date,
-              match_time: match.match_time,
-
-              league: match.league,
-              league_id: match.league_id,
-
-              home: match.home,
-              home_team_id: match.home_team_id,
-              home_name_source: match.home_name_source,
-
-              away: match.away,
-              away_team_id: match.away_team_id,
-              away_name_source: match.away_name_source,
-
-              ft: match.ft,
-              ht: match.ht,
-              sh: match.sh,
-
-              country: match.country,
-              source: match.source
-            })
-            .eq("id", existingRow.id);
-
-          if (updateError) {
-
-            console.error(
-              "❌ SCREEN1 UPDATE ERROR:",
-              {
-                screen1_id: existingRow.id,
-                sofa_id: match.sofa_id,
-                error: updateError
-              }
-            );
-
-          } else {
-
-            updated++;
-
-            console.log(
-              "🔄 SCREEN1 UPDATED:",
-              {
-                screen1_id: existingRow.id,
-                sofa_id: match.sofa_id,
-                home: match.home,
-                home_team_id: match.home_team_id,
-                home_name_source: match.home_name_source,
-                away: match.away,
-                away_team_id: match.away_team_id,
-                away_name_source: match.away_name_source
-              }
-            );
-          }
-
-          continue;
+      const {
+        data: screen1Sync,
+        error: screen1SyncError
+      } = await supabase.rpc(
+        "sync_screen1_matches_bulk",
+        {
+          p_matches: payload
         }
-
-        // -----------------------------------------
-        // NE POSTOJI -> NOVI INSERT
-        // -----------------------------------------
-
-        uniquePayload.push(match);
-      }
-
-      console.log(
-        "🔄 SCREEN1 UPDATED:",
-        updated
       );
 
-      console.log(
-        "📦 NOVI SCREEN1:",
-        uniquePayload.length
-      );
-
-      // =========================================
-      // INSERT NOVIH
-      // =========================================
-
-      if (uniquePayload.length === 0) {
-
-        console.log(
-          "ℹ️ Nema novih Screen1 meceva."
+      if (screen1SyncError) {
+        console.error(
+          "❌ SCREEN1 BULK RPC ERROR:",
+          screen1SyncError
         );
 
         return {
           inserted: 0,
-          updated,
-          failedMappings
+          updated: 0,
+          failedMappings,
+          error: screen1SyncError
         };
       }
 
-    const { data, error } = await supabase
-      .from("screen1_matches")
-      .insert(uniquePayload)
-      .select();
+      const inserted =
+        Number(screen1Sync?.inserted || 0);
 
-    if (error) {
+      const updated =
+        Number(screen1Sync?.updated || 0);
 
-      console.error(
-        "❌ SCREEN1 INSERT ERROR:",
-        error
+      console.log(
+        "✅ SCREEN1 BULK SYNC ZAVRŠEN:",
+        {
+          inserted,
+          updated
+        }
+      );
+      // =========================================
+      // AUTOMATSKO AŽURIRANJE TABELE PREKO RPC
+      // =========================================
+
+      console.log(
+        "📊 PROVERA NOVIH MEČEVA ZA TABELU..."
       );
 
-      return {
-        inserted: 0,
-        failedMappings,
-        error
-      };
-    }
+      const {
+        data: standingsSync,
+        error: standingsSyncError
+      } = await supabase.rpc(
+        "sync_standings_from_screen1"
+      );
 
-    console.log(
-      "✅ SCREEN1 INSERTED:",
-      data?.length || 0
-    );
-
+      if (standingsSyncError) {
+        console.error(
+          "❌ STANDINGS RPC ERROR:",
+          standingsSyncError
+        );
+      } else {
+        console.log(
+          "📊 STANDINGS RPC REZULTAT:",
+          standingsSync
+        );
+      }
       return {
-        inserted: data?.length || 0,
+        inserted,
         updated,
         failedMappings
       };
-
   } catch (err) {
 
     console.error(
