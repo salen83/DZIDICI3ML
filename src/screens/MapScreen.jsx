@@ -1,15 +1,18 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./FullScreen.css";
-import { MatchesContext } from "../MatchesContext";
+
 import {
   loadSofaCountries,
   loadCountryAliases
 } from "../services/countryAliasService";
+
 import { supabase } from "../supabase";
+import { fetchAllSupabase } from "../utils/fetchAllSupabase";
+
 import TabelaScreen from "./TabelaScreen";
 
 export default function MapScreen({ onClose }) {
-  const { rows } = useContext(MatchesContext);
+  const [screen1Matches, setScreen1Matches] = useState([]);
 
   const [sofaCountries, setSofaCountries] = useState([]);
   const [countryAliases, setCountryAliases] = useState([]);
@@ -24,44 +27,93 @@ export default function MapScreen({ onClose }) {
   }, []);
 
   async function loadMappingData() {
-    const [
-      countries,
-      countryAliasData,
-      leagueAliasResult,
-      sofaLeagueResult
-    ] = await Promise.all([
-      loadSofaCountries(),
-      loadCountryAliases(),
+    try {
+      /*
+       * 1. UČITAJ SVE screen1_matches
+       *
+       * Ne koristimo MatchesContext/rows.
+       * Map direktno čita screen1_matches iz Supabase.
+       */
+      const matches = await fetchAllSupabase(
+        supabase,
+        "screen1_matches",
+        "league_id,league",
+        {
+          filters: [
+            {
+              type: "not",
+              column: "league_id",
+              operator: "is",
+              value: null
+            }
+          ]
+        }
+      );
 
-      supabase
-        .from("league_aliases")
-        .select("*")
-        .eq("source", "mozzart"),
+      setScreen1Matches(matches);
 
-      supabase
-        .from("sofa_leagues")
-        .select("id,country_id,name")
-    ]);
+      console.log(
+        "[MAP] screen1_matches ukupno:",
+        matches.length
+      );
 
-    setSofaCountries(countries);
-    setCountryAliases(countryAliasData);
+      console.log(
+        "[MAP] Različitih league_id:",
+        new Set(
+          matches
+            .map(match => match.league_id)
+            .filter(Boolean)
+        ).size
+      );
 
-    if (leagueAliasResult.error) {
+      /*
+       * 2. UČITAJ SVE MAPPING PODATKE
+       */
+      const [
+        countries,
+        countryAliasData,
+        leagueAliasResult,
+        sofaLeagueResult
+      ] = await Promise.all([
+        loadSofaCountries(),
+
+        loadCountryAliases(),
+
+        supabase
+          .from("league_aliases")
+          .select("*")
+          .eq("source", "mozzart"),
+
+        supabase
+          .from("sofa_leagues")
+          .select("id,country_id,name")
+      ]);
+
+      setSofaCountries(countries || []);
+      setCountryAliases(countryAliasData || []);
+
+      if (leagueAliasResult.error) {
+        console.error(
+          "[MAP] load league_aliases:",
+          leagueAliasResult.error
+        );
+      }
+
+      if (sofaLeagueResult.error) {
+        console.error(
+          "[MAP] load sofa_leagues:",
+          sofaLeagueResult.error
+        );
+      }
+
+      setLeagueAliases(leagueAliasResult.data || []);
+      setSofaLeagues(sofaLeagueResult.data || []);
+    } catch (error) {
       console.error(
-        "load league_aliases:",
-        leagueAliasResult.error
+        "[MAP] Greška pri učitavanju podataka:",
+        error
       );
     }
-
-    if (sofaLeagueResult.error) {
-      console.error(
-        "load sofa_leagues:",
-        sofaLeagueResult.error
-      );
-    }
-
-    setLeagueAliases(leagueAliasResult.data || []);
-    setSofaLeagues(sofaLeagueResult.data || []);
   }
 
   /*
@@ -71,6 +123,8 @@ export default function MapScreen({ onClose }) {
     const map = {};
 
     countryAliases.forEach(alias => {
+      if (!alias.league_name) return;
+
       map[alias.league_name] = alias.country_id;
     });
 
@@ -91,64 +145,100 @@ export default function MapScreen({ onClose }) {
   }, [sofaLeagues]);
 
   /*
-   * Mozzart liga -> Sofa league
+   * Sofa league_id -> Mozzart alias
+   *
+   * Bitno:
+   * Map više NE traži ligu preko imena iz rows.
+   *
+   * screen1_matches.league_id je glavni ključ.
    */
-  const leagueMap = useMemo(() => {
+  const leagueMapById = useMemo(() => {
     const map = {};
 
     leagueAliases.forEach(alias => {
+      if (!alias.league_id) return;
+
       const sofaLeague = sofaLeagueMap[alias.league_id];
 
-      map[alias.alias] = {
+      map[alias.league_id] = {
         leagueId: alias.league_id,
+
         countryId:
           alias.country_id ??
-          countryAliasMap[alias.alias] ??
           sofaLeague?.country_id ??
           null,
+
         mozzartName: alias.alias,
+
         sofaName: sofaLeague?.name || null
       };
     });
 
     return map;
-  }, [
-    leagueAliases,
-    sofaLeagueMap,
-    countryAliasMap
-  ]);
+  }, [leagueAliases, sofaLeagueMap]);
 
   /*
-   * Pronađi postojeće Mozzart lige iz rows
-   * i grupiši ih po Sofa country_id.
+   * SVE različite lige koje postoje u screen1_matches
+   *
+   * Glavni izvor je league_id iz screen1_matches.
+   */
+  const availableLeagueIds = useMemo(() => {
+    return [
+      ...new Set(
+        screen1Matches
+          .map(match => match.league_id)
+          .filter(Boolean)
+      )
+    ];
+  }, [screen1Matches]);
+
+  /*
+   * screen1_matches league_id
+   *        ↓
+   * league_aliases
+   *        ↓
+   * sofa_leagues
+   *        ↓
+   * country_id
+   *
+   * Grupisanje liga po državama.
    */
   const leaguesByCountry = useMemo(() => {
     const result = {};
 
-    (rows || []).forEach(match => {
-      const leagueName = match.liga;
+    availableLeagueIds.forEach(leagueId => {
+      const mapping = leagueMapById[leagueId];
 
-      if (!leagueName) return;
+      /*
+       * Ako league_id nema mapping,
+       * ne možemo prikazati Mozzart ligu.
+       */
+      if (!mapping) {
+        return;
+      }
 
-      const mapping = leagueMap[leagueName];
-
-      // Liga nema league_alias mapiranje
-      if (!mapping) return;
-
-      // Nemamo Sofa country ID
-      if (!mapping.countryId) return;
+      /*
+       * Ako nema country_id,
+       * ne znamo kojoj Sofa državi pripada.
+       */
+      if (!mapping.countryId) {
+        return;
+      }
 
       if (!result[mapping.countryId]) {
         result[mapping.countryId] = [];
       }
 
+      /*
+       * Spreči duplikate.
+       */
       if (
         !result[mapping.countryId].some(
-          league => league.name === leagueName
+          league => league.leagueId === mapping.leagueId
         )
       ) {
         result[mapping.countryId].push({
-          name: leagueName,
+          name: mapping.mozzartName,
           leagueId: mapping.leagueId,
           countryId: mapping.countryId,
           sofaName: mapping.sofaName
@@ -156,6 +246,9 @@ export default function MapScreen({ onClose }) {
       }
     });
 
+    /*
+     * Sortiranje liga po nazivu.
+     */
     Object.values(result).forEach(leagues => {
       leagues.sort((a, b) =>
         a.name.localeCompare(b.name)
@@ -163,11 +256,11 @@ export default function MapScreen({ onClose }) {
     });
 
     return result;
-  }, [rows, leagueMap]);
+  }, [availableLeagueIds, leagueMapById]);
 
   /*
-   * Samo Sofa države koje imaju trenutno dostupne
-   * i mapirane Mozzart lige.
+   * Sofa države koje imaju najmanje jednu
+   * dostupnu ligu iz screen1_matches.
    */
   const countriesToDisplay = useMemo(() => {
     return sofaCountries
@@ -180,7 +273,72 @@ export default function MapScreen({ onClose }) {
   }, [sofaCountries, leaguesByCountry]);
 
   /*
-   * Ako je izabrana liga, otvaramo TabelaScreen.
+   * Osnovna dijagnostika.
+   *
+   * Ovo više NE koristi rows.
+   */
+  useEffect(() => {
+    if (!screen1Matches.length) return;
+
+    const distinctLeagueIds = new Set(
+      screen1Matches
+        .map(match => match.league_id)
+        .filter(Boolean)
+    );
+
+    const mappedLeagueIds = [
+      ...distinctLeagueIds
+    ].filter(
+      leagueId => leagueMapById[leagueId]
+    );
+
+    const displayedLeagueIds = Object.values(
+      leaguesByCountry
+    )
+      .flat()
+      .map(league => league.leagueId);
+
+    console.log(
+      "========== MAP =========="
+    );
+
+    console.log(
+      "[MAP] screen1_matches redova:",
+      screen1Matches.length
+    );
+
+    console.log(
+      "[MAP] Različitih league_id:",
+      distinctLeagueIds.size
+    );
+
+    console.log(
+      "[MAP] league_id sa mappingom:",
+      mappedLeagueIds.length
+    );
+
+    console.log(
+      "[MAP] Liga prikazanih na mapi:",
+      displayedLeagueIds.length
+    );
+
+    console.log(
+      "[MAP] Država sa ligama:",
+      Object.keys(leaguesByCountry).length
+    );
+
+    console.log(
+      "=========================="
+    );
+  }, [
+    screen1Matches,
+    leagueMapById,
+    leaguesByCountry
+  ]);
+
+  /*
+   * Ako je izabrana liga,
+   * otvaramo TabelaScreen.
    */
   if (selectedLeague) {
     return (
@@ -196,7 +354,10 @@ export default function MapScreen({ onClose }) {
 
   return (
     <div className="full-screen-container">
-      <button className="close-button" onClick={onClose}>
+      <button
+        className="close-button"
+        onClick={onClose}
+      >
         X Close
       </button>
 
