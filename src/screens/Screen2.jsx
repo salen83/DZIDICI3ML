@@ -1,3123 +1,2090 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
-import { fetchAllSupabase } from "../utils/fetchAllSupabase";
 import "./Screen2.css";
 
-/* =========================================================
-   HELPERS
-========================================================= */
+/*
+  SCREEN 2
+  ---------------------------------------------------------
+  Statistics Center
 
-const num = (value, fallback = 0) => {
+  Izvor podataka:
+  - team_primary_leagues
+  - team_league_statistics
+  - team_form_statistics
+  - team_home_away_form
+  - team_goal_statistics
+  - team_recency_statistics
+  - team_opponent_strength
+  - team_h2h_statistics
+  - league_statistics
+  - team_aliases
+  - sofa_teams
+
+  Screen2 NE računa statistiku u React-u.
+  Sve statistike dolaze direktno iz Supabase tabela.
+*/
+
+const TEAM_PAGE_SIZE = 500;
+const H2H_PAGE_SIZE = 500;
+
+function formatPct(value) {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-};
+  if (!Number.isFinite(n)) return "—";
+  return `${n.toFixed(1)}%`;
+}
 
-const pct = (value) => {
+function formatNum(value, digits = 2) {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, n));
-};
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(digits);
+}
 
-const safeDiv = (a, b) => {
-  const denominator = Number(b);
-  if (!denominator) return 0;
-  return Number(a || 0) / denominator;
-};
+function formatInt(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return Math.round(n).toLocaleString("sr-Latn-RS");
+}
 
-const round = (value, decimals = 2) => {
-  const factor = 10 ** decimals;
-  return Math.round((Number(value) || 0) * factor) / factor;
-};
+function formatDate(value) {
+  if (!value) return "—";
 
-const percent = (value) => `${round(pct(value), 1)}%`;
+  const d = new Date(value);
 
-const dateValue = (value) => {
-  if (!value) return 0;
-  const t = new Date(value).getTime();
-  return Number.isFinite(t) ? t : 0;
-};
-
-const chunkArray = (array, size = 500) => {
-  const result = [];
-
-  for (let i = 0; i < array.length; i += size) {
-    result.push(array.slice(i, i + size));
+  if (Number.isNaN(d.getTime())) {
+    return String(value);
   }
 
-  return result;
-};
+  return d.toLocaleDateString("sr-Latn-RS");
+}
 
-const getMatchKey = (match) =>
-  match?.sofa_id
-    ? `sofa-${match.sofa_id}`
-    : `screen1-${match?.id}`;
+function safe(value) {
+  return value === null || value === undefined || value === ""
+    ? "—"
+    : value;
+}
 
-const parseFT = (ft) => {
-  if (!ft) return null;
+function getDisplayTeamName(teamId, aliases, sofaTeams) {
+  if (!teamId) return "—";
 
-  if (typeof ft === "object") {
-    const home =
-      ft.home ??
-      ft.homeScore ??
-      ft.home_score ??
-      ft.homeGoals ??
-      ft.home_goals;
+  const id = Number(teamId);
 
-    const away =
-      ft.away ??
-      ft.awayScore ??
-      ft.away_score ??
-      ft.awayGoals ??
-      ft.away_goals;
+  const alias = aliases.find((x) => Number(x.team_id) === id);
 
-    if (
-      home !== undefined &&
-      away !== undefined &&
-      Number.isFinite(Number(home)) &&
-      Number.isFinite(Number(away))
-    ) {
-      return {
-        home: Number(home),
-        away: Number(away),
-      };
-    }
+  if (alias?.alias) return alias.alias;
+
+  const sofa = sofaTeams.find((x) => Number(x.id) === id);
+
+  if (sofa?.name) return sofa.name;
+
+  return `Team ${id}`;
+}
+
+function getLeagueName(leagueId, primaryLeagues, leagueStats) {
+  if (!leagueId) return "—";
+
+  const id = Number(leagueId);
+
+  const p = primaryLeagues.find(
+    (x) => Number(x.primary_league_id) === id
+  );
+
+  if (p?.primary_league_name) {
+    return p.primary_league_name;
   }
 
-  if (typeof ft === "string") {
-    const match = ft.match(/(\d+)\s*[-:]\s*(\d+)/);
+  const l = leagueStats.find(
+    (x) => Number(x.league_id) === id
+  );
 
-    if (match) {
-      return {
-        home: Number(match[1]),
-        away: Number(match[2]),
-      };
-    }
+  return l?.league_name || `Liga ${id}`;
+}
+
+async function fetchAll(table, select = "*", pageSize = 500) {
+  let all = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .range(from, from + pageSize - 1);
+
+    if (error) throw new Error(`${table}: ${error.message}`);
+
+    const rows = data || [];
+
+    all = all.concat(rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
   }
 
-  return null;
-};
+  return all;
+}
 
-const getResultForTeam = (gf, ga) => {
-  if (gf > ga) return "W";
-  if (gf < ga) return "L";
-  return "D";
-};
+function StatCard({ label, value, sub }) {
+  return (
+    <div className="s2-stat-card">
+      <div className="s2-stat-label">{label}</div>
+      <div className="s2-stat-value">{value}</div>
+      {sub ? <div className="s2-stat-sub">{sub}</div> : null}
+    </div>
+  );
+}
 
-const resultPoints = (result) => {
-  if (result === "W") return 3;
-  if (result === "D") return 1;
-  return 0;
-};
+function Section({ title, subtitle, children, right }) {
+  return (
+    <section className="s2-section">
+      <div className="s2-section-head">
+        <div>
+          <h2>{title}</h2>
+          {subtitle ? <p>{subtitle}</p> : null}
+        </div>
+        {right ? <div>{right}</div> : null}
+      </div>
 
-/* =========================================================
-   STANDINGS
-========================================================= */
+      {children}
+    </section>
+  );
+}
 
-const normalizeStanding = (row) => {
-  if (!row) return null;
-
-  const played = num(row.played);
-  const wins = num(row.wins);
-  const draws = num(row.draws);
-  const losses = num(row.losses);
-
-  const goalsFor = num(row.goals_for);
-  const goalsAgainst = num(row.goals_against);
-
-  const points = num(row.points);
-
-  return {
-    id: row.id,
-    leagueId: row.league_id,
-    seasonId: row.season_id,
-
-    leagueName: row.league_name || "",
-    groupName: row.group_name || "",
-
-    position:
-      row.position !== null && row.position !== undefined
-        ? num(row.position)
-        : null,
-
-    teamId: row.team_id,
-
-    teamName: row.team || row.short_name || "",
-
-    played,
-    wins,
-    draws,
-    losses,
-
-    goalsFor,
-    goalsAgainst,
-
-    goalDifference:
-      row.goal_difference !== null &&
-      row.goal_difference !== undefined
-        ? num(row.goal_difference)
-        : goalsFor - goalsAgainst,
-
-    points,
-
-    ppg: safeDiv(points, played),
-    gfPerGame: safeDiv(goalsFor, played),
-    gaPerGame: safeDiv(goalsAgainst, played),
-    gdPerGame: safeDiv(goalsFor - goalsAgainst, played),
-
-    winRate: safeDiv(wins * 100, played),
-    drawRate: safeDiv(draws * 100, played),
-    lossRate: safeDiv(losses * 100, played),
-
-    standingsDate: row.standings_date || null,
-    createdAt: row.created_at || null,
-    importedAt: row.imported_at || null,
-  };
-};
-
-/* =========================================================
-   FORM
-========================================================= */
-
-const calculateWindow = (games) => {
-  const list = games || [];
-  const played = list.length;
-
-  let wins = 0;
-  let draws = 0;
-  let losses = 0;
-
-  let goalsFor = 0;
-  let goalsAgainst = 0;
-
-  let gg = 0;
-  let ng = 0;
-
-  let over2 = 0;
-  let over3 = 0;
-  let over4 = 0;
-  let over7 = 0;
-
-  let cleanSheets = 0;
-  let failedToScore = 0;
-
-  for (const game of list) {
-    const gf = num(game.gf);
-    const ga = num(game.ga);
-
-    if (gf > ga) wins += 1;
-    else if (gf === ga) draws += 1;
-    else losses += 1;
-
-    goalsFor += gf;
-    goalsAgainst += ga;
-
-    if (gf > 0 && ga > 0) gg += 1;
-    else ng += 1;
-
-    const total = gf + ga;
-
-    if (total >= 2) over2 += 1;
-    if (total >= 3) over3 += 1;
-    if (total >= 4) over4 += 1;
-    if (total >= 7) over7 += 1;
-
-    if (ga === 0) cleanSheets += 1;
-    if (gf === 0) failedToScore += 1;
+function DataTable({
+  columns,
+  rows,
+  empty = "Nema podataka."
+}) {
+  if (!rows.length) {
+    return <div className="s2-empty">{empty}</div>;
   }
 
-  const points = wins * 3 + draws;
+  return (
+    <div className="s2-table-wrap">
+      <table className="s2-table">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column.key}>{column.label}</th>
+            ))}
+          </tr>
+        </thead>
 
-  return {
-    played,
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.__key || row.id || index}>
+              {columns.map((column) => (
+                <td key={column.key}>
+                  {column.render
+                    ? column.render(row)
+                    : safe(row[column.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-    wins,
-    draws,
-    losses,
+function MetricRow({ label, home, away }) {
+  return (
+    <div className="s2-metric-row">
+      <div>{label}</div>
+      <strong>{safe(home)}</strong>
+      <strong>{safe(away)}</strong>
+    </div>
+  );
+}
 
-    points,
-    ppg: safeDiv(points, played),
+function TeamProfile({
+  team,
+  primary,
+  leagueStats,
+  leagueForm,
+  homeAway,
+  goals,
+  recency,
+  strength,
+  h2h,
+  aliases,
+  sofaTeams,
+  onClose
+}) {
+  const teamName = getDisplayTeamName(
+    team.team_id,
+    aliases,
+    sofaTeams
+  );
 
-    goalsFor,
-    goalsAgainst,
+  const leagueName = getLeagueName(
+    team.league_id,
+    primary,
+    leagueStats
+  );
 
-    goalDifference: goalsFor - goalsAgainst,
-
-    gfPerGame: safeDiv(goalsFor, played),
-    gaPerGame: safeDiv(goalsAgainst, played),
-    gdPerGame: safeDiv(goalsFor - goalsAgainst, played),
-
-    winRate: safeDiv(wins * 100, played),
-    drawRate: safeDiv(draws * 100, played),
-    lossRate: safeDiv(losses * 100, played),
-
-    gg,
-    ng,
-
-    ggRate: safeDiv(gg * 100, played),
-    ngRate: safeDiv(ng * 100, played),
-
-    over2,
-    over3,
-    over4,
-    over7,
-
-    over2Rate: safeDiv(over2 * 100, played),
-    over3Rate: safeDiv(over3 * 100, played),
-    over4Rate: safeDiv(over4 * 100, played),
-    over7Rate: safeDiv(over7 * 100, played),
-
-    cleanSheets,
-    failedToScore,
-
-    cleanSheetRate: safeDiv(cleanSheets * 100, played),
-    failedToScoreRate: safeDiv(failedToScore * 100, played),
-  };
-};
-
-/* =========================================================
-   SCORE COMPONENTS
-========================================================= */
-
-const calculateTableStrength = (standing, leagueStandings) => {
-  if (!standing) return 0;
-
-  const rows = (leagueStandings || []).filter(
+  const opponents = h2h.filter(
     (x) =>
-      x &&
-      x.played > 0 &&
-      x.seasonId === standing.seasonId
+      Number(x.team_a_id) === Number(team.team_id) ||
+      Number(x.team_b_id) === Number(team.team_id)
   );
 
-  if (!rows.length) return 0;
+  return (
+    <div className="s2-profile">
+      <div className="s2-profile-top">
+        <div>
+          <div className="s2-eyebrow">TEAM PROFILE</div>
+          <h2>{teamName}</h2>
+          <div className="s2-profile-meta">
+            ID {team.team_id} · {leagueName}
+          </div>
+        </div>
 
-  const maxPPG = Math.max(...rows.map((x) => x.ppg), 0);
-  const maxGD = Math.max(
-    ...rows.map((x) => x.gdPerGame),
-    0
+        <button
+          className="s2-button secondary"
+          onClick={onClose}
+        >
+          Zatvori profil
+        </button>
+      </div>
+
+      <div className="s2-kpi-grid">
+        <StatCard
+          label="Liga"
+          value={leagueName}
+        />
+
+        <StatCard
+          label="Pozicija"
+          value={safe(team.standings_position)}
+        />
+
+        <StatCard
+          label="Odigrano"
+          value={formatInt(team.standings_played)}
+        />
+
+        <StatCard
+          label="Bodovi"
+          value={formatInt(team.standings_points)}
+        />
+
+        <StatCard
+          label="Istorijske utakmice"
+          value={formatInt(team.league_matches_played)}
+        />
+
+        <StatCard
+          label="Potvrda"
+          value={team.confirmation_level || "—"}
+        />
+      </div>
+
+      <Section
+        title="Osnovna statistika"
+        subtitle="team_league_statistics"
+      >
+        {leagueForm ? (
+          <div className="s2-metric-grid">
+            <MetricRow
+              label="Utakmice"
+              home={formatInt(leagueForm.matches_played)}
+              away="—"
+            />
+
+            <MetricRow
+              label="Pobede"
+              home={formatInt(leagueForm.wins)}
+              away={formatPct(
+                leagueForm.matches_played
+                  ? (leagueForm.wins / leagueForm.matches_played) * 100
+                  : null
+              )}
+            />
+
+            <MetricRow
+              label="Nerešeno"
+              home={formatInt(leagueForm.draws)}
+              away={formatPct(
+                leagueForm.matches_played
+                  ? (leagueForm.draws / leagueForm.matches_played) * 100
+                  : null
+              )}
+            />
+
+            <MetricRow
+              label="Porazi"
+              home={formatInt(leagueForm.losses)}
+              away={formatPct(
+                leagueForm.matches_played
+                  ? (leagueForm.losses / leagueForm.matches_played) * 100
+                  : null
+              )}
+            />
+
+            <MetricRow
+              label="Golovi"
+              home={`${formatInt(leagueForm.goals_for)} : ${formatInt(
+                leagueForm.goals_against
+              )}`}
+              away={`GD ${formatInt(leagueForm.goal_difference)}`}
+            />
+
+            <MetricRow
+              label="Bodovi / utakmici"
+              home={formatNum(leagueForm.ppg)}
+              away="PPG"
+            />
+
+            <MetricRow
+              label="Over 1.5"
+              home={formatPct(leagueForm.over_15_pct)}
+              away={formatInt(leagueForm.over_15)}
+            />
+
+            <MetricRow
+              label="Over 2.5"
+              home={formatPct(leagueForm.over_25_pct)}
+              away={formatInt(leagueForm.over_25)}
+            />
+
+            <MetricRow
+              label="Over 3.5"
+              home={formatPct(leagueForm.over_35_pct)}
+              away={formatInt(leagueForm.over_35)}
+            />
+
+            <MetricRow
+              label="Over 4.5"
+              home={formatPct(leagueForm.over_45_pct)}
+              away={formatInt(leagueForm.over_45)}
+            />
+
+            <MetricRow
+              label="GG"
+              home={formatPct(leagueForm.gg_pct)}
+              away={formatInt(leagueForm.gg)}
+            />
+
+            <MetricRow
+              label="NG"
+              home={formatPct(leagueForm.ng_pct)}
+              away={formatInt(leagueForm.ng)}
+            />
+
+            <MetricRow
+              label="Clean Sheet"
+              home={formatPct(leagueForm.clean_sheet_pct)}
+              away={formatInt(leagueForm.clean_sheet)}
+            />
+
+            <MetricRow
+              label="Failed To Score"
+              home={formatPct(leagueForm.failed_to_score_pct)}
+              away={formatInt(leagueForm.failed_to_score)}
+            />
+          </div>
+        ) : (
+          <div className="s2-empty">
+            Nema osnovne statistike za ovaj tim.
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="Forma — poslednjih 5 / 10 / 15"
+        subtitle="team_form_statistics"
+      >
+        {leagueForm ? (
+          <div className="s2-form-grid">
+            {[
+              ["LAST 5", "last5"],
+              ["LAST 10", "last10"],
+              ["LAST 15", "last15"]
+            ].map(([label, prefix]) => (
+              <div className="s2-form-card" key={prefix}>
+                <h3>{label}</h3>
+
+                <div className="s2-form-line">
+                  <span>Utakmice</span>
+                  <b>{formatInt(leagueForm[`${prefix}_matches`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>W / D / L</span>
+                  <b>
+                    {formatInt(leagueForm[`${prefix}_wins`])} /{" "}
+                    {formatInt(leagueForm[`${prefix}_draws`])} /{" "}
+                    {formatInt(leagueForm[`${prefix}_losses`])}
+                  </b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>GF / GA</span>
+                  <b>
+                    {formatInt(leagueForm[`${prefix}_gf`])} /{" "}
+                    {formatInt(leagueForm[`${prefix}_ga`])}
+                  </b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>PPG</span>
+                  <b>{formatNum(leagueForm[`${prefix}_ppg`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>GG</span>
+                  <b>{formatPct(leagueForm[`${prefix}_gg_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>Over 2.5</span>
+                  <b>{formatPct(leagueForm[`${prefix}_over25_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>Clean Sheet</span>
+                  <b>{formatPct(leagueForm[`${prefix}_cs_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>Failed To Score</span>
+                  <b>{formatPct(leagueForm[`${prefix}_fts_pct`])}</b>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {leagueForm ? (
+          <div className="s2-trend-grid">
+            <StatCard
+              label="PPG trend 5 vs 15"
+              value={formatNum(leagueForm.ppg_trend_5_vs_15)}
+            />
+
+            <StatCard
+              label="GF trend 5 vs 15"
+              value={formatNum(leagueForm.gf_trend_5_vs_15)}
+            />
+
+            <StatCard
+              label="GA trend 5 vs 15"
+              value={formatNum(leagueForm.ga_trend_5_vs_15)}
+            />
+          </div>
+        ) : null}
+      </Section>
+
+      <Section
+        title="Home / Away forma"
+        subtitle="team_home_away_form"
+      >
+        {homeAway ? (
+          <div className="s2-home-away-grid">
+            {[
+              ["HOME LAST 5", "home5"],
+              ["HOME LAST 10", "home10"],
+              ["AWAY LAST 5", "away5"],
+              ["AWAY LAST 10", "away10"]
+            ].map(([label, prefix]) => (
+              <div className="s2-form-card" key={prefix}>
+                <h3>{label}</h3>
+
+                <div className="s2-form-line">
+                  <span>Utakmice</span>
+                  <b>{formatInt(homeAway[`${prefix}_matches`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>W / D / L</span>
+                  <b>
+                    {formatInt(homeAway[`${prefix}_wins`])} /{" "}
+                    {formatInt(homeAway[`${prefix}_draws`])} /{" "}
+                    {formatInt(homeAway[`${prefix}_losses`])}
+                  </b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>GF / GA</span>
+                  <b>
+                    {formatInt(homeAway[`${prefix}_gf`])} /{" "}
+                    {formatInt(homeAway[`${prefix}_ga`])}
+                  </b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>PPG</span>
+                  <b>{formatNum(homeAway[`${prefix}_ppg`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>GG</span>
+                  <b>{formatPct(homeAway[`${prefix}_gg_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>Over 2.5</span>
+                  <b>{formatPct(homeAway[`${prefix}_over25_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>CS</span>
+                  <b>{formatPct(homeAway[`${prefix}_cs_pct`])}</b>
+                </div>
+
+                <div className="s2-form-line">
+                  <span>FTS</span>
+                  <b>{formatPct(homeAway[`${prefix}_fts_pct`])}</b>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="s2-empty">Nema home/away podataka.</div>
+        )}
+      </Section>
+
+      <Section
+        title="Goal profile"
+        subtitle="team_goal_statistics"
+      >
+        {goals ? (
+          <>
+            <div className="s2-goal-summary">
+              <StatCard
+                label="Mečeva"
+                value={formatInt(goals.matches_played)}
+              />
+
+              <StatCard
+                label="GG"
+                value={formatPct(goals.btts_pct)}
+                sub={`${formatInt(goals.btts_count)} utakmica`}
+              />
+
+              <StatCard
+                label="Clean Sheet"
+                value={formatPct(goals.clean_sheet_pct)}
+                sub={`${formatInt(goals.clean_sheet_count)} utakmica`}
+              />
+
+              <StatCard
+                label="Failed To Score"
+                value={formatPct(goals.failed_to_score_pct)}
+                sub={`${formatInt(goals.failed_to_score_count)} utakmica`}
+              />
+            </div>
+
+            <div className="s2-double-table">
+              <div>
+                <h3>Postignuti golovi</h3>
+
+                <div className="s2-mini-table">
+                  {[
+                    ["0", goals.scored_0, goals.scored_0_pct],
+                    ["1", goals.scored_1, goals.scored_1_pct],
+                    ["2", goals.scored_2, goals.scored_2_pct],
+                    ["3+", goals.scored_3_plus, goals.scored_3_plus_pct]
+                  ].map(([label, count, pct]) => (
+                    <div className="s2-mini-row" key={label}>
+                      <span>{label} golova</span>
+                      <b>{formatInt(count)}</b>
+                      <b>{formatPct(pct)}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3>Primljeni golovi</h3>
+
+                <div className="s2-mini-table">
+                  {[
+                    ["0", goals.conceded_0, goals.conceded_0_pct],
+                    ["1", goals.conceded_1, goals.conceded_1_pct],
+                    ["2", goals.conceded_2, goals.conceded_2_pct],
+                    ["3+", goals.conceded_3_plus, goals.conceded_3_plus_pct]
+                  ].map(([label, count, pct]) => (
+                    <div className="s2-mini-row" key={label}>
+                      <span>{label} golova</span>
+                      <b>{formatInt(count)}</b>
+                      <b>{formatPct(pct)}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="s2-double-table">
+              <div>
+                <h3>Scoring thresholds</h3>
+
+                <div className="s2-mini-table">
+                  {[
+                    ["1+", goals.scored_1_plus, goals.scored_1_plus_pct],
+                    ["2+", goals.scored_2_plus, goals.scored_2_plus_pct],
+                    [
+                      "3+",
+                      goals.scored_3_plus_count,
+                      goals.scored_3_plus_count_pct
+                    ]
+                  ].map(([label, count, pct]) => (
+                    <div className="s2-mini-row" key={label}>
+                      <span>{label}</span>
+                      <b>{formatInt(count)}</b>
+                      <b>{formatPct(pct)}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3>Conceding thresholds</h3>
+
+                <div className="s2-mini-table">
+                  {[
+                    ["1+", goals.conceded_1_plus, goals.conceded_1_plus_pct],
+                    ["2+", goals.conceded_2_plus, goals.conceded_2_plus_pct],
+                    ["3+", goals.conceded_3_plus, goals.conceded_3_plus_pct]
+                  ].map(([label, count, pct]) => (
+                    <div className="s2-mini-row" key={label}>
+                      <span>{label}</span>
+                      <b>{formatInt(count)}</b>
+                      <b>{formatPct(pct)}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="s2-section-subtitle">
+              HOME / AWAY GOAL PROFILE
+            </div>
+
+            <DataTable
+              columns={[
+                {
+                  key: "metric",
+                  label: "Statistika"
+                },
+                {
+                  key: "home",
+                  label: "HOME",
+                  render: (r) => formatPct(r.home)
+                },
+                {
+                  key: "away",
+                  label: "AWAY",
+                  render: (r) => formatPct(r.away)
+                }
+              ]}
+              rows={[
+                {
+                  __key: "s1",
+                  metric: "Scored 1+",
+                  home: goals.home_scored_1_plus_pct,
+                  away: goals.away_scored_1_plus_pct
+                },
+                {
+                  __key: "s2",
+                  metric: "Scored 2+",
+                  home: goals.home_scored_2_plus_pct,
+                  away: goals.away_scored_2_plus_pct
+                },
+                {
+                  __key: "s3",
+                  metric: "Scored 3+",
+                  home: goals.home_scored_3_plus_pct,
+                  away: goals.away_scored_3_plus_pct
+                },
+                {
+                  __key: "c1",
+                  metric: "Conceded 1+",
+                  home: goals.home_conceded_1_plus_pct,
+                  away: goals.away_conceded_1_plus_pct
+                },
+                {
+                  __key: "c2",
+                  metric: "Conceded 2+",
+                  home: goals.home_conceded_2_plus_pct,
+                  away: goals.away_conceded_2_plus_pct
+                },
+                {
+                  __key: "c3",
+                  metric: "Conceded 3+",
+                  home: goals.home_conceded_3_plus_pct,
+                  away: goals.away_conceded_3_plus_pct
+                },
+                {
+                  __key: "btts",
+                  metric: "GG",
+                  home: goals.home_btts_pct,
+                  away: goals.away_btts_pct
+                },
+                {
+                  __key: "cs",
+                  metric: "Clean Sheet",
+                  home: goals.home_clean_sheet_pct,
+                  away: goals.away_clean_sheet_pct
+                },
+                {
+                  __key: "fts",
+                  metric: "Failed To Score",
+                  home: goals.home_failed_to_score_pct,
+                  away: goals.away_failed_to_score_pct
+                }
+              ]}
+            />
+          </>
+        ) : (
+          <div className="s2-empty">Nema goal statistike.</div>
+        )}
+      </Section>
+
+      <Section
+        title="Recency weighted"
+        subtitle="team_recency_statistics · 14-day half-life"
+      >
+        {recency ? (
+          <>
+            <div className="s2-kpi-grid">
+              <StatCard
+                label="Efektivnih utakmica"
+                value={formatNum(recency.effective_matches)}
+              />
+
+              <StatCard
+                label="Prosečna starost"
+                value={`${formatNum(recency.avg_match_age_days, 1)} dana`}
+              />
+
+              <StatCard
+                label="Weighted PPG"
+                value={formatNum(recency.weighted_ppg)}
+              />
+
+              <StatCard
+                label="Weighted GF"
+                value={formatNum(recency.weighted_gf)}
+              />
+
+              <StatCard
+                label="Weighted GA"
+                value={formatNum(recency.weighted_ga)}
+              />
+
+              <StatCard
+                label="Weighted GD"
+                value={formatNum(recency.weighted_goal_diff)}
+              />
+
+              <StatCard
+                label="Weighted GG"
+                value={formatPct(recency.weighted_gg_pct)}
+              />
+
+              <StatCard
+                label="Weighted O2.5"
+                value={formatPct(recency.weighted_over25_pct)}
+              />
+
+              <StatCard
+                label="Weighted CS"
+                value={formatPct(recency.weighted_clean_sheet_pct)}
+              />
+
+              <StatCard
+                label="Weighted FTS"
+                value={formatPct(recency.weighted_failed_to_score_pct)}
+              />
+            </div>
+
+            <div className="s2-double-table">
+              <div>
+                <h3>Weighted HOME</h3>
+
+                <div className="s2-mini-table">
+                  <div className="s2-mini-row">
+                    <span>Utakmice</span>
+                    <b>{formatInt(recency.home_matches)}</b>
+                    <b>{formatNum(recency.home_effective_matches)}</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>PPG</span>
+                    <b>{formatNum(recency.home_weighted_ppg)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GF</span>
+                    <b>{formatNum(recency.home_weighted_gf)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GA</span>
+                    <b>{formatNum(recency.home_weighted_ga)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GG</span>
+                    <b>{formatPct(recency.home_weighted_gg_pct)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>O2.5</span>
+                    <b>{formatPct(recency.home_weighted_over25_pct)}</b>
+                    <b>weighted</b>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3>Weighted AWAY</h3>
+
+                <div className="s2-mini-table">
+                  <div className="s2-mini-row">
+                    <span>Utakmice</span>
+                    <b>{formatInt(recency.away_matches)}</b>
+                    <b>{formatNum(recency.away_effective_matches)}</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>PPG</span>
+                    <b>{formatNum(recency.away_weighted_ppg)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GF</span>
+                    <b>{formatNum(recency.away_weighted_gf)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GA</span>
+                    <b>{formatNum(recency.away_weighted_ga)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>GG</span>
+                    <b>{formatPct(recency.away_weighted_gg_pct)}</b>
+                    <b>weighted</b>
+                  </div>
+
+                  <div className="s2-mini-row">
+                    <span>O2.5</span>
+                    <b>{formatPct(recency.away_weighted_over25_pct)}</b>
+                    <b>weighted</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="s2-empty">Nema recency statistike.</div>
+        )}
+      </Section>
+
+      <Section
+        title="Opponent strength"
+        subtitle="team_opponent_strength"
+      >
+        {strength ? (
+          <div className="s2-kpi-grid">
+            <StatCard
+              label="Protivnika"
+              value={formatInt(strength.opponents_count)}
+            />
+
+            <StatCard
+              label="Avg opponent PPG"
+              value={formatNum(strength.avg_opponent_ppg)}
+            />
+
+            <StatCard
+              label="Avg opponent Win %"
+              value={formatPct(strength.avg_opponent_win_pct)}
+            />
+
+            <StatCard
+              label="Avg opponent GD"
+              value={formatNum(
+                strength.avg_opponent_goal_diff_per_match
+              )}
+            />
+
+            <StatCard
+              label="Avg opponent GF"
+              value={formatNum(strength.avg_opponent_gf_per_match)}
+            />
+
+            <StatCard
+              label="Avg opponent GA"
+              value={formatNum(strength.avg_opponent_ga_per_match)}
+            />
+
+            <StatCard
+              label="Strong opponents"
+              value={formatInt(strength.strong_opponents_count)}
+            />
+
+            <StatCard
+              label="Weak opponents"
+              value={formatInt(strength.weak_opponents_count)}
+            />
+
+            <StatCard
+              label="Strength index"
+              value={formatNum(strength.strength_index)}
+            />
+          </div>
+        ) : (
+          <div className="s2-empty">
+            Nema opponent strength podataka.
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="H2H"
+        subtitle="team_h2h_statistics · sekundarni signal"
+      >
+        {!opponents.length ? (
+          <div className="s2-empty">
+            Za ovaj tim trenutno nema H2H zapisa.
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              {
+                key: "opponent",
+                label: "Protivnik",
+                render: (r) => {
+                  const opponent =
+                    Number(r.team_a_id) === Number(team.team_id)
+                      ? r.team_b_id
+                      : r.team_a_id;
+
+                  return getDisplayTeamName(
+                    opponent,
+                    aliases,
+                    sofaTeams
+                  );
+                }
+              },
+              {
+                key: "league",
+                label: "Liga",
+                render: (r) =>
+                  getLeagueName(
+                    r.league_id,
+                    primary,
+                    leagueStats
+                  )
+              },
+              {
+                key: "matches_played",
+                label: "Mečevi",
+                render: (r) => formatInt(r.matches_played)
+              },
+              {
+                key: "win",
+                label: "Win %",
+                render: (r) => {
+                  const isA =
+                    Number(r.team_a_id) === Number(team.team_id);
+
+                  return formatPct(
+                    isA
+                      ? r.team_a_win_pct
+                      : r.team_b_win_pct
+                  );
+                }
+              },
+              {
+                key: "draw",
+                label: "Draw %",
+                render: (r) => formatPct(r.draw_pct)
+              },
+              {
+                key: "goals",
+                label: "Golovi",
+                render: (r) => {
+                  const isA =
+                    Number(r.team_a_id) === Number(team.team_id);
+
+                  return isA
+                    ? `${formatInt(r.team_a_goals)} : ${formatInt(
+                        r.team_b_goals
+                      )}`
+                    : `${formatInt(r.team_b_goals)} : ${formatInt(
+                        r.team_a_goals
+                      )}`;
+                }
+              },
+              {
+                key: "btts",
+                label: "GG",
+                render: (r) => formatPct(r.btts_pct)
+              },
+              {
+                key: "o25",
+                label: "O2.5",
+                render: (r) => formatPct(r.over_25_pct)
+              },
+              {
+                key: "last5",
+                label: "Last 5",
+                render: (r) => formatInt(r.last5_matches)
+              }
+            ]}
+            rows={opponents.map((x) => ({
+              ...x,
+              __key: `${x.team_a_id}-${x.team_b_id}-${x.league_id}`
+            }))}
+          />
+        )}
+      </Section>
+    </div>
   );
-
-  const positionScores = rows
-    .filter((x) => x.position)
-    .map((x) => x.position);
-
-  const maxPosition =
-    positionScores.length > 0
-      ? Math.max(...positionScores)
-      : rows.length;
-
-  const ppgScore =
-    maxPPG > 0 ? (standing.ppg / maxPPG) * 60 : 0;
-
-  const gdScore =
-    maxGD > 0
-      ? Math.max(0, standing.gdPerGame / maxGD) * 20
-      : 0;
-
-  const positionScore =
-    maxPosition > 1 && standing.position
-      ? ((maxPosition - standing.position + 1) /
-          maxPosition) *
-        20
-      : 0;
-
-  return pct(ppgScore + gdScore + positionScore);
-};
-
-const calculateFormStrength = (form) => {
-  if (!form?.played) return 0;
-
-  const ppgScore = Math.min(100, (form.ppg / 3) * 100);
-
-  const gdScore = Math.max(
-    0,
-    Math.min(100, 50 + form.gdPerGame * 25)
-  );
-
-  const winScore = form.winRate;
-
-  return pct(
-    ppgScore * 0.5 +
-      gdScore * 0.2 +
-      winScore * 0.3
-  );
-};
-
-const calculateAttackStrength = (
-  standing,
-  recentForm
-) => {
-  const seasonGF = standing?.gfPerGame || 0;
-  const recentGF = recentForm?.gfPerGame || 0;
-
-  if (!standing && !recentForm) return 0;
-
-  const seasonScore = Math.min(
-    100,
-    seasonGF * 35
-  );
-
-  const recentScore = Math.min(
-    100,
-    recentGF * 35
-  );
-
-  const ggScore =
-    recentForm?.played > 0
-      ? recentForm.ggRate
-      : 50;
-
-  if (standing && recentForm?.played) {
-    return pct(
-      seasonScore * 0.45 +
-        recentScore * 0.35 +
-        ggScore * 0.2
-    );
-  }
-
-  if (standing) return pct(seasonScore);
-
-  return pct(
-    recentScore * 0.7 +
-      ggScore * 0.3
-  );
-};
-
-const calculateDefenseStrength = (
-  standing,
-  recentForm
-) => {
-  const seasonGA = standing?.gaPerGame;
-  const recentGA = recentForm?.gaPerGame;
-
-  if (
-    seasonGA === undefined &&
-    recentGA === undefined
-  ) {
-    return 0;
-  }
-
-  const seasonScore =
-    seasonGA !== undefined
-      ? Math.max(0, Math.min(100, 100 - seasonGA * 35))
-      : 0;
-
-  const recentScore =
-    recentGA !== undefined
-      ? Math.max(0, Math.min(100, 100 - recentGA * 35))
-      : 0;
-
-  const csScore =
-    recentForm?.played > 0
-      ? recentForm.cleanSheetRate
-      : 50;
-
-  if (
-    standing &&
-    recentForm &&
-    recentForm.played
-  ) {
-    return pct(
-      seasonScore * 0.45 +
-        recentScore * 0.35 +
-        csScore * 0.2
-    );
-  }
-
-  if (standing) return pct(seasonScore);
-
-  return pct(
-    recentScore * 0.7 +
-      csScore * 0.3
-  );
-};
-
-const calculateGoalStrength = (form) => {
-  if (!form?.played) return 0;
-
-  return pct(
-    form.over2Rate * 0.3 +
-      form.over3Rate * 0.2 +
-      form.ggRate * 0.25 +
-      form.gfPerGame * 15 +
-      Math.max(0, 50 - form.gaPerGame * 10) *
-        0.25
-  );
-};
-
-const calculateVenueStrength = (
-  home,
-  away,
-  isHome
-) => {
-  const split = isHome ? home : away;
-
-  if (!split?.played) return 0;
-
-  return pct(
-    Math.min(100, (split.ppg / 3) * 100) *
-      0.6 +
-      split.winRate * 0.25 +
-      Math.max(
-        0,
-        Math.min(100, 50 + split.gdPerGame * 25)
-      ) *
-        0.15
-  );
-};
-
-const calculateConfidence = ({
-  standing,
-  last10,
-  venue,
-}) => {
-  let score = 0;
-
-  if (standing) {
-    score += Math.min(35, standing.played * 1.75);
-  }
-
-  if (last10?.played) {
-    score += Math.min(40, last10.played * 4);
-  }
-
-  if (venue?.played) {
-    score += Math.min(25, venue.played * 2.5);
-  }
-
-  return pct(score);
-};
-
-const calculateFinalScore = ({
-  tableStrength,
-  formStrength,
-  attackStrength,
-  defenseStrength,
-  goalStrength,
-  venueStrength,
-  confidence,
-}) => {
-  const available = [];
-
-  const add = (value, weight) => {
-    if (Number(value) > 0) {
-      available.push({
-        value: pct(value),
-        weight,
-      });
-    }
-  };
-
-  add(tableStrength, 0.30);
-  add(formStrength, 0.25);
-  add(attackStrength, 0.15);
-  add(defenseStrength, 0.15);
-  add(goalStrength, 0.10);
-  add(venueStrength, 0.05);
-
-  if (!available.length) return 0;
-
-  const weightSum = available.reduce(
-    (sum, x) => sum + x.weight,
-    0
-  );
-
-  const raw = available.reduce(
-    (sum, x) => sum + x.value * x.weight,
-    0
-  ) / weightSum;
-
-  /*
-    Confidence ne treba da uništi rezultat.
-    Samo blago koriguje score kada je uzorak mali.
-  */
-  const confidenceMultiplier =
-    0.75 + confidence / 400;
-
-  return pct(raw * confidenceMultiplier);
-};
-
-/* =========================================================
-   COMPONENT
-========================================================= */
+}
 
 export default function Screen2() {
-  const [matches, setMatches] = useState([]);
-  const [teamAliases, setTeamAliases] = useState([]);
-  const [sofaTeams, setSofaTeams] = useState([]);
-  const [standings, setStandings] = useState([]);
-  const [leagues, setLeagues] = useState([]);
-  const [leagueAliases, setLeagueAliases] = useState([]);
+  const [activeTab, setActiveTab] = useState("teams");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [selectedTeamId, setSelectedTeamId] =
-    useState(null);
-
-  const [expandedTeamId, setExpandedTeamId] =
-    useState(null);
+  const [primaryLeagues, setPrimaryLeagues] = useState([]);
+  const [teamStats, setTeamStats] = useState([]);
+  const [teamForm, setTeamForm] = useState([]);
+  const [homeAway, setHomeAway] = useState([]);
+  const [goalStats, setGoalStats] = useState([]);
+  const [recency, setRecency] = useState([]);
+  const [strength, setStrength] = useState([]);
+  const [leagueStats, setLeagueStats] = useState([]);
+  const [h2h, setH2h] = useState([]);
+  const [aliases, setAliases] = useState([]);
+  const [sofaTeams, setSofaTeams] = useState([]);
 
   const [search, setSearch] = useState("");
-  const [leagueFilter, setLeagueFilter] =
-    useState("all");
+  const [leagueFilter, setLeagueFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDir, setSortDir] = useState("asc");
 
-  /* =======================================================
-     LOAD DATA
-  ======================================================= */
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const screen1Matches =
-          await fetchAllSupabase(
-            supabase,
-            "screen1_matches",
-            "*",
-            {
-              orderBy: "match_date",
-              ascending: false,
-            }
-          );
-
-        if (cancelled) return;
-
-        console.log(
-          "[SCREEN2] screen1_matches:",
-          screen1Matches.length
-        );
-
-        setMatches(screen1Matches);
-
-        const teamIds = [
-          ...new Set(
-            screen1Matches
-              .flatMap((m) => [
-                m.home_team_id,
-                m.away_team_id,
-              ])
-              .filter(Boolean)
-              .map(Number)
-          ),
-        ];
-
-        const matchLeagueIds = [
-          ...new Set(
-            screen1Matches
-              .map((m) => m.league_id)
-              .filter(Boolean)
-              .map(Number)
-          ),
-        ];
-
-        /* -----------------------------------------------
-           ALIASES
-        ------------------------------------------------ */
-
-        const aliasRows = [];
-
-        for (const ids of chunkArray(teamIds, 500)) {
-          const rows =
-            await fetchAllSupabase(
-              supabase,
-              "team_aliases",
-              "id,team_id,alias,league_id,country_id",
-              {
-                filters: [
-                  {
-                    type: "in",
-                    column: "team_id",
-                    values: ids,
-                  },
-                ],
-              }
-            );
-
-          aliasRows.push(...rows);
-        }
-
-        if (cancelled) return;
-
-        setTeamAliases(aliasRows);
-
-        /* -----------------------------------------------
-           SOFA TEAMS
-        ------------------------------------------------ */
-
-        const sofaRows = [];
-
-        for (const ids of chunkArray(teamIds, 500)) {
-          const rows =
-            await fetchAllSupabase(
-              supabase,
-              "sofa_teams",
-              "id,name,league_id,country_id",
-              {
-                filters: [
-                  {
-                    type: "in",
-                    column: "id",
-                    values: ids,
-                  },
-                ],
-              }
-            );
-
-          sofaRows.push(...rows);
-        }
-
-        if (cancelled) return;
-
-        setSofaTeams(sofaRows);
-
-        /* -----------------------------------------------
-           STANDINGS
-
-           Bitno:
-           učitavamo standings i za:
-           - lige iz utakmica
-           - matične lige sofa_teams
-        ------------------------------------------------ */
-
-        const canonicalLeagueIds = sofaRows
-          .map((team) => team.league_id)
-          .filter(Boolean)
-          .map(Number);
-
-        const standingsLeagueIds = [
-          ...new Set([
-            ...matchLeagueIds,
-            ...canonicalLeagueIds,
-          ]),
-        ];
-
-        console.log(
-          "[SCREEN2] standings league IDs:",
-          standingsLeagueIds.length
-        );
-
-        const standingRows = [];
-
-        for (const ids of chunkArray(
-          standingsLeagueIds,
-          500
-        )) {
-          const rows =
-            await fetchAllSupabase(
-              supabase,
-              "sofa_standings",
-              "*",
-              {
-                filters: [
-                  {
-                    type: "in",
-                    column: "league_id",
-                    values: ids,
-                  },
-                ],
-              }
-            );
-
-          standingRows.push(...rows);
-        }
-
-        if (cancelled) return;
-
-        setStandings(standingRows);
-
-        /* -----------------------------------------------
-           LEAGUES
-        ------------------------------------------------ */
-
-        const leagueRows = [];
-
-        for (const ids of chunkArray(
-          standingsLeagueIds,
-          500
-        )) {
-          const rows =
-            await fetchAllSupabase(
-              supabase,
-              "sofa_leagues",
-              "id,country_id,name",
-              {
-                filters: [
-                  {
-                    type: "in",
-                    column: "id",
-                    values: ids,
-                  },
-                ],
-              }
-            );
-
-          leagueRows.push(...rows);
-        }
-
-        if (cancelled) return;
-
-        setLeagues(leagueRows);
-
-        /* -----------------------------------------------
-           LEAGUE ALIASES
-
-           Samo relevantne lige.
-        ------------------------------------------------ */
-
-        const leagueAliasRows = [];
-
-        for (const ids of chunkArray(
-          standingsLeagueIds,
-          500
-        )) {
-          const rows =
-            await fetchAllSupabase(
-              supabase,
-              "league_aliases",
-              "id,league_id,alias,source,country,type,region,gender,confidence,country_id",
-              {
-                filters: [
-                  {
-                    type: "in",
-                    column: "league_id",
-                    values: ids,
-                  },
-                ],
-              }
-            );
-
-          leagueAliasRows.push(...rows);
-        }
-
-        if (!cancelled) {
-          setLeagueAliases(leagueAliasRows);
-        }
-      } catch (err) {
-        console.error(
-          "[SCREEN2] Load error:",
-          err
-        );
-
-        if (!cancelled) {
-          setError(
-            err?.message ||
-              "Greška pri učitavanju Screen2 podataka."
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadData();
-
-    return () => {
-      cancelled = true;
-    };
+    loadAllStatistics();
   }, []);
 
-  /* =======================================================
-     INDEXES
-  ======================================================= */
+  async function loadAllStatistics() {
+    try {
+      setLoading(true);
+      setError("");
 
-  const aliasesByTeam = useMemo(() => {
-    const map = {};
+      const [
+        primary,
+        stats,
+        forms,
+        ha,
+        goals,
+        rec,
+        str,
+        leagues,
+        h2hData,
+        teamAliases,
+        teams
+      ] = await Promise.all([
+        fetchAll("team_primary_leagues", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_league_statistics", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_form_statistics", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_home_away_form", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_goal_statistics", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_recency_statistics", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_opponent_strength", "*", TEAM_PAGE_SIZE),
+        fetchAll("league_statistics", "*", TEAM_PAGE_SIZE),
+        fetchAll("team_h2h_statistics", "*", H2H_PAGE_SIZE),
+        fetchAll("team_aliases", "*", TEAM_PAGE_SIZE),
+        fetchAll("sofa_teams", "*", TEAM_PAGE_SIZE)
+      ]);
 
-    for (const alias of teamAliases) {
-      const teamId = Number(alias.team_id);
-
-      if (!map[teamId]) {
-        map[teamId] = [];
-      }
-
-      map[teamId].push(alias);
+      setPrimaryLeagues(primary || []);
+      setTeamStats(stats || []);
+      setTeamForm(forms || []);
+      setHomeAway(ha || []);
+      setGoalStats(goals || []);
+      setRecency(rec || []);
+      setStrength(str || []);
+      setLeagueStats(leagues || []);
+      setH2h(h2hData || []);
+      setAliases(teamAliases || []);
+      setSofaTeams(teams || []);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Greška pri učitavanju statistike.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    return map;
-  }, [teamAliases]);
+  const teamRows = useMemo(() => {
+    return primaryLeagues.map((team) => {
+      const stats = teamStats.find(
+        (x) =>
+          Number(x.team_id) === Number(team.team_id) &&
+          Number(x.league_id) === Number(team.primary_league_id)
+      );
 
-  const sofaTeamById = useMemo(() => {
-    const map = {};
+      const form = teamForm.find(
+        (x) =>
+          Number(x.team_id) === Number(team.team_id) &&
+          Number(x.league_id) === Number(team.primary_league_id)
+      );
 
-    for (const team of sofaTeams) {
-      map[Number(team.id)] = team;
-    }
+      const goals = goalStats.find(
+        (x) =>
+          Number(x.team_id) === Number(team.team_id) &&
+          Number(x.league_id) === Number(team.primary_league_id)
+      );
 
-    return map;
-  }, [sofaTeams]);
+      const rec = recency.find(
+        (x) =>
+          Number(x.team_id) === Number(team.team_id) &&
+          Number(x.league_id) === Number(team.primary_league_id)
+      );
 
-  const leagueById = useMemo(() => {
-    const map = {};
+      const opp = strength.find(
+        (x) =>
+          Number(x.team_id) === Number(team.team_id) &&
+          Number(x.league_id) === Number(team.primary_league_id)
+      );
 
-    for (const league of leagues) {
-      map[Number(league.id)] = league;
-    }
-
-    return map;
-  }, [leagues]);
-
-  const leagueAliasById = useMemo(() => {
-    const map = {};
-
-    for (const alias of leagueAliases) {
-      const leagueId = Number(alias.league_id);
-
-      if (!map[leagueId]) {
-        map[leagueId] = [];
-      }
-
-      map[leagueId].push(alias);
-    }
-
-    return map;
-  }, [leagueAliases]);
-
-  /* =======================================================
-     PRIMARY / HOME LEAGUE
-
-     Prioritet:
-     1. sofa_teams.league_id
-     2. latest standings league
-     3. match frequency
-  ======================================================= */
-
-  const latestStandingForTeam = useMemo(() => {
-    const map = {};
-
-    for (const raw of standings) {
-      const row = normalizeStanding(raw);
-
-      if (!row?.teamId) continue;
-
-      const key = String(row.teamId);
-
-      if (
-        !map[key] ||
-        dateValue(row.standingsDate) >
-          dateValue(map[key].standingsDate)
-      ) {
-        map[key] = row;
-      }
-    }
-
-    return map;
-  }, [standings]);
-
-  const matchLeagueFrequency = useMemo(() => {
-    const map = {};
-
-    for (const match of matches) {
-      const homeId = Number(match.home_team_id);
-      const awayId = Number(match.away_team_id);
-      const leagueId = Number(match.league_id);
-
-      if (!leagueId) continue;
-
-      for (const teamId of [
-        homeId,
-        awayId,
-      ]) {
-        if (!teamId) continue;
-
-        if (!map[teamId]) {
-          map[teamId] = {};
-        }
-
-        map[teamId][leagueId] =
-          (map[teamId][leagueId] || 0) + 1;
-      }
-    }
-
-    return map;
-  }, [matches]);
-
-  const primaryLeagueByTeam = useMemo(() => {
-    const result = {};
-
-    const allTeamIds = [
-      ...new Set(
-        matches
-          .flatMap((m) => [
-            m.home_team_id,
-            m.away_team_id,
-          ])
-          .filter(Boolean)
-          .map(Number)
-      ),
-    ];
-
-    for (const teamId of allTeamIds) {
-      const sofaLeague =
-        sofaTeamById[teamId]?.league_id;
-
-      if (sofaLeague) {
-        result[teamId] = Number(sofaLeague);
-        continue;
-      }
-
-      const latest =
-        latestStandingForTeam[String(teamId)];
-
-      if (latest?.leagueId) {
-        result[teamId] = Number(
-          latest.leagueId
-        );
-        continue;
-      }
-
-      const frequency =
-        matchLeagueFrequency[teamId] || {};
-
-      const best = Object.entries(frequency).sort(
-        (a, b) => b[1] - a[1]
-      )[0];
-
-      if (best) {
-        result[teamId] = Number(best[0]);
-      }
-    }
-
-    return result;
+      return {
+        ...team,
+        team_name: getDisplayTeamName(
+          team.team_id,
+          aliases,
+          sofaTeams
+        ),
+        stats,
+        form,
+        goals,
+        rec,
+        opp
+      };
+    });
   }, [
-    matches,
-    sofaTeamById,
-    latestStandingForTeam,
-    matchLeagueFrequency,
-  ]);
-
-  /* =======================================================
-     TEAM NAME
-  ======================================================= */
-
-  const getMainTeamName = (teamId) => {
-    const id = Number(teamId);
-
-    const mainLeague =
-      primaryLeagueByTeam[id];
-
-    const aliases =
-      aliasesByTeam[id] || [];
-
-    const preferredAlias =
-      aliases.find(
-        (a) =>
-          Number(a.league_id) ===
-          Number(mainLeague)
-      );
-
-    if (preferredAlias?.alias) {
-      return preferredAlias.alias;
-    }
-
-    if (aliases[0]?.alias) {
-      return aliases[0].alias;
-    }
-
-    if (sofaTeamById[id]?.name) {
-      return sofaTeamById[id].name;
-    }
-
-    const match = matches.find(
-      (m) =>
-        Number(m.home_team_id) === id ||
-        Number(m.away_team_id) === id
-    );
-
-    return (
-      match?.home ||
-      match?.away ||
-      `Team ${id}`
-    );
-  };
-
-  const countryByTeam = (teamId) => {
-    const id = Number(teamId);
-
-    const leagueId =
-      primaryLeagueByTeam[id];
-
-    const aliases =
-      aliasesByTeam[id] || [];
-
-    const preferred =
-      aliases.find(
-        (a) =>
-          Number(a.league_id) ===
-          Number(leagueId)
-      );
-
-    if (preferred?.country_id) {
-      return preferred.country_id;
-    }
-
-    if (aliases[0]?.country_id) {
-      return aliases[0].country_id;
-    }
-
-    return sofaTeamById[id]?.country_id || null;
-  };
-
-  /* =======================================================
-     LEAGUE NAME
-  ======================================================= */
-
-  const getLeagueName = (leagueId) => {
-    const id = Number(leagueId);
-
-    const sofaLeague = leagueById[id];
-
-    if (sofaLeague?.name) {
-      return sofaLeague.name;
-    }
-
-    const standing = standings.find(
-      (row) =>
-        Number(row.league_id) === id
-    );
-
-    if (standing?.league_name) {
-      return standing.league_name;
-    }
-
-    const aliases =
-      leagueAliasById[id] || [];
-
-    const preferred =
-      aliases.find(
-        (a) =>
-          String(a.source || "")
-            .toLowerCase() === "mozzart"
-      );
-
-    return (
-      preferred?.alias ||
-      aliases[0]?.alias ||
-      `Liga ${id}`
-    );
-  };
-
-  /* =======================================================
-     TEAM MATCH STATS
-  ======================================================= */
-
-  const teamStats = useMemo(() => {
-    const map = {};
-
-    const uniqueMatches = [];
-    const seen = new Set();
-
-    for (const match of matches) {
-      const key = getMatchKey(match);
-
-      if (seen.has(key)) continue;
-
-      seen.add(key);
-
-      const homeId = Number(
-        match.home_team_id
-      );
-      const awayId = Number(
-        match.away_team_id
-      );
-
-      const score = parseFT(match.ft);
-
-      if (!homeId || !awayId || !score) {
-        continue;
-      }
-
-      uniqueMatches.push({
-        ...match,
-        homeId,
-        awayId,
-        homeScore: score.home,
-        awayScore: score.away,
-        matchKey: key,
-      });
-    }
-
-    uniqueMatches.sort(
-      (a, b) =>
-        dateValue(a.match_date) -
-        dateValue(b.match_date)
-    );
-
-    for (const match of uniqueMatches) {
-      const {
-        homeId,
-        awayId,
-        homeScore,
-        awayScore,
-      } = match;
-
-      if (!map[homeId]) {
-        map[homeId] = {
-          games: [],
-          byLeague: {},
-          homeGames: [],
-          awayGames: [],
-        };
-      }
-
-      if (!map[awayId]) {
-        map[awayId] = {
-          games: [],
-          byLeague: {},
-          homeGames: [],
-          awayGames: [],
-        };
-      }
-
-      const homeResult = getResultForTeam(
-        homeScore,
-        awayScore
-      );
-
-      const awayResult = getResultForTeam(
-        awayScore,
-        homeScore
-      );
-
-      map[homeId].games.push({
-        id: match.id,
-        date: match.match_date,
-        time: match.match_time,
-        leagueId: match.league_id,
-        opponentId: awayId,
-        opponent: getMainTeamName(awayId),
-        venue: "H",
-        gf: homeScore,
-        ga: awayScore,
-        result: homeResult,
-        points: resultPoints(homeResult),
-      });
-
-      map[awayId].games.push({
-        id: match.id,
-        date: match.match_date,
-        time: match.match_time,
-        leagueId: match.league_id,
-        opponentId: homeId,
-        opponent: getMainTeamName(homeId),
-        venue: "A",
-        gf: awayScore,
-        ga: homeScore,
-        result: awayResult,
-        points: resultPoints(awayResult),
-      });
-
-      map[homeId].homeGames.push(
-        map[homeId].games[
-          map[homeId].games.length - 1
-        ]
-      );
-
-      map[awayId].awayGames.push(
-        map[awayId].games[
-          map[awayId].games.length - 1
-        ]
-      );
-
-      const leagueId = Number(
-        match.league_id
-      );
-
-      if (leagueId) {
-        if (!map[homeId].byLeague[leagueId]) {
-          map[homeId].byLeague[leagueId] = [];
-        }
-
-        if (!map[awayId].byLeague[leagueId]) {
-          map[awayId].byLeague[leagueId] = [];
-        }
-
-        map[homeId].byLeague[leagueId].push(
-          map[homeId].games[
-            map[homeId].games.length - 1
-          ]
-        );
-
-        map[awayId].byLeague[leagueId].push(
-          map[awayId].games[
-            map[awayId].games.length - 1
-          ]
-        );
-      }
-    }
-
-    return map;
-  }, [matches, primaryLeagueByTeam]);
-
-  /* =======================================================
-     FINAL TEAM DATA
-  ======================================================= */
-
-  const finalTeams = useMemo(() => {
-    const teamIds = [
-      ...new Set(
-        matches
-          .flatMap((m) => [
-            m.home_team_id,
-            m.away_team_id,
-          ])
-          .filter(Boolean)
-          .map(Number)
-      ),
-    ];
-
-    return teamIds
-      .map((teamId) => {
-        const rawStats =
-          teamStats[teamId] || {
-            games: [],
-            byLeague: {},
-            homeGames: [],
-            awayGames: [],
-          };
-
-        const games =
-          rawStats.games || [];
-
-        const chronological = [...games].sort(
-          (a, b) =>
-            dateValue(a.date) -
-            dateValue(b.date)
-        );
-
-        const latestFirst = [
-          ...chronological,
-        ].reverse();
-
-        const last3Games =
-          latestFirst.slice(0, 3);
-
-        const last5Games =
-          latestFirst.slice(0, 5);
-
-        const last10Games =
-          latestFirst.slice(0, 10);
-
-        const form3 =
-          calculateWindow(last3Games);
-
-        const form5 =
-          calculateWindow(last5Games);
-
-        const form10 =
-          calculateWindow(last10Games);
-
-        const homeStats =
-          calculateWindow(
-            rawStats.homeGames
-          );
-
-        const awayStats =
-          calculateWindow(
-            rawStats.awayGames
-          );
-
-        const mainLeagueId =
-          primaryLeagueByTeam[teamId] ||
-          sofaTeamById[teamId]?.league_id ||
-          null;
-
-        /*
-          Najnovija tabela za baš matičnu ligu.
-        */
-        const teamStandings = standings
-          .map(normalizeStanding)
-          .filter(
-            (s) =>
-              Number(s.teamId) ===
-                Number(teamId) &&
-              Number(s.leagueId) ===
-                Number(mainLeagueId)
-          )
-          .sort(
-            (a, b) =>
-              dateValue(b.standingsDate) -
-              dateValue(a.standingsDate)
-          );
-
-        const standing =
-          teamStandings[0] || null;
-
-        /*
-          Ako nema matične tabele, uzimamo
-          najnoviju tabelu koju imamo za tim.
-        */
-        const fallbackStanding =
-          standing ||
-          latestStandingForTeam[
-            String(teamId)
-          ] ||
-          null;
-
-        const leagueRows = standings
-          .map(normalizeStanding)
-          .filter(
-            (s) =>
-              Number(s.leagueId) ===
-                Number(
-                  fallbackStanding?.leagueId
-                ) &&
-              Number(s.seasonId) ===
-                Number(
-                  fallbackStanding?.seasonId
-                )
-          );
-
-        const tableStrength =
-          calculateTableStrength(
-            fallbackStanding,
-            leagueRows
-          );
-
-        const formStrength =
-          calculateFormStrength(form10);
-
-        const attackStrength =
-          calculateAttackStrength(
-            fallbackStanding,
-            form10
-          );
-
-        const defenseStrength =
-          calculateDefenseStrength(
-            fallbackStanding,
-            form10
-          );
-
-        const goalStrength =
-          calculateGoalStrength(form10);
-
-        const isHomeVenue =
-          homeStats.played >= awayStats.played;
-
-        const venueStrength =
-          calculateVenueStrength(
-            homeStats,
-            awayStats,
-            isHomeVenue
-          );
-
-        const confidence =
-          calculateConfidence({
-            standing: fallbackStanding,
-            last10: form10,
-            venue: isHomeVenue
-              ? homeStats
-              : awayStats,
-          });
-
-        const finalScore =
-          calculateFinalScore({
-            tableStrength,
-            formStrength,
-            attackStrength,
-            defenseStrength,
-            goalStrength,
-            venueStrength,
-            confidence,
-          });
-
-        return {
-          id: teamId,
-
-          name: getMainTeamName(teamId),
-
-          teamId,
-
-          mainLeagueId:
-            fallbackStanding?.leagueId ||
-            mainLeagueId ||
-            null,
-
-          mainLeagueName:
-            fallbackStanding?.leagueName ||
-            getLeagueName(
-              fallbackStanding?.leagueId ||
-                mainLeagueId
-            ),
-
-          mainGroupName:
-            fallbackStanding?.groupName ||
-            "",
-
-          countryId:
-            countryByTeam(teamId),
-
-          aliases:
-            aliasesByTeam[teamId] || [],
-
-          stats: {
-            games: games.length,
-
-            form3,
-            form5,
-            form10,
-
-            home: homeStats,
-            away: awayStats,
-
-            last5: last5Games,
-            last10: last10Games,
-
-            byLeague:
-              rawStats.byLeague,
-          },
-
-          standing: fallbackStanding,
-
-          prediction: {
-            tableStrength,
-            formStrength,
-            attackStrength,
-            defenseStrength,
-            goalStrength,
-            venueStrength,
-            confidence,
-            finalScore,
-          },
-        };
-      })
-      .sort((a, b) =>
-        a.name.localeCompare(
-          b.name,
-          "sr-Latn"
-        )
-      );
-  }, [
-    matches,
+    primaryLeagues,
     teamStats,
-    standings,
-    primaryLeagueByTeam,
-    sofaTeamById,
-    latestStandingForTeam,
-    aliasesByTeam,
-    leagueById,
-    leagueAliasById,
+    teamForm,
+    goalStats,
+    recency,
+    strength,
+    aliases,
+    sofaTeams
   ]);
-
-  /* =======================================================
-     LEAGUE FILTER
-  ======================================================= */
 
   const leagueOptions = useMemo(() => {
     const map = new Map();
 
-    for (const team of finalTeams) {
-      if (!team.mainLeagueId) continue;
+    primaryLeagues.forEach((x) => {
+      const id = Number(x.primary_league_id);
 
-      map.set(
-        Number(team.mainLeagueId),
-        team.mainLeagueName ||
-          getLeagueName(team.mainLeagueId)
-      );
-    }
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name:
+            x.primary_league_name ||
+            `Liga ${id}`
+        });
+      }
+    });
 
-    return [...map.entries()].sort((a, b) =>
-      String(a[1]).localeCompare(
-        String(b[1]),
-        "sr-Latn"
-      )
+    return [...map.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "sr")
     );
-  }, [finalTeams]);
-
-  /* =======================================================
-     FILTERED TEAMS
-  ======================================================= */
+  }, [primaryLeagues]);
 
   const filteredTeams = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
 
-    return finalTeams.filter((team) => {
-      const matchesSearch =
-        !query ||
-        team.name
-          .toLowerCase()
-          .includes(query) ||
-        String(team.teamId).includes(query) ||
-        String(
-          team.mainLeagueId || ""
-        ).includes(query);
-
+    let rows = teamRows.filter((team) => {
       const matchesLeague =
         leagueFilter === "all" ||
-        Number(team.mainLeagueId) ===
-          Number(leagueFilter);
+        Number(team.primary_league_id) === Number(leagueFilter);
+
+      if (!matchesLeague) return false;
+
+      if (!q) return true;
 
       return (
-        matchesSearch &&
-        matchesLeague
+        String(team.team_name || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(team.team_id).includes(q) ||
+        String(team.primary_league_name || "")
+          .toLowerCase()
+          .includes(q)
       );
     });
+
+    rows.sort((a, b) => {
+      let av;
+      let bv;
+
+      switch (sortKey) {
+        case "position":
+          av = Number(a.standings_position ?? 9999);
+          bv = Number(b.standings_position ?? 9999);
+          break;
+
+        case "points":
+          av = Number(a.standings_points ?? -9999);
+          bv = Number(b.standings_points ?? -9999);
+          break;
+
+        case "played":
+          av = Number(a.league_matches_played ?? -9999);
+          bv = Number(b.league_matches_played ?? -9999);
+          break;
+
+        case "ppg":
+          av = Number(a.stats?.ppg ?? -9999);
+          bv = Number(b.stats?.ppg ?? -9999);
+          break;
+
+        case "form":
+          av = Number(a.form?.last5_ppg ?? -9999);
+          bv = Number(b.form?.last5_ppg ?? -9999);
+          break;
+
+        case "gf":
+          av = Number(a.stats?.goals_for ?? -9999);
+          bv = Number(b.stats?.goals_for ?? -9999);
+          break;
+
+        case "ga":
+          av = Number(a.stats?.goals_against ?? -9999);
+          bv = Number(b.stats?.goals_against ?? -9999);
+          break;
+
+        case "strength":
+          av = Number(a.opp?.strength_index ?? -9999);
+          bv = Number(b.opp?.strength_index ?? -9999);
+          break;
+
+        default:
+          av = String(a.team_name || "");
+          bv = String(b.team_name || "");
+
+          return sortDir === "asc"
+            ? av.localeCompare(bv, "sr")
+            : bv.localeCompare(av, "sr");
+      }
+
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+
+    return rows;
   }, [
-    finalTeams,
+    teamRows,
     search,
     leagueFilter,
+    sortKey,
+    sortDir
   ]);
 
-  /* =======================================================
-     SUMMARY
-  ======================================================= */
+  const selectedTeam = useMemo(() => {
+    if (!selectedTeamId) return null;
 
-  const summary = useMemo(() => {
-    const teams = finalTeams.length;
-
-    const withStandings =
-      finalTeams.filter(
-        (x) => x.standing
-      ).length;
-
-    const matchesWithIds =
-      matches.filter(
-        (m) =>
-          m.home_team_id &&
-          m.away_team_id
-      ).length;
-
-    const matchesWithoutIds =
-      matches.length -
-      matchesWithIds;
-
-    return {
-      matches: matches.length,
-      teams,
-      aliases: teamAliases.length,
-      standings: standings.length,
-      withStandings,
-      matchesWithoutIds,
-    };
-  }, [
-    finalTeams,
-    matches,
-    teamAliases,
-    standings,
-  ]);
-
-  /* =======================================================
-     RENDER HELPERS
-  ======================================================= */
-
-  const renderForm = (games) => {
-    if (!games?.length) {
-      return (
-        <span className="s2-muted">
-          —
-        </span>
-      );
-    }
-
-    return (
-      <div
-        style={{
-          display: "flex",
-          gap: 3,
-          alignItems: "center",
-        }}
-      >
-        {games.map((game, index) => (
-          <span
-            key={`${game.id}-${index}`}
-            title={`${game.opponent} ${game.gf}:${game.ga}`}
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 4,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 10,
-              fontWeight: 700,
-              border: "1px solid rgba(0,0,0,.15)",
-            }}
-          >
-            {game.result}
-          </span>
-        ))}
-      </div>
+    return teamRows.find(
+      (x) => Number(x.team_id) === Number(selectedTeamId)
     );
-  };
+  }, [selectedTeamId, teamRows]);
 
-  const renderScore = (value) => {
-    if (!value) {
-      return (
-        <span className="s2-muted">
-          —
-        </span>
-      );
-    }
+  const selectedTeamStats = useMemo(() => {
+    if (!selectedTeam) return null;
 
-    return Math.round(value);
-  };
-
-  const toggleTeam = (teamId) => {
-    setExpandedTeamId(
-      expandedTeamId === teamId
-        ? null
-        : teamId
+    return teamStats.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
     );
-  };
+  }, [selectedTeam, teamStats]);
 
-  /* =======================================================
-     LOADING
-  ======================================================= */
+  const selectedTeamForm = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return teamForm.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, teamForm]);
+
+  const selectedHomeAway = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return homeAway.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, homeAway]);
+
+  const selectedGoals = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return goalStats.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, goalStats]);
+
+  const selectedRecency = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return recency.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, recency]);
+
+  const selectedStrength = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return strength.find(
+      (x) =>
+        Number(x.team_id) === Number(selectedTeam.team_id) &&
+        Number(x.league_id) === Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, strength]);
+
+  const selectedLeagueStats = useMemo(() => {
+    if (!selectedTeam) return null;
+
+    return leagueStats.find(
+      (x) =>
+        Number(x.league_id) ===
+        Number(selectedTeam.primary_league_id)
+    );
+  }, [selectedTeam, leagueStats]);
+
+  function toggleSort(key) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const tableArrow = (key) => {
+    if (sortKey !== key) return "";
+    return sortDir === "asc" ? " ↑" : " ↓";
+  };
 
   if (loading) {
     return (
       <div className="screen2">
-        <div className="screen2-loading">
-          Učitavanje statistike...
+        <div className="s2-loading">
+          <div className="s2-spinner" />
+          <h2>Učitavanje statistike...</h2>
+          <p>
+            Učitavaju se svi statistički slojevi iz Supabase baze.
+          </p>
         </div>
       </div>
     );
   }
-
-  /* =======================================================
-     ERROR
-  ======================================================= */
 
   if (error) {
     return (
       <div className="screen2">
-        <div className="screen2-error">
-          <strong>Greška:</strong>{" "}
-          {error}
+        <div className="s2-error">
+          <h2>Greška pri učitavanju</h2>
+          <p>{error}</p>
+
+          <button
+            className="s2-button"
+            onClick={loadAllStatistics}
+          >
+            Pokušaj ponovo
+          </button>
         </div>
       </div>
     );
   }
 
-  /* =======================================================
-     UI
-  ======================================================= */
-
   return (
     <div className="screen2">
-      <div className="screen2-header">
+      <header className="s2-header">
         <div>
-          <h1>
-            Statistika timova
-          </h1>
-
-          <div
-            style={{
-              fontSize: 13,
-              opacity: 0.75,
-              marginTop: 4,
-            }}
-          >
-            Tabela + forma + napad +
-            odbrana + Home/Away +
-            prediktivni profil
+          <div className="s2-eyebrow">
+            DZIDICI3ML · DATA CENTER
           </div>
+
+          <h1>Team Statistics</h1>
+
+          <p>
+            Kompletan pregled statističkih tabela iz Supabase baze.
+            Screen2 prikazuje podatke — ne menja ih i ne računa
+            statistiku lokalno.
+          </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-          }}
+        <button
+          className="s2-button"
+          onClick={loadAllStatistics}
         >
-          <span className="s2-stat">
-            Mečevi:{" "}
-            <strong>
-              {summary.matches}
-            </strong>
-          </span>
+          ↻ Osveži podatke
+        </button>
+      </header>
 
-          <span className="s2-stat">
-            Timovi:{" "}
-            <strong>
-              {summary.teams}
-            </strong>
-          </span>
-
-          <span className="s2-stat">
-            Alias:{" "}
-            <strong>
-              {summary.aliases}
-            </strong>
-          </span>
-
-          <span className="s2-stat">
-            Standings:{" "}
-            <strong>
-              {summary.standings}
-            </strong>
-          </span>
-
-          <span className="s2-stat">
-            Timovi sa tabelom:{" "}
-            <strong>
-              {summary.withStandings}
-            </strong>
-          </span>
-        </div>
-      </div>
-
-      {/* FILTERS */}
-
-      <div
-        className="screen2-filters"
-        style={{
-          display: "flex",
-          gap: 10,
-          marginBottom: 15,
-          flexWrap: "wrap",
-        }}
-      >
-        <input
-          type="text"
-          value={search}
-          onChange={(e) =>
-            setSearch(e.target.value)
-          }
-          placeholder="Pretraži tim, Team ID ili League ID..."
-          style={{
-            minWidth: 300,
-          }}
+      <div className="s2-overview">
+        <StatCard
+          label="Timovi"
+          value={formatInt(primaryLeagues.length)}
+          sub="team_primary_leagues"
         />
 
-        <select
-          value={leagueFilter}
-          onChange={(e) =>
-            setLeagueFilter(e.target.value)
-          }
-        >
-          <option value="all">
-            Sve matične lige
-          </option>
+        <StatCard
+          label="Team stats"
+          value={formatInt(teamStats.length)}
+          sub="team_league_statistics"
+        />
 
-          {leagueOptions.map(
-            ([id, name]) => (
-              <option
-                key={id}
-                value={id}
-              >
-                {name} — {id}
-              </option>
-            )
-          )}
-        </select>
+        <StatCard
+          label="Form stats"
+          value={formatInt(teamForm.length)}
+          sub="team_form_statistics"
+        />
+
+        <StatCard
+          label="Goal stats"
+          value={formatInt(goalStats.length)}
+          sub="team_goal_statistics"
+        />
+
+        <StatCard
+          label="Recency"
+          value={formatInt(recency.length)}
+          sub="team_recency_statistics"
+        />
+
+        <StatCard
+          label="H2H parovi"
+          value={formatInt(h2h.length)}
+          sub="team_h2h_statistics"
+        />
+
+        <StatCard
+          label="Lige"
+          value={formatInt(leagueStats.length)}
+          sub="league_statistics"
+        />
+
+        <StatCard
+          label="Opponent strength"
+          value={formatInt(strength.length)}
+          sub="team_opponent_strength"
+        />
       </div>
 
-      {/* MAIN TABLE */}
-
-      <div
-        className="screen2-table-wrap"
-        style={{
-          overflowX: "auto",
-        }}
-      >
-        <table className="screen2-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Tim</th>
-
-              <th>Team ID</th>
-
-              <th>
-                Matična liga
-              </th>
-
-              <th>
-                League ID
-              </th>
-
-              <th>
-                Country ID
-              </th>
-
-              {/* MATCH SAMPLE */}
-
-              <th>G</th>
-              <th>W</th>
-              <th>D</th>
-              <th>L</th>
-
-              <th>GF</th>
-              <th>GA</th>
-              <th>GD</th>
-              <th>PTS</th>
-              <th>PPG</th>
-
-              <th>GG %</th>
-              <th>NG %</th>
-              <th>2+ %</th>
-              <th>3+ %</th>
-              <th>4+ %</th>
-              <th>7+ %</th>
-
-              <th>CS %</th>
-              <th>FTS %</th>
-
-              {/* TABLE */}
-
-              <th>Tbl #</th>
-              <th>Tbl G</th>
-              <th>Tbl W</th>
-              <th>Tbl D</th>
-              <th>Tbl L</th>
-              <th>Tbl GF</th>
-              <th>Tbl GA</th>
-              <th>Tbl GD</th>
-              <th>Tbl PTS</th>
-              <th>Tbl PPG</th>
-
-              {/* PREDICTION */}
-
-              <th>Table</th>
-              <th>Form</th>
-              <th>Attack</th>
-              <th>Defense</th>
-              <th>Goals</th>
-              <th>Venue</th>
-              <th>Confidence</th>
-              <th>FINAL</th>
-
-              <th>Last 5</th>
-
-              <th>Detalji</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filteredTeams.map(
-              (team, index) => {
-                const stats =
-                  team.stats;
-
-                const form =
-                  stats.form10;
-
-                const standing =
-                  team.standing;
-
-                const prediction =
-                  team.prediction;
-
-                const expanded =
-                  expandedTeamId ===
-                  team.teamId;
-
-                return (
-                  <React.Fragment
-                    key={team.teamId}
-                  >
-                    <tr>
-                      <td>
-                        {index + 1}
-                      </td>
-
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedTeamId(
-                              team.teamId
-                            )
-                          }
-                          style={{
-                            border: 0,
-                            background:
-                              "transparent",
-                            padding: 0,
-                            cursor: "pointer",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {team.name}
-                        </button>
-                      </td>
-
-                      <td>
-                        {team.teamId}
-                      </td>
-
-                      <td
-                        title={
-                          team.mainGroupName
-                        }
-                      >
-                        {team.mainLeagueName ||
-                          "—"}
-                      </td>
-
-                      <td>
-                        {team.mainLeagueId ||
-                          "—"}
-                      </td>
-
-                      <td>
-                        {team.countryId ||
-                          "—"}
-                      </td>
-
-                      {/* MATCH SAMPLE */}
-
-                      <td>
-                        {form.played}
-                      </td>
-
-                      <td>
-                        {form.wins}
-                      </td>
-
-                      <td>
-                        {form.draws}
-                      </td>
-
-                      <td>
-                        {form.losses}
-                      </td>
-
-                      <td>
-                        {form.goalsFor}
-                      </td>
-
-                      <td>
-                        {form.goalsAgainst}
-                      </td>
-
-                      <td>
-                        {form.goalDifference}
-                      </td>
-
-                      <td>
-                        {form.points}
-                      </td>
-
-                      <td>
-                        {round(
-                          form.ppg
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.ggRate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.ngRate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.over2Rate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.over3Rate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.over4Rate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.over7Rate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.cleanSheetRate
-                        )}
-                      </td>
-
-                      <td>
-                        {percent(
-                          form.failedToScoreRate
-                        )}
-                      </td>
-
-                      {/* TABLE */}
-
-                      <td>
-                        {standing?.position ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.played ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.wins ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.draws ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.losses ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.goalsFor ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing?.goalsAgainst ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing
-                          ? standing.goalDifference
-                          : "—"}
-                      </td>
-
-                      <td>
-                        {standing?.points ??
-                          "—"}
-                      </td>
-
-                      <td>
-                        {standing
-                          ? round(
-                              standing.ppg
-                            )
-                          : "—"}
-                      </td>
-
-                      {/* PREDICTION */}
-
-                      <td>
-                        {renderScore(
-                          prediction.tableStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.formStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.attackStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.defenseStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.goalStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.venueStrength
-                        )}
-                      </td>
-
-                      <td>
-                        {renderScore(
-                          prediction.confidence
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          fontWeight: 800,
-                        }}
-                      >
-                        {renderScore(
-                          prediction.finalScore
-                        )}
-                      </td>
-
-                      <td>
-                        {renderForm(
-                          stats.last5
-                        )}
-                      </td>
-
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleTeam(
-                              team.teamId
-                            )
-                          }
-                        >
-                          {expanded
-                            ? "▲"
-                            : "▼"}
-                        </button>
-                      </td>
-                    </tr>
-
-                    {/* EXPANDED */}
-
-                    {expanded && (
-                      <tr>
-                        <td
-                          colSpan={46}
-                          style={{
-                            padding: 0,
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: 18,
-                              display:
-                                "grid",
-                              gap: 18,
-                            }}
-                          >
-                            {/* PROFILE */}
-
-                            <div>
-                              <h3>
-                                {team.name} —
-                                Prediction
-                                Profile
-                              </h3>
-
-                              <div
-                                style={{
-                                  display:
-                                    "grid",
-                                  gridTemplateColumns:
-                                    "repeat(auto-fit,minmax(140px,1fr))",
-                                  gap: 10,
-                                }}
-                              >
-                                {[
-                                  [
-                                    "Tabela",
-                                    prediction.tableStrength,
-                                  ],
-                                  [
-                                    "Forma",
-                                    prediction.formStrength,
-                                  ],
-                                  [
-                                    "Napad",
-                                    prediction.attackStrength,
-                                  ],
-                                  [
-                                    "Odbrana",
-                                    prediction.defenseStrength,
-                                  ],
-                                  [
-                                    "Golovi",
-                                    prediction.goalStrength,
-                                  ],
-                                  [
-                                    "Venue",
-                                    prediction.venueStrength,
-                                  ],
-                                  [
-                                    "Pouzdanost",
-                                    prediction.confidence,
-                                  ],
-                                  [
-                                    "FINAL",
-                                    prediction.finalScore,
-                                  ],
-                                ].map(
-                                  ([
-                                    label,
-                                    value,
-                                  ]) => (
-                                    <div
-                                      key={
-                                        label
-                                      }
-                                      style={{
-                                        border:
-                                          "1px solid rgba(0,0,0,.12)",
-                                        borderRadius:
-                                          8,
-                                        padding: 10,
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          fontSize: 11,
-                                          opacity:
-                                            0.65,
-                                        }}
-                                      >
-                                        {
-                                          label
-                                        }
-                                      </div>
-
-                                      <div
-                                        style={{
-                                          fontSize: 22,
-                                          fontWeight:
-                                            800,
-                                          marginTop: 4,
-                                        }}
-                                      >
-                                        {renderScore(
-                                          value
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </div>
-
-                            {/* STANDINGS */}
-
-                            <div>
-                              <h3>
-                                Sezonska
-                                tabela
-                              </h3>
-
-                              {standing ? (
-                                <div
-                                  style={{
-                                    display:
-                                      "grid",
-                                    gridTemplateColumns:
-                                      "repeat(auto-fit,minmax(120px,1fr))",
-                                    gap: 8,
-                                  }}
-                                >
-                                  <div>
-                                    <strong>
-                                      Liga
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.leagueName
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      Grupa
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.groupName ||
-                                        "—"
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      Season ID
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.seasonId
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      Pozicija
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.position
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      Odigrano
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.played
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      W/D/L
-                                    </strong>
-                                    <br />
-                                    {standing.wins}/
-                                    {standing.draws}/
-                                    {standing.losses}
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      GF/GA
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.goalsFor
-                                    }
-                                    /
-                                    {
-                                      standing.goalsAgainst
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      GD
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.goalDifference
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      PTS
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.points
-                                    }
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      PPG
-                                    </strong>
-                                    <br />
-                                    {round(
-                                      standing.ppg
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      GF/G
-                                    </strong>
-                                    <br />
-                                    {round(
-                                      standing.gfPerGame
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      GA/G
-                                    </strong>
-                                    <br />
-                                    {round(
-                                      standing.gaPerGame
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      Datum
-                                    </strong>
-                                    <br />
-                                    {
-                                      standing.standingsDate ||
-                                        "—"
-                                    }
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="s2-muted">
-                                  Za ovaj tim
-                                  nema
-                                  dostupne
-                                  odgovarajuće
-                                  tabele.
-                                </div>
-                              )}
-                            </div>
-
-                            {/* FORM */}
-
-                            <div>
-                              <h3>
-                                Forma — poslednjih
-                                3 / 5 / 10
-                              </h3>
-
-                              <div
-                                style={{
-                                  display:
-                                    "grid",
-                                  gridTemplateColumns:
-                                    "repeat(auto-fit,minmax(180px,1fr))",
-                                  gap: 10,
-                                }}
-                              >
-                                {[
-                                  [
-                                    "Last 3",
-                                    stats.form3,
-                                  ],
-                                  [
-                                    "Last 5",
-                                    stats.form5,
-                                  ],
-                                  [
-                                    "Last 10",
-                                    stats.form10,
-                                  ],
-                                ].map(
-                                  ([
-                                    label,
-                                    value,
-                                  ]) => (
-                                    <div
-                                      key={
-                                        label
-                                      }
-                                      style={{
-                                        border:
-                                          "1px solid rgba(0,0,0,.12)",
-                                        borderRadius:
-                                          8,
-                                        padding: 12,
-                                      }}
-                                    >
-                                      <strong>
-                                        {label}
-                                      </strong>
-
-                                      <div
-                                        style={{
-                                          marginTop: 8,
-                                          lineHeight:
-                                            1.7,
-                                        }}
-                                      >
-                                        G:{" "}
-                                        {
-                                          value.played
-                                        }
-                                        <br />
-                                        W/D/L:{" "}
-                                        {
-                                          value.wins
-                                        }
-                                        /
-                                        {
-                                          value.draws
-                                        }
-                                        /
-                                        {
-                                          value.losses
-                                        }
-                                        <br />
-                                        GF/GA:{" "}
-                                        {
-                                          value.goalsFor
-                                        }
-                                        /
-                                        {
-                                          value.goalsAgainst
-                                        }
-                                        <br />
-                                        PPG:{" "}
-                                        {round(
-                                          value.ppg
-                                        )}
-                                        <br />
-                                        GG:{" "}
-                                        {percent(
-                                          value.ggRate
-                                        )}
-                                        <br />
-                                        2+:{" "}
-                                        {percent(
-                                          value.over2Rate
-                                        )}
-                                        <br />
-                                        3+:{" "}
-                                        {percent(
-                                          value.over3Rate
-                                        )}
-                                        <br />
-                                        CS:{" "}
-                                        {percent(
-                                          value.cleanSheetRate
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </div>
-
-                            {/* HOME / AWAY */}
-
-                            <div>
-                              <h3>
-                                Home / Away
-                              </h3>
-
-                              <div
-                                style={{
-                                  display:
-                                    "grid",
-                                  gridTemplateColumns:
-                                    "repeat(auto-fit,minmax(220px,1fr))",
-                                  gap: 10,
-                                }}
-                              >
-                                {[
-                                  [
-                                    "HOME",
-                                    stats.home,
-                                  ],
-                                  [
-                                    "AWAY",
-                                    stats.away,
-                                  ],
-                                ].map(
-                                  ([
-                                    label,
-                                    value,
-                                  ]) => (
-                                    <div
-                                      key={
-                                        label
-                                      }
-                                      style={{
-                                        border:
-                                          "1px solid rgba(0,0,0,.12)",
-                                        borderRadius:
-                                          8,
-                                        padding: 12,
-                                      }}
-                                    >
-                                      <strong>
-                                        {label}
-                                      </strong>
-
-                                      <div
-                                        style={{
-                                          marginTop: 8,
-                                          lineHeight:
-                                            1.7,
-                                        }}
-                                      >
-                                        G:{" "}
-                                        {
-                                          value.played
-                                        }
-                                        <br />
-                                        W/D/L:{" "}
-                                        {
-                                          value.wins
-                                        }
-                                        /
-                                        {
-                                          value.draws
-                                        }
-                                        /
-                                        {
-                                          value.losses
-                                        }
-                                        <br />
-                                        GF/G:{" "}
-                                        {round(
-                                          value.gfPerGame
-                                        )}
-                                        <br />
-                                        GA/G:{" "}
-                                        {round(
-                                          value.gaPerGame
-                                        )}
-                                        <br />
-                                        PPG:{" "}
-                                        {round(
-                                          value.ppg
-                                        )}
-                                        <br />
-                                        GG:{" "}
-                                        {percent(
-                                          value.ggRate
-                                        )}
-                                        <br />
-                                        2+:{" "}
-                                        {percent(
-                                          value.over2Rate
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </div>
-
-                            {/* LAST 10 */}
-
-                            <div>
-                              <h3>
-                                Poslednjih 10
-                                utakmica
-                              </h3>
-
-                              <div
-                                style={{
-                                  overflowX:
-                                    "auto",
-                                }}
-                              >
-                                <table className="screen2-table">
-                                  <thead>
-                                    <tr>
-                                      <th>
-                                        Datum
-                                      </th>
-                                      <th>
-                                        Liga
-                                      </th>
-                                      <th>
-                                        Venue
-                                      </th>
-                                      <th>
-                                        Protivnik
-                                      </th>
-                                      <th>
-                                        Rezultat
-                                      </th>
-                                      <th>
-                                        Ishod
-                                      </th>
-                                    </tr>
-                                  </thead>
-
-                                  <tbody>
-                                    {stats.last10.map(
-                                      (
-                                        game,
-                                        i
-                                      ) => (
-                                        <tr
-                                          key={`${game.id}-${i}`}
-                                        >
-                                          <td>
-                                            {
-                                              game.date
-                                            }
-                                          </td>
-
-                                          <td>
-                                            {
-                                              getLeagueName(
-                                                game.leagueId
-                                              )
-                                            }
-                                          </td>
-
-                                          <td>
-                                            {
-                                              game.venue
-                                            }
-                                          </td>
-
-                                          <td>
-                                            {
-                                              game.opponent
-                                            }
-                                          </td>
-
-                                          <td>
-                                            {
-                                              game.gf
-                                            }
-                                            :
-                                            {
-                                              game.ga
-                                            }
-                                          </td>
-
-                                          <td>
-                                            {
-                                              game.result
-                                            }
-                                          </td>
-                                        </tr>
-                                      )
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-
-                            {/* BY LEAGUE */}
-
-                            <div>
-                              <h3>
-                                Statistika po
-                                takmičenju
-                              </h3>
-
-                              <div
-                                style={{
-                                  overflowX:
-                                    "auto",
-                                }}
-                              >
-                                <table className="screen2-table">
-                                  <thead>
-                                    <tr>
-                                      <th>
-                                        Liga
-                                      </th>
-                                      <th>
-                                        League ID
-                                      </th>
-                                      <th>
-                                        G
-                                      </th>
-                                      <th>
-                                        W
-                                      </th>
-                                      <th>
-                                        D
-                                      </th>
-                                      <th>
-                                        L
-                                      </th>
-                                      <th>
-                                        GF
-                                      </th>
-                                      <th>
-                                        GA
-                                      </th>
-                                      <th>
-                                        PTS
-                                      </th>
-                                      <th>
-                                        PPG
-                                      </th>
-                                      <th>
-                                        GG %
-                                      </th>
-                                      <th>
-                                        2+ %
-                                      </th>
-                                    </tr>
-                                  </thead>
-
-                                  <tbody>
-                                    {Object.entries(
-                                      stats.byLeague
-                                    ).map(
-                                      ([
-                                        leagueId,
-                                        games,
-                                      ]) => {
-                                        const value =
-                                          calculateWindow(
-                                            games
-                                          );
-
-                                        return (
-                                          <tr
-                                            key={
-                                              leagueId
-                                            }
-                                          >
-                                            <td>
-                                              {getLeagueName(
-                                                leagueId
-                                              )}
-                                            </td>
-
-                                            <td>
-                                              {
-                                                leagueId
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.played
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.wins
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.draws
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.losses
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.goalsFor
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.goalsAgainst
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {
-                                                value.points
-                                              }
-                                            </td>
-
-                                            <td>
-                                              {round(
-                                                value.ppg
-                                              )}
-                                            </td>
-
-                                            <td>
-                                              {percent(
-                                                value.ggRate
-                                              )}
-                                            </td>
-
-                                            <td>
-                                              {percent(
-                                                value.over2Rate
-                                              )}
-                                            </td>
-                                          </tr>
-                                        );
-                                      }
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              }
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ALIAS POPUP */}
-
-      {selectedTeamId && (
-        <div
-          onClick={() =>
-            setSelectedTeamId(null)
-          }
-          style={{
-            position: "fixed",
-            inset: 0,
-            background:
-              "rgba(0,0,0,.45)",
-            display: "flex",
-            alignItems:
-              "center",
-            justifyContent:
-              "center",
-            zIndex: 9999,
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) =>
-              e.stopPropagation()
+      <nav className="s2-tabs">
+        {[
+          ["teams", "TIMOVI"],
+          ["leagues", "LIGE"],
+          ["h2h", "H2H"],
+          ["database", "DATABASE"]
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className={
+              activeTab === key
+                ? "s2-tab active"
+                : "s2-tab"
             }
-            style={{
-              width: "min(700px, 100%)",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              background:
-                "var(--background, #fff)",
-              borderRadius: 12,
-              padding: 20,
-              boxShadow:
-                "0 20px 60px rgba(0,0,0,.25)",
+            onClick={() => {
+              setActiveTab(key);
+              setSelectedTeamId(null);
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-                alignItems:
-                  "center",
-                gap: 10,
-                marginBottom: 15,
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                  }}
-                >
-                  {getMainTeamName(
-                    selectedTeamId
-                  )}
-                </h2>
+            {label}
+          </button>
+        ))}
+      </nav>
 
-                <div
-                  style={{
-                    opacity: 0.7,
-                    fontSize: 13,
-                    marginTop: 4,
-                  }}
-                >
-                  Team ID:{" "}
-                  {selectedTeamId}
+      {activeTab === "teams" && !selectedTeam && (
+        <Section
+          title="Svi timovi"
+          subtitle={`${filteredTeams.length} timova prikazano · identitet = team_id`}
+          right={
+            <div className="s2-controls">
+              <input
+                className="s2-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pretraži tim, ID ili ligu..."
+              />
+
+              <select
+                className="s2-select"
+                value={leagueFilter}
+                onChange={(e) => setLeagueFilter(e.target.value)}
+              >
+                <option value="all">
+                  Sve primarne lige
+                </option>
+
+                {leagueOptions.map((league) => (
+                  <option
+                    key={league.id}
+                    value={league.id}
+                  >
+                    {league.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          }
+        >
+          <div className="s2-table-wrap">
+            <table className="s2-table s2-team-table">
+              <thead>
+                <tr>
+                  <th onClick={() => toggleSort("name")}>
+                    TIM{tableArrow("name")}
+                  </th>
+
+                  <th onClick={() => toggleSort("position")}>
+                    POS{tableArrow("position")}
+                  </th>
+
+                  <th>LIGA</th>
+
+                  <th onClick={() => toggleSort("played")}>
+                    MP{tableArrow("played")}
+                  </th>
+
+                  <th onClick={() => toggleSort("points")}>
+                    PTS{tableArrow("points")}
+                  </th>
+
+                  <th onClick={() => toggleSort("ppg")}>
+                    PPG{tableArrow("ppg")}
+                  </th>
+
+                  <th onClick={() => toggleSort("form")}>
+                    L5 PPG{tableArrow("form")}
+                  </th>
+
+                  <th onClick={() => toggleSort("gf")}>
+                    GF{tableArrow("gf")}
+                  </th>
+
+                  <th onClick={() => toggleSort("ga")}>
+                    GA{tableArrow("ga")}
+                  </th>
+
+                  <th>GG</th>
+
+                  <th>O2.5</th>
+
+                  <th>REC PPG</th>
+
+                  <th>STRENGTH</th>
+
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredTeams.map((team) => (
+                  <tr
+                    key={`${team.team_id}-${team.primary_league_id}`}
+                    className="s2-clickable"
+                    onClick={() =>
+                      setSelectedTeamId(team.team_id)
+                    }
+                  >
+                    <td>
+                      <div className="s2-team-name">
+                        {team.team_name}
+                      </div>
+
+                      <small>
+                        ID {team.team_id}
+                      </small>
+                    </td>
+
+                    <td>
+                      {safe(team.standings_position)}
+                    </td>
+
+                    <td>
+                      {team.primary_league_name || "—"}
+                    </td>
+
+                    <td>
+                      {formatInt(
+                        team.stats?.matches_played ??
+                          team.league_matches_played
+                      )}
+                    </td>
+
+                    <td>
+                      {formatInt(
+                        team.stats?.points ??
+                          team.standings_points
+                      )}
+                    </td>
+
+                    <td>
+                      {formatNum(team.stats?.ppg)}
+                    </td>
+
+                    <td>
+                      {formatNum(team.form?.last5_ppg)}
+                    </td>
+
+                    <td>
+                      {formatInt(team.stats?.goals_for)}
+                    </td>
+
+                    <td>
+                      {formatInt(team.stats?.goals_against)}
+                    </td>
+
+                    <td>
+                      {formatPct(team.stats?.gg_pct)}
+                    </td>
+
+                    <td>
+                      {formatPct(team.stats?.over_25_pct)}
+                    </td>
+
+                    <td>
+                      {formatNum(team.rec?.weighted_ppg)}
+                    </td>
+
+                    <td>
+                      {formatNum(team.opp?.strength_index)}
+                    </td>
+
+                    <td>
+                      <span className="s2-status">
+                        {team.confirmation_level || "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="s2-table-note">
+            Klikni na bilo koji tim za kompletan statistički profil.
+          </div>
+        </Section>
+      )}
+
+      {activeTab === "teams" && selectedTeam && (
+        <>
+          <div className="s2-backbar">
+            <button
+              className="s2-button secondary"
+              onClick={() => setSelectedTeamId(null)}
+            >
+              ← Svi timovi
+            </button>
+          </div>
+
+          <TeamProfile
+            team={selectedTeam}
+            primary={primaryLeagues}
+            leagueStats={leagueStats}
+            leagueForm={selectedTeamStats}
+            homeAway={selectedHomeAway}
+            goals={selectedGoals}
+            recency={selectedRecency}
+            strength={selectedStrength}
+            h2h={h2h}
+            aliases={aliases}
+            sofaTeams={sofaTeams}
+            onClose={() => setSelectedTeamId(null)}
+          />
+        </>
+      )}
+
+      {activeTab === "leagues" && (
+        <Section
+          title="League Statistics"
+          subtitle={`${leagueStats.length} liga iz league_statistics`}
+        >
+          <DataTable
+            columns={[
+              {
+                key: "league_name",
+                label: "LIGA"
+              },
+              {
+                key: "matches_played",
+                label: "MP",
+                render: (r) =>
+                  formatInt(r.matches_played)
+              },
+              {
+                key: "home_win_pct",
+                label: "HOME W%",
+                render: (r) =>
+                  formatPct(r.home_win_pct)
+              },
+              {
+                key: "draw_pct",
+                label: "DRAW%",
+                render: (r) =>
+                  formatPct(r.draw_pct)
+              },
+              {
+                key: "away_win_pct",
+                label: "AWAY W%",
+                render: (r) =>
+                  formatPct(r.away_win_pct)
+              },
+              {
+                key: "avg_total_goals",
+                label: "AVG GOALS",
+                render: (r) =>
+                  formatNum(r.avg_total_goals)
+              },
+              {
+                key: "avg_home_goals",
+                label: "AVG HOME",
+                render: (r) =>
+                  formatNum(r.avg_home_goals)
+              },
+              {
+                key: "avg_away_goals",
+                label: "AVG AWAY",
+                render: (r) =>
+                  formatNum(r.avg_away_goals)
+              },
+              {
+                key: "home_advantage",
+                label: "HOME ADV",
+                render: (r) =>
+                  formatNum(r.home_advantage)
+              },
+              {
+                key: "over_15_pct",
+                label: "O1.5",
+                render: (r) =>
+                  formatPct(r.over_15_pct)
+              },
+              {
+                key: "over_25_pct",
+                label: "O2.5",
+                render: (r) =>
+                  formatPct(r.over_25_pct)
+              },
+              {
+                key: "over_35_pct",
+                label: "O3.5",
+                render: (r) =>
+                  formatPct(r.over_35_pct)
+              },
+              {
+                key: "over_45_pct",
+                label: "O4.5",
+                render: (r) =>
+                  formatPct(r.over_45_pct)
+              },
+              {
+                key: "gg_pct",
+                label: "GG",
+                render: (r) =>
+                  formatPct(r.gg_pct)
+              },
+              {
+                key: "ng_pct",
+                label: "NG",
+                render: (r) =>
+                  formatPct(r.ng_pct)
+              },
+              {
+                key: "home_clean_sheet_pct",
+                label: "HOME CS",
+                render: (r) =>
+                  formatPct(r.home_clean_sheet_pct)
+              },
+              {
+                key: "away_clean_sheet_pct",
+                label: "AWAY CS",
+                render: (r) =>
+                  formatPct(r.away_clean_sheet_pct)
+              }
+            ]}
+            rows={leagueStats.map((x) => ({
+              ...x,
+              __key: x.league_id
+            }))}
+          />
+        </Section>
+      )}
+
+      {activeTab === "h2h" && (
+        <Section
+          title="Head To Head"
+          subtitle={`${h2h.length} normalizovanih team pairs`}
+        >
+          <DataTable
+            columns={[
+              {
+                key: "team_a",
+                label: "TEAM A",
+                render: (r) =>
+                  getDisplayTeamName(
+                    r.team_a_id,
+                    aliases,
+                    sofaTeams
+                  )
+              },
+              {
+                key: "team_b",
+                label: "TEAM B",
+                render: (r) =>
+                  getDisplayTeamName(
+                    r.team_b_id,
+                    aliases,
+                    sofaTeams
+                  )
+              },
+              {
+                key: "league",
+                label: "LIGA",
+                render: (r) =>
+                  getLeagueName(
+                    r.league_id,
+                    primaryLeagues,
+                    leagueStats
+                  )
+              },
+              {
+                key: "matches_played",
+                label: "MP",
+                render: (r) =>
+                  formatInt(r.matches_played)
+              },
+              {
+                key: "team_a_win_pct",
+                label: "A WIN%",
+                render: (r) =>
+                  formatPct(r.team_a_win_pct)
+              },
+              {
+                key: "draw_pct",
+                label: "DRAW%",
+                render: (r) =>
+                  formatPct(r.draw_pct)
+              },
+              {
+                key: "team_b_win_pct",
+                label: "B WIN%",
+                render: (r) =>
+                  formatPct(r.team_b_win_pct)
+              },
+              {
+                key: "avg_total_goals",
+                label: "AVG GOALS",
+                render: (r) =>
+                  formatNum(r.avg_total_goals)
+              },
+              {
+                key: "btts_pct",
+                label: "GG",
+                render: (r) =>
+                  formatPct(r.btts_pct)
+              },
+              {
+                key: "over_25_pct",
+                label: "O2.5",
+                render: (r) =>
+                  formatPct(r.over_25_pct)
+              },
+              {
+                key: "last5_matches",
+                label: "LAST 5",
+                render: (r) =>
+                  formatInt(r.last5_matches)
+              },
+              {
+                key: "last5_btts_pct",
+                label: "L5 GG",
+                render: (r) =>
+                  formatPct(r.last5_btts_pct)
+              },
+              {
+                key: "last5_over_25_pct",
+                label: "L5 O2.5",
+                render: (r) =>
+                  formatPct(r.last5_over_25_pct)
+              }
+            ]}
+            rows={h2h.map((x) => ({
+              ...x,
+              __key: `${x.team_a_id}-${x.team_b_id}-${x.league_id}`
+            }))}
+          />
+        </Section>
+      )}
+
+      {activeTab === "database" && (
+        <Section
+          title="Database overview"
+          subtitle="Direktan pregled statističkih slojeva"
+        >
+          <div className="s2-db-grid">
+            {[
+              [
+                "team_primary_leagues",
+                primaryLeagues.length,
+                "Primarna liga po timu"
+              ],
+              [
+                "team_league_statistics",
+                teamStats.length,
+                "Osnovna team statistika"
+              ],
+              [
+                "team_form_statistics",
+                teamForm.length,
+                "Last 5 / 10 / 15"
+              ],
+              [
+                "team_home_away_form",
+                homeAway.length,
+                "Home / Away forma"
+              ],
+              [
+                "team_goal_statistics",
+                goalStats.length,
+                "Goal profile"
+              ],
+              [
+                "team_recency_statistics",
+                recency.length,
+                "Recency weighted"
+              ],
+              [
+                "team_opponent_strength",
+                strength.length,
+                "Strength of opponents"
+              ],
+              [
+                "team_h2h_statistics",
+                h2h.length,
+                "H2H pairs"
+              ],
+              [
+                "league_statistics",
+                leagueStats.length,
+                "League context"
+              ],
+              [
+                "team_aliases",
+                aliases.length,
+                "Display / mapping aliases"
+              ],
+              [
+                "sofa_teams",
+                sofaTeams.length,
+                "Sofa team registry"
+              ]
+            ].map(([table, count, description]) => (
+              <div className="s2-db-card" key={table}>
+                <div className="s2-db-name">{table}</div>
+                <div className="s2-db-count">
+                  {formatInt(count)}
+                </div>
+                <div className="s2-db-description">
+                  {description}
                 </div>
               </div>
+            ))}
+          </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedTeamId(null)
-                }
-              >
-                ✕
-              </button>
+          <div className="s2-database-detail">
+            <h3>Data coverage</h3>
+
+            <div className="s2-coverage-row">
+              <span>Timovi sa osnovnom statistikom</span>
+              <b>
+                {formatInt(
+                  teamRows.filter((x) => x.stats).length
+                )}{" "}
+                / {formatInt(teamRows.length)}
+              </b>
             </div>
 
-            <h3>
-              Mozzart / Team aliases
-            </h3>
+            <div className="s2-coverage-row">
+              <span>Timovi sa formom</span>
+              <b>
+                {formatInt(
+                  teamRows.filter((x) => x.form).length
+                )}{" "}
+                / {formatInt(teamRows.length)}
+              </b>
+            </div>
 
-            {(aliasesByTeam[
-              selectedTeamId
-            ] || []).length === 0 ? (
-              <div className="s2-muted">
-                Nema sačuvanih aliasa.
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                {(
-                  aliasesByTeam[
-                    selectedTeamId
-                  ] || []
-                ).map((alias) => (
-                  <div
-                    key={alias.id}
-                    style={{
-                      border:
-                        "1px solid rgba(0,0,0,.12)",
-                      borderRadius: 8,
-                      padding: 10,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 700,
-                      }}
-                    >
-                      {alias.alias}
-                    </div>
+            <div className="s2-coverage-row">
+              <span>Timovi sa goal statistikom</span>
+              <b>
+                {formatInt(
+                  teamRows.filter((x) => x.goals).length
+                )}{" "}
+                / {formatInt(teamRows.length)}
+              </b>
+            </div>
 
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.7,
-                        marginTop: 4,
-                      }}
-                    >
-                      League ID:{" "}
-                      {alias.league_id ??
-                        "—"}
-                      {" • "}
-                      Country ID:{" "}
-                      {alias.country_id ??
-                        "—"}
-                    </div>
+            <div className="s2-coverage-row">
+              <span>Timovi sa recency statistikom</span>
+              <b>
+                {formatInt(
+                  teamRows.filter((x) => x.rec).length
+                )}{" "}
+                / {formatInt(teamRows.length)}
+              </b>
+            </div>
 
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.7,
-                        marginTop: 3,
-                      }}
-                    >
-                      Liga:{" "}
-                      {getLeagueName(
-                        alias.league_id
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="s2-coverage-row">
+              <span>Timovi sa opponent strength</span>
+              <b>
+                {formatInt(
+                  teamRows.filter((x) => x.opp).length
+                )}{" "}
+                / {formatInt(teamRows.length)}
+              </b>
+            </div>
 
-            <div
-              style={{
-                marginTop: 18,
-                display: "flex",
-                justifyContent:
-                  "flex-end",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedTeamId(null)
-                }
-              >
-                Zatvori
-              </button>
+            <div className="s2-coverage-row">
+              <span>H2H parovi</span>
+              <b>{formatInt(h2h.length)}</b>
             </div>
           </div>
-        </div>
+        </Section>
       )}
     </div>
   );

@@ -1,0 +1,3032 @@
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+import { supabase } from "../supabase";
+import { fetchAllSupabase } from "../utils/fetchAllSupabase";
+import { chunkArray } from "../utils/arrayUtils";
+import { dateValue } from "../utils/dateUtils";
+import { calculateWindow } from "../utils/formUtils";
+import { getMatchKey } from "../utils/matchUtils";
+
+import {
+  getMainTeamName,
+  countryByTeam,
+} from "../utils/teamUtils";
+
+import { normalizeStanding } from "../utils/standingUtils";
+
+import {
+  num,
+  pct,
+  safeDiv,
+  round,
+  percent,
+} from "../utils/numberUtils";
+
+import {
+  parseFT,
+  getResultForTeam,
+  resultPoints,
+  calculateTableStrength,
+  calculateFormStrength,
+  calculateAttackStrength,
+  calculateDefenseStrength,
+  calculateGoalStrength,
+  calculateVenueStrength,
+  calculateConfidence,
+  calculateFinalScore,
+} from "../utils/scoreUtils";
+
+import "./Screen2.css";
+
+
+export default function Screen2() {
+  /* =======================================================
+     REFS
+  ======================================================= */
+
+  const tableScrollRef = useRef(null);
+
+  /* =======================================================
+     STATE
+  ======================================================= */
+
+  const [matches, setMatches] = useState([]);
+  const [teamAliases, setTeamAliases] = useState([]);
+  const [sofaTeams, setSofaTeams] = useState([]);
+  const [standings, setStandings] = useState([]);
+  const [leagues, setLeagues] = useState([]);
+  const [leagueAliases, setLeagueAliases] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
+  const [expandedTeamId, setExpandedTeamId] = useState(null);
+
+  const [search, setSearch] = useState("");
+  const [leagueFilter, setLeagueFilter] = useState("all");
+
+
+  /* =======================================================
+     LOAD DATA
+  ======================================================= */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const startedAt = performance.now();
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const matchesResult = await fetchAllSupabase(
+          () =>
+            supabase
+              .from("screen1_matches")
+              .select("*")
+              .order("match_date", {
+                ascending: false,
+              })
+        );
+
+        if (cancelled) return;
+
+        const loadedMatches = Array.isArray(matchesResult)
+          ? matchesResult
+          : [];
+
+        setMatches(loadedMatches);
+
+        const teamIds = [
+          ...new Set(
+            loadedMatches
+              .flatMap((m) => [
+                m.home_team_id,
+                m.away_team_id,
+              ])
+              .filter(Boolean)
+              .map(Number)
+              .filter(Number.isFinite)
+          ),
+        ];
+
+        const matchLeagueIds = [
+          ...new Set(
+            loadedMatches
+              .map((m) => m.league_id)
+              .filter(Boolean)
+              .map(Number)
+              .filter(Number.isFinite)
+          ),
+        ];
+
+        /* ---------------------------------------------------
+           TEAM ALIASES
+        --------------------------------------------------- */
+
+        let loadedTeamAliases = [];
+
+        if (teamIds.length) {
+          const chunks = chunkArray(teamIds, 500);
+
+          for (const ids of chunks) {
+            if (cancelled) return;
+
+            const { data, error: aliasesError } =
+              await supabase
+                .from("team_aliases")
+                .select(
+                  "id,team_id,alias,league_id,country_id"
+                )
+                .in("team_id", ids);
+
+            if (aliasesError) {
+              throw aliasesError;
+            }
+
+            loadedTeamAliases.push(
+              ...(data || [])
+            );
+          }
+        }
+
+        setTeamAliases(loadedTeamAliases);
+
+        /* ---------------------------------------------------
+           SOFA TEAMS
+        --------------------------------------------------- */
+
+        let loadedSofaTeams = [];
+
+        if (teamIds.length) {
+          const chunks = chunkArray(teamIds, 500);
+
+          for (const ids of chunks) {
+            if (cancelled) return;
+
+            const { data, error: sofaError } =
+              await supabase
+                .from("sofa_teams")
+                .select(
+                  "id,name,league_id,country_id"
+                )
+                .in("id", ids);
+
+            if (sofaError) {
+              throw sofaError;
+            }
+
+            loadedSofaTeams.push(
+              ...(data || [])
+            );
+          }
+        }
+
+        setSofaTeams(loadedSofaTeams);
+
+        /* ---------------------------------------------------
+           LEAGUES FROM SOFA TEAMS
+        --------------------------------------------------- */
+
+        const canonicalLeagueIds = [
+          ...new Set(
+            loadedSofaTeams
+              .map((team) => team.league_id)
+              .filter(Boolean)
+              .map(Number)
+              .filter(Number.isFinite)
+          ),
+        ];
+
+        const standingsLeagueIds = [
+          ...new Set([
+            ...matchLeagueIds,
+            ...canonicalLeagueIds,
+          ]),
+        ];
+
+        /* ---------------------------------------------------
+           STANDINGS
+        --------------------------------------------------- */
+
+        let loadedStandings = [];
+
+        if (standingsLeagueIds.length) {
+          const chunks = chunkArray(
+            standingsLeagueIds,
+            500
+          );
+
+          for (const ids of chunks) {
+            if (cancelled) return;
+
+            const { data, error: standingsError } =
+              await supabase
+                .from("sofa_standings")
+                .select("*")
+                .in("league_id", ids);
+
+            if (standingsError) {
+              throw standingsError;
+            }
+
+            loadedStandings.push(
+              ...(data || [])
+            );
+          }
+        }
+
+        setStandings(loadedStandings);
+
+        /* ---------------------------------------------------
+           LEAGUES
+        --------------------------------------------------- */
+
+        const { data: loadedLeagues, error: leaguesError } =
+          await supabase
+            .from("sofa_leagues")
+            .select("id,country_id,name");
+
+        if (leaguesError) {
+          throw leaguesError;
+        }
+
+        setLeagues(loadedLeagues || []);
+
+        /* ---------------------------------------------------
+           LEAGUE ALIASES
+        --------------------------------------------------- */
+
+        const { data: loadedLeagueAliases, error: leagueAliasesError } =
+          await supabase
+            .from("league_aliases")
+            .select(
+              "id,league_id,alias,source,country,type,region,gender,confidence,country_id"
+            );
+
+        if (leagueAliasesError) {
+          throw leagueAliasesError;
+        }
+
+        setLeagueAliases(
+          loadedLeagueAliases || []
+        );
+
+        console.info(
+          `[Screen2] load finished in ${Math.round(
+            performance.now() - startedAt
+          )} ms`
+        );
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error(
+          "[Screen2] load error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Došlo je do greške prilikom učitavanja podataka."
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  /* =======================================================
+     INDEXES
+  ======================================================= */
+
+  const aliasesByTeam = useMemo(() => {
+    const map = {};
+
+    for (const alias of teamAliases) {
+      const teamId = Number(alias.team_id);
+
+      if (!Number.isFinite(teamId)) continue;
+
+      if (!map[teamId]) {
+        map[teamId] = [];
+      }
+
+      map[teamId].push(alias);
+    }
+
+    return map;
+  }, [teamAliases]);
+
+
+  const sofaTeamById = useMemo(() => {
+    const map = {};
+
+    for (const team of sofaTeams) {
+      const id = Number(team.id);
+
+      if (!Number.isFinite(id)) continue;
+
+      map[id] = team;
+    }
+
+    return map;
+  }, [sofaTeams]);
+
+
+  const leagueById = useMemo(() => {
+    const map = {};
+
+    for (const league of leagues) {
+      const id = Number(league.id);
+
+      if (!Number.isFinite(id)) continue;
+
+      map[id] = league;
+    }
+
+    return map;
+  }, [leagues]);
+
+
+  const leagueAliasById = useMemo(() => {
+    const map = {};
+
+    for (const alias of leagueAliases) {
+      const id = Number(alias.league_id);
+
+      if (!Number.isFinite(id)) continue;
+
+      if (!map[id]) {
+        map[id] = [];
+      }
+
+      map[id].push(alias);
+    }
+
+    return map;
+  }, [leagueAliases]);
+
+
+  /* =======================================================
+     LATEST STANDING FOR TEAM
+  ======================================================= */
+
+  const latestStandingForTeam = useMemo(() => {
+    const map = {};
+
+    for (const raw of standings) {
+      const normalized = normalizeStanding(raw);
+
+      if (!normalized) continue;
+
+      const teamId = Number(
+        normalized.teamId ??
+          normalized.team_id ??
+          raw.team_id
+      );
+
+      if (!Number.isFinite(teamId)) {
+        continue;
+      }
+
+      const current = map[teamId];
+
+      if (!current) {
+        map[teamId] = normalized;
+        continue;
+      }
+
+      const currentDate = dateValue(
+        current.standingsDate
+      );
+
+      const newDate = dateValue(
+        normalized.standingsDate
+      );
+
+      if (newDate >= currentDate) {
+        map[teamId] = normalized;
+      }
+    }
+
+    return map;
+  }, [standings]);
+
+
+  /* =======================================================
+     MATCH LEAGUE FREQUENCY
+  ======================================================= */
+
+  const matchLeagueFrequency = useMemo(() => {
+    const map = {};
+
+    for (const match of matches) {
+      const leagueId = Number(
+        match.league_id
+      );
+
+      if (!Number.isFinite(leagueId)) {
+        continue;
+      }
+
+      const homeId = Number(
+        match.home_team_id
+      );
+
+      const awayId = Number(
+        match.away_team_id
+      );
+
+      if (Number.isFinite(homeId)) {
+        if (!map[homeId]) {
+          map[homeId] = {};
+        }
+
+        map[homeId][leagueId] =
+          (map[homeId][leagueId] || 0) + 1;
+      }
+
+      if (Number.isFinite(awayId)) {
+        if (!map[awayId]) {
+          map[awayId] = {};
+        }
+
+        map[awayId][leagueId] =
+          (map[awayId][leagueId] || 0) + 1;
+      }
+    }
+
+    return map;
+  }, [matches]);
+
+
+  /* =======================================================
+     PRIMARY LEAGUE
+  ======================================================= */
+
+  const primaryLeagueByTeam = useMemo(() => {
+    const map = {};
+
+    const standingLeagueByTeam = {};
+
+    for (const standing of standings) {
+      const normalized =
+        normalizeStanding(standing);
+
+      if (!normalized) continue;
+
+      const teamId = Number(
+        normalized.teamId ??
+          normalized.team_id ??
+          standing.team_id
+      );
+
+      const leagueId = Number(
+        normalized.leagueId ??
+          normalized.league_id ??
+          standing.league_id
+      );
+
+      if (
+        !Number.isFinite(teamId) ||
+        !Number.isFinite(leagueId)
+      ) {
+        continue;
+      }
+
+      const current =
+        standingLeagueByTeam[teamId];
+
+      if (!current) {
+        standingLeagueByTeam[teamId] =
+          normalized;
+        continue;
+      }
+
+      if (
+        dateValue(
+          normalized.standingsDate
+        ) >=
+        dateValue(
+          current.standingsDate
+        )
+      ) {
+        standingLeagueByTeam[teamId] =
+          normalized;
+      }
+    }
+
+    const allTeamIds = [
+      ...new Set(
+        matches
+          .flatMap((m) => [
+            m.home_team_id,
+            m.away_team_id,
+          ])
+          .filter(Boolean)
+          .map(Number)
+          .filter(Number.isFinite)
+      ),
+    ];
+
+    for (const teamId of allTeamIds) {
+      /* 1. Canonical Sofa league */
+      const sofaLeagueId = Number(
+        sofaTeamById[teamId]?.league_id
+      );
+
+      if (Number.isFinite(sofaLeagueId)) {
+        map[teamId] = sofaLeagueId;
+        continue;
+      }
+
+      /* 2. Latest standing league */
+      const standingLeagueId = Number(
+        standingLeagueByTeam[teamId]?.leagueId ??
+          standingLeagueByTeam[teamId]?.league_id
+      );
+
+      if (Number.isFinite(standingLeagueId)) {
+        map[teamId] = standingLeagueId;
+        continue;
+      }
+
+      /* 3. Most frequent match league */
+      const frequencies =
+        matchLeagueFrequency[teamId] || {};
+
+      const best = Object.entries(
+        frequencies
+      ).sort(
+        (a, b) =>
+          Number(b[1]) - Number(a[1])
+      )[0];
+
+      if (best) {
+        map[teamId] = Number(best[0]);
+      }
+    }
+
+    return map;
+  }, [
+    matches,
+    standings,
+    sofaTeamById,
+    matchLeagueFrequency,
+  ]);
+
+
+  /* =======================================================
+     LEAGUE NAME
+  ======================================================= */
+
+  const getLeagueName = (leagueId) => {
+    const id = Number(leagueId);
+
+    if (!Number.isFinite(id)) {
+      return "—";
+    }
+
+    const league = leagueById[id];
+
+    if (league?.name) {
+      return league.name;
+    }
+
+    const rawStanding = standings.find(
+      (row) =>
+        Number(row.league_id) === id &&
+        row.league_name
+    );
+
+    if (rawStanding?.league_name) {
+      return rawStanding.league_name;
+    }
+
+    const aliases =
+      leagueAliasById[id] || [];
+
+    const mozzartAlias =
+      aliases.find(
+        (alias) =>
+          String(alias.source || "")
+            .toLowerCase() === "mozzart"
+      );
+
+    if (mozzartAlias?.alias) {
+      return mozzartAlias.alias;
+    }
+
+    if (aliases[0]?.alias) {
+      return aliases[0].alias;
+    }
+
+    return `Liga ${id}`;
+  };
+
+
+  /* =======================================================
+     TEAM STATS
+  ======================================================= */
+
+  const teamStats = useMemo(() => {
+    const byTeam = {};
+
+    const dedup = new Map();
+
+    for (const match of matches) {
+      const key = getMatchKey(match);
+
+      if (!dedup.has(key)) {
+        dedup.set(key, match);
+      }
+    }
+
+    const cleanMatches = [
+      ...dedup.values(),
+    ]
+      .map((match) => {
+        const parsed = parseFT(match);
+
+        if (!parsed) {
+          return null;
+        }
+
+        const homeId = Number(
+          match.home_team_id
+        );
+
+        const awayId = Number(
+          match.away_team_id
+        );
+
+        if (
+          !Number.isFinite(homeId) ||
+          !Number.isFinite(awayId)
+        ) {
+          return null;
+        }
+
+        return {
+          match,
+          parsed,
+          homeId,
+          awayId,
+        };
+      })
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          dateValue(a.match.match_date) -
+          dateValue(b.match.match_date)
+      );
+
+    const ensureTeam = (teamId) => {
+      if (!byTeam[teamId]) {
+        byTeam[teamId] = {
+          games: [],
+          byLeague: {},
+          homeGames: [],
+          awayGames: [],
+        };
+      }
+
+      return byTeam[teamId];
+    };
+
+    for (const item of cleanMatches) {
+      const {
+        match,
+        parsed,
+        homeId,
+        awayId,
+      } = item;
+
+      const leagueId = Number(
+        match.league_id
+      );
+
+      const homeTeam = ensureTeam(homeId);
+      const awayTeam = ensureTeam(awayId);
+
+      const homeName =
+        sofaTeamById[homeId]?.name ||
+        getMainTeamName(
+          homeId,
+          primaryLeagueByTeam,
+          aliasesByTeam,
+          sofaTeamById,
+          matches
+        ) ||
+        `Team ${homeId}`;
+
+      const awayName =
+        sofaTeamById[awayId]?.name ||
+        getMainTeamName(
+          awayId,
+          primaryLeagueByTeam,
+          aliasesByTeam,
+          sofaTeamById,
+          matches
+        ) ||
+        `Team ${awayId}`;
+
+      const homeResult =
+        getResultForTeam(
+          parsed,
+          "home"
+        );
+
+      const awayResult =
+        getResultForTeam(
+          parsed,
+          "away"
+        );
+
+      const homeGame = {
+        id: match.id ?? getMatchKey(match),
+        date: match.match_date,
+        time:
+          match.match_time ||
+          match.time ||
+          "",
+        leagueId,
+        opponentId: awayId,
+        opponent: awayName,
+        venue: "HOME",
+        gf: parsed.home,
+        ga: parsed.away,
+        result: homeResult,
+        points: resultPoints(
+          homeResult
+        ),
+      };
+
+      const awayGame = {
+        id: match.id ?? getMatchKey(match),
+        date: match.match_date,
+        time:
+          match.match_time ||
+          match.time ||
+          "",
+        leagueId,
+        opponentId: homeId,
+        opponent: homeName,
+        venue: "AWAY",
+        gf: parsed.away,
+        ga: parsed.home,
+        result: awayResult,
+        points: resultPoints(
+          awayResult
+        ),
+      };
+
+      homeTeam.games.push(homeGame);
+      homeTeam.homeGames.push(
+        homeGame
+      );
+
+      awayTeam.games.push(awayGame);
+      awayTeam.awayGames.push(
+        awayGame
+      );
+
+      if (Number.isFinite(leagueId)) {
+        if (!homeTeam.byLeague[leagueId]) {
+          homeTeam.byLeague[leagueId] =
+            [];
+        }
+
+        if (!awayTeam.byLeague[leagueId]) {
+          awayTeam.byLeague[leagueId] =
+            [];
+        }
+
+        homeTeam.byLeague[leagueId].push(
+          homeGame
+        );
+
+        awayTeam.byLeague[leagueId].push(
+          awayGame
+        );
+      }
+    }
+
+    return byTeam;
+  }, [
+    matches,
+    sofaTeamById,
+    primaryLeagueByTeam,
+    aliasesByTeam,
+  ]);
+
+
+  /* =======================================================
+     FINAL TEAMS
+  ======================================================= */
+
+  const finalTeams = useMemo(() => {
+    const ids = [
+      ...new Set(
+        matches
+          .flatMap((match) => [
+            match.home_team_id,
+            match.away_team_id,
+          ])
+          .filter(Boolean)
+          .map(Number)
+          .filter(Number.isFinite)
+      ),
+    ];
+
+    return ids
+      .map((teamId) => {
+        const rawStats =
+          teamStats[teamId] || {
+            games: [],
+            byLeague: {},
+            homeGames: [],
+            awayGames: [],
+          };
+
+        const games = [
+          ...rawStats.games,
+        ].sort(
+          (a, b) =>
+            dateValue(a.date) -
+            dateValue(b.date)
+        );
+
+        const latestFirst = [
+          ...games,
+        ].reverse();
+
+        const last3Games =
+          latestFirst.slice(0, 3);
+
+        const last5Games =
+          latestFirst.slice(0, 5);
+
+        const last10Games =
+          latestFirst.slice(0, 10);
+
+        const form3 =
+          calculateWindow(last3Games);
+
+        const form5 =
+          calculateWindow(last5Games);
+
+        const form10 =
+          calculateWindow(last10Games);
+
+        const homeStats =
+          calculateWindow(
+            rawStats.homeGames
+          );
+
+        const awayStats =
+          calculateWindow(
+            rawStats.awayGames
+          );
+
+        const mainLeagueId =
+          primaryLeagueByTeam[teamId] ||
+          sofaTeamById[teamId]?.league_id ||
+          null;
+
+        const latestStanding =
+          latestStandingForTeam[teamId];
+
+        const sameLeagueStandings =
+          standings
+            .map((row) =>
+              normalizeStanding(row)
+            )
+            .filter(Boolean)
+            .filter((row) => {
+              const rowTeamId = Number(
+                row.teamId ??
+                  row.team_id
+              );
+
+              const rowLeagueId = Number(
+                row.leagueId ??
+                  row.league_id
+              );
+
+              return (
+                rowTeamId === teamId &&
+                Number(rowLeagueId) ===
+                  Number(mainLeagueId)
+              );
+            });
+
+        const fallbackStanding =
+          sameLeagueStandings
+            .sort(
+              (a, b) =>
+                dateValue(
+                  b.standingsDate
+                ) -
+                dateValue(
+                  a.standingsDate
+                )
+            )[0] ||
+          latestStanding ||
+          null;
+
+        const leagueRows =
+          sameLeagueStandings.length
+            ? sameLeagueStandings
+            : fallbackStanding
+              ? [fallbackStanding]
+              : [];
+
+        const tableStrength =
+          calculateTableStrength(
+            fallbackStanding,
+            leagueRows
+          );
+
+        const formStrength =
+          calculateFormStrength(
+            form10
+          );
+
+        const attackStrength =
+          calculateAttackStrength(
+            form10
+          );
+
+        const defenseStrength =
+          calculateDefenseStrength(
+            form10
+          );
+
+        const goalStrength =
+          calculateGoalStrength(
+            form10
+          );
+
+        const venueStrength =
+          calculateVenueStrength(
+            homeStats,
+            awayStats
+          );
+
+        const confidence =
+          calculateConfidence({
+            games,
+            standing:
+              fallbackStanding,
+            form: form10,
+          });
+
+        const finalScore =
+          calculateFinalScore({
+            tableStrength,
+            formStrength,
+            attackStrength,
+            defenseStrength,
+            goalStrength,
+            venueStrength,
+            confidence,
+          });
+
+        const name =
+          sofaTeamById[teamId]?.name ||
+          getMainTeamName(
+            teamId,
+            primaryLeagueByTeam,
+            aliasesByTeam,
+            sofaTeamById,
+            matches
+          ) ||
+          `Team ${teamId}`;
+
+        return {
+          id: teamId,
+          name,
+          teamId,
+
+          mainLeagueId,
+
+          mainLeagueName:
+            fallbackStanding?.leagueName ||
+            getLeagueName(
+              mainLeagueId
+            ),
+
+          mainGroupName:
+            fallbackStanding?.groupName ||
+            "",
+
+          countryId: countryByTeam(
+            teamId,
+            primaryLeagueByTeam,
+            aliasesByTeam,
+            sofaTeamById
+          ),
+
+          aliases:
+            aliasesByTeam[teamId] || [],
+
+          stats: {
+            games: games.length,
+            form3,
+            form5,
+            form10,
+            home: homeStats,
+            away: awayStats,
+            last5: last5Games,
+            last10: last10Games,
+            byLeague:
+              rawStats.byLeague,
+          },
+
+          standing:
+            fallbackStanding,
+
+          prediction: {
+            tableStrength,
+            formStrength,
+            attackStrength,
+            defenseStrength,
+            goalStrength,
+            venueStrength,
+            confidence,
+            finalScore,
+          },
+        };
+      })
+      .sort((a, b) =>
+        a.name.localeCompare(
+          b.name,
+          "sr-Latn"
+        )
+      );
+  }, [
+    matches,
+    teamStats,
+    standings,
+    primaryLeagueByTeam,
+    sofaTeamById,
+    latestStandingForTeam,
+    aliasesByTeam,
+    leagueById,
+    leagueAliasById,
+  ]);
+
+
+  /* =======================================================
+     LEAGUE FILTER
+  ======================================================= */
+
+  const leagueOptions = useMemo(() => {
+    const map = new Map();
+
+    for (const team of finalTeams) {
+      if (!team.mainLeagueId) {
+        continue;
+      }
+
+      map.set(
+        Number(team.mainLeagueId),
+        team.mainLeagueName ||
+          getLeagueName(
+            team.mainLeagueId
+          )
+      );
+    }
+
+    return [...map.entries()].sort(
+      (a, b) =>
+        String(a[1]).localeCompare(
+          String(b[1]),
+          "sr-Latn"
+        )
+    );
+  }, [finalTeams]);
+
+
+  /* =======================================================
+     FILTERED TEAMS
+  ======================================================= */
+
+  const filteredTeams = useMemo(() => {
+    const query =
+      search
+        .trim()
+        .toLowerCase();
+
+    return finalTeams.filter(
+      (team) => {
+        const matchesSearch =
+          !query ||
+          team.name
+            .toLowerCase()
+            .includes(query) ||
+          String(
+            team.teamId
+          ).includes(query) ||
+          String(
+            team.mainLeagueId || ""
+          ).includes(query);
+
+        const matchesLeague =
+          leagueFilter === "all" ||
+          Number(
+            team.mainLeagueId
+          ) ===
+            Number(
+              leagueFilter
+            );
+
+        return (
+          matchesSearch &&
+          matchesLeague
+        );
+      }
+    );
+  }, [
+    finalTeams,
+    search,
+    leagueFilter,
+  ]);
+
+
+  /* =======================================================
+     VIRTUALIZATION
+     
+     IMPORTANT:
+     Jedan virtual item = ceo team block:
+       - glavni red
+       - expanded detalji, ako su otvoreni
+
+     Zbog toga virtualizer meri stvarnu visinu
+     celog bloka i nema problema kada se red proširi.
+  ======================================================= */
+
+  const rowVirtualizer =
+    useVirtualizer({
+      count: filteredTeams.length,
+
+      getScrollElement: () =>
+        tableScrollRef.current,
+
+      estimateSize: () => 46,
+
+      overscan: 8,
+
+      getItemKey: (index) =>
+        filteredTeams[index]?.teamId ??
+        index,
+
+      measureElement: (element) =>
+        element?.getBoundingClientRect()
+          ?.height || 46,
+    });
+
+  const virtualRows =
+    rowVirtualizer.getVirtualItems();
+
+
+  /* =======================================================
+     RESET SCROLL AFTER FILTER
+  ======================================================= */
+
+  useEffect(() => {
+    rowVirtualizer.scrollToIndex(0);
+  }, [
+    search,
+    leagueFilter,
+    rowVirtualizer,
+  ]);
+
+
+  /* =======================================================
+     SUMMARY
+  ======================================================= */
+
+  const summary = useMemo(() => {
+    const teams =
+      finalTeams.length;
+
+    const withStandings =
+      finalTeams.filter(
+        (x) => x.standing
+      ).length;
+
+    const matchesWithIds =
+      matches.filter(
+        (m) =>
+          m.home_team_id &&
+          m.away_team_id
+      ).length;
+
+    const matchesWithoutIds =
+      matches.length -
+      matchesWithIds;
+
+    return {
+      matches:
+        matches.length,
+
+      teams,
+
+      aliases:
+        teamAliases.length,
+
+      standings:
+        standings.length,
+
+      withStandings,
+
+      matchesWithoutIds,
+    };
+  }, [
+    finalTeams,
+    matches,
+    teamAliases,
+    standings,
+  ]);
+
+
+  /* =======================================================
+     RENDER HELPERS
+  ======================================================= */
+
+  const renderForm = (games) => {
+    if (!games?.length) {
+      return (
+        <span className="s2-muted">
+          —
+        </span>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          gap: 3,
+          alignItems: "center",
+        }}
+      >
+        {games.map(
+          (game, index) => (
+            <span
+              key={`${game.id}-${index}`}
+              title={`${game.opponent} ${game.gf}:${game.ga}`}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 4,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                fontWeight: 700,
+                border:
+                  "1px solid rgba(0,0,0,.15)",
+              }}
+            >
+              {game.result}
+            </span>
+          )
+        )}
+      </div>
+    );
+  };
+
+
+  const renderScore = (value) => {
+    if (
+      value === null ||
+      value === undefined ||
+      Number.isNaN(Number(value))
+    ) {
+      return (
+        <span className="s2-muted">
+          —
+        </span>
+      );
+    }
+
+    return Math.round(
+      Number(value)
+    );
+  };
+
+
+  const toggleTeam = (teamId) => {
+    setExpandedTeamId(
+      (current) =>
+        current === teamId
+          ? null
+          : teamId
+    );
+  };
+
+
+  /* =======================================================
+     CELL STYLE
+  ======================================================= */
+
+  const cellStyle = {
+    padding: "7px 8px",
+    minWidth: 55,
+    whiteSpace: "nowrap",
+    borderBottom:
+      "1px solid rgba(0,0,0,.08)",
+    display: "flex",
+    alignItems: "center",
+    minHeight: 44,
+    boxSizing: "border-box",
+  };
+
+
+  const headerCellStyle = {
+    ...cellStyle,
+    minHeight: 42,
+    fontWeight: 700,
+    position: "sticky",
+    top: 0,
+    zIndex: 5,
+    background:
+      "var(--background, #fff)",
+    borderBottom:
+      "2px solid rgba(0,0,0,.14)",
+  };
+
+
+  const gridTemplateColumns =
+    [
+      "45px",
+      "220px",
+      "80px",
+      "190px",
+      "90px",
+      "90px",
+
+      "55px",
+      "55px",
+      "55px",
+      "55px",
+
+      "65px",
+      "65px",
+      "65px",
+      "70px",
+      "70px",
+
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+
+      "75px",
+      "75px",
+
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "75px",
+      "80px",
+      "80px",
+
+      "80px",
+      "80px",
+      "80px",
+      "85px",
+      "80px",
+      "85px",
+      "95px",
+      "80px",
+
+      "220px",
+
+      "85px",
+    ].join(" ");
+
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <div className="screen2">
+        <div className="screen2-loading">
+          Učitavanje statistike...
+        </div>
+      </div>
+    );
+  }
+
+
+  /* =======================================================
+     ERROR
+  ======================================================= */
+
+  if (error) {
+    return (
+      <div className="screen2">
+        <div className="screen2-error">
+          <strong>
+            Greška:
+          </strong>{" "}
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
+  return (
+    <div className="screen2">
+
+      {/* ===================================================
+          HEADER
+      =================================================== */}
+
+      <div className="screen2-header">
+        <div>
+          <h1>
+            Statistika timova
+          </h1>
+
+          <div
+            style={{
+              fontSize: 13,
+              opacity: 0.75,
+              marginTop: 4,
+            }}
+          >
+            Tabela + forma + napad +
+            odbrana + Home/Away +
+            prediktivni profil
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent:
+              "flex-end",
+          }}
+        >
+          <span className="s2-stat">
+            Mečevi:{" "}
+            <strong>
+              {summary.matches}
+            </strong>
+          </span>
+
+          <span className="s2-stat">
+            Timovi:{" "}
+            <strong>
+              {summary.teams}
+            </strong>
+          </span>
+
+          <span className="s2-stat">
+            Alias:{" "}
+            <strong>
+              {summary.aliases}
+            </strong>
+          </span>
+
+          <span className="s2-stat">
+            Standings:{" "}
+            <strong>
+              {summary.standings}
+            </strong>
+          </span>
+
+          <span className="s2-stat">
+            Timovi sa tabelom:{" "}
+            <strong>
+              {summary.withStandings}
+            </strong>
+          </span>
+        </div>
+      </div>
+
+
+      {/* ===================================================
+          FILTERS
+      =================================================== */}
+
+      <div
+        className="screen2-filters"
+        style={{
+          display: "flex",
+          gap: 10,
+          marginBottom: 15,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          value={search}
+          onChange={(e) =>
+            setSearch(
+              e.target.value
+            )
+          }
+          placeholder="Pretraži tim, Team ID ili League ID..."
+          style={{
+            minWidth: 300,
+          }}
+        />
+
+        <select
+          value={leagueFilter}
+          onChange={(e) =>
+            setLeagueFilter(
+              e.target.value
+            )
+          }
+        >
+          <option value="all">
+            Sve matične lige
+          </option>
+
+          {leagueOptions.map(
+            ([id, name]) => (
+              <option
+                key={id}
+                value={id}
+              >
+                {name} — {id}
+              </option>
+            )
+          )}
+        </select>
+      </div>
+
+
+      {/* ===================================================
+          VIRTUALIZED TABLE
+      =================================================== */}
+
+      <div
+        ref={tableScrollRef}
+        className="screen2-table-wrap"
+        style={{
+          overflow: "auto",
+          maxHeight:
+            "calc(100vh - 220px)",
+          position: "relative",
+          WebkitOverflowScrolling:
+            "touch",
+        }}
+      >
+
+        {/* HEADER */}
+
+        <div
+          role="row"
+          style={{
+            display: "grid",
+            gridTemplateColumns,
+            width: "max-content",
+            minWidth:
+              "100%",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            background:
+              "var(--background, #fff)",
+          }}
+        >
+
+          {[
+            "#",
+            "Tim",
+            "Team ID",
+            "Matična liga",
+            "League ID",
+            "Country ID",
+
+            "G",
+            "W",
+            "D",
+            "L",
+
+            "GF",
+            "GA",
+            "GD",
+            "PTS",
+            "PPG",
+
+            "GG %",
+            "NG %",
+            "2+ %",
+            "3+ %",
+            "4+ %",
+            "7+ %",
+
+            "CS %",
+            "FTS %",
+
+            "Tbl #",
+            "Tbl G",
+            "Tbl W",
+            "Tbl D",
+            "Tbl L",
+            "Tbl GF",
+            "Tbl GA",
+            "Tbl GD",
+            "Tbl PTS",
+            "Tbl PPG",
+
+            "Table",
+            "Form",
+            "Attack",
+            "Defense",
+            "Goals",
+            "Venue",
+            "Confidence",
+            "FINAL",
+
+            "Last 5",
+
+            "Detalji",
+          ].map((label, index) => (
+            <div
+              key={`${label}-${index}`}
+              style={
+                headerCellStyle
+              }
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+
+        {/* VIRTUAL CONTENT */}
+
+        <div
+          style={{
+            position: "relative",
+            width: "max-content",
+            minWidth: "100%",
+            height:
+              rowVirtualizer.getTotalSize(),
+          }}
+        >
+
+          {virtualRows.map(
+            (virtualRow) => {
+              const index =
+                virtualRow.index;
+
+              const team =
+                filteredTeams[index];
+
+              if (!team) {
+                return null;
+              }
+
+              const stats =
+                team.stats;
+
+              const form =
+                stats.form10;
+
+              const standing =
+                team.standing;
+
+              const prediction =
+                team.prediction;
+
+              const expanded =
+                expandedTeamId ===
+                team.teamId;
+
+              return (
+                <div
+                  key={team.teamId}
+                  data-index={
+                    virtualRow.index
+                  }
+                  ref={
+                    rowVirtualizer.measureElement
+                  }
+                  style={{
+                    position:
+                      "absolute",
+                    top: 0,
+                    left: 0,
+                    transform: `translateY(${virtualRow.start}px)`,
+                    width: "max-content",
+                    minWidth:
+                      "100%",
+                  }}
+                >
+
+                  {/* =====================================
+                      MAIN TEAM ROW
+                  ===================================== */}
+
+                  <div
+                    role="row"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns,
+                      width:
+                        "max-content",
+                      minWidth:
+                        "100%",
+                    }}
+                  >
+
+                    <div style={cellStyle}>
+                      {index + 1}
+                    </div>
+
+                    <div
+                      style={{
+                        ...cellStyle,
+                        minWidth: 220,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedTeamId(
+                            team.teamId
+                          )
+                        }
+                        style={{
+                          border: 0,
+                          background:
+                            "transparent",
+                          padding: 0,
+                          cursor:
+                            "pointer",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {team.name}
+                      </button>
+                    </div>
+
+                    <div style={cellStyle}>
+                      {team.teamId}
+                    </div>
+
+                    <div
+                      style={cellStyle}
+                      title={
+                        team.mainGroupName
+                      }
+                    >
+                      {team.mainLeagueName ||
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {team.mainLeagueId ||
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {team.countryId ||
+                        "—"}
+                    </div>
+
+
+                    {/* MATCH SAMPLE */}
+
+                    <div style={cellStyle}>
+                      {form.played}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.wins}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.draws}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.losses}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.goalsFor}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.goalsAgainst}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.goalDifference}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {form.points}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {round(form.ppg)}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.ggRate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.ngRate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.over2Rate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.over3Rate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.over4Rate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.over7Rate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.cleanSheetRate
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {percent(
+                        form.failedToScoreRate
+                      )}
+                    </div>
+
+
+                    {/* TABLE */}
+
+                    <div style={cellStyle}>
+                      {standing?.position ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.played ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.wins ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.draws ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.losses ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.goalsFor ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.goalsAgainst ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing
+                        ? standing.goalDifference
+                        : "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing?.points ??
+                        "—"}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {standing
+                        ? round(
+                            standing.ppg
+                          )
+                        : "—"}
+                    </div>
+
+
+                    {/* PREDICTION */}
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.tableStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.formStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.attackStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.defenseStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.goalStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.venueStrength
+                      )}
+                    </div>
+
+                    <div style={cellStyle}>
+                      {renderScore(
+                        prediction.confidence
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        ...cellStyle,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {renderScore(
+                        prediction.finalScore
+                      )}
+                    </div>
+
+
+                    {/* LAST 5 */}
+
+                    <div
+                      style={{
+                        ...cellStyle,
+                        minWidth: 220,
+                      }}
+                    >
+                      {renderForm(
+                        stats.last5
+                      )}
+                    </div>
+
+
+                    {/* DETAILS BUTTON */}
+
+                    <div style={cellStyle}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleTeam(
+                            team.teamId
+                          )
+                        }
+                      >
+                        {expanded
+                          ? "▲"
+                          : "▼"}
+                      </button>
+                    </div>
+                  </div>
+
+
+                  {/* =====================================
+                      EXPANDED DETAILS
+                  ===================================== */}
+
+                  {expanded && (
+                    <div
+                      style={{
+                        width:
+                          "max-content",
+                        minWidth:
+                          "100%",
+                        boxSizing:
+                          "border-box",
+                        padding: 18,
+                        display: "grid",
+                        gap: 18,
+                        borderBottom:
+                          "1px solid rgba(0,0,0,.12)",
+                        background:
+                          "rgba(0,0,0,.025)",
+                      }}
+                    >
+
+                      {/* PROFILE */}
+
+                      <div>
+                        <h3>
+                          {team.name} —
+                          Prediction
+                          Profile
+                        </h3>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit,minmax(140px,1fr))",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            [
+                              "Tabela",
+                              prediction.tableStrength,
+                            ],
+                            [
+                              "Forma",
+                              prediction.formStrength,
+                            ],
+                            [
+                              "Napad",
+                              prediction.attackStrength,
+                            ],
+                            [
+                              "Odbrana",
+                              prediction.defenseStrength,
+                            ],
+                            [
+                              "Golovi",
+                              prediction.goalStrength,
+                            ],
+                            [
+                              "Venue",
+                              prediction.venueStrength,
+                            ],
+                            [
+                              "Pouzdanost",
+                              prediction.confidence,
+                            ],
+                            [
+                              "FINAL",
+                              prediction.finalScore,
+                            ],
+                          ].map(
+                            ([
+                              label,
+                              value,
+                            ]) => (
+                              <div
+                                key={label}
+                                style={{
+                                  border:
+                                    "1px solid rgba(0,0,0,.12)",
+                                  borderRadius: 8,
+                                  padding: 10,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    opacity:
+                                      0.65,
+                                  }}
+                                >
+                                  {label}
+                                </div>
+
+                                <div
+                                  style={{
+                                    fontSize: 22,
+                                    fontWeight:
+                                      800,
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  {renderScore(
+                                    value
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+
+                      {/* STANDINGS */}
+
+                      <div>
+                        <h3>
+                          Sezonska
+                          tabela
+                        </h3>
+
+                        {standing ? (
+                          <div
+                            style={{
+                              display:
+                                "grid",
+                              gridTemplateColumns:
+                                "repeat(auto-fit,minmax(120px,1fr))",
+                              gap: 8,
+                            }}
+                          >
+                            <div>
+                              <strong>
+                                Liga
+                              </strong>
+                              <br />
+                              {
+                                standing.leagueName
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                Grupa
+                              </strong>
+                              <br />
+                              {standing.groupName ||
+                                "—"}
+                            </div>
+
+                            <div>
+                              <strong>
+                                Season ID
+                              </strong>
+                              <br />
+                              {
+                                standing.seasonId
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                Pozicija
+                              </strong>
+                              <br />
+                              {
+                                standing.position
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                Odigrano
+                              </strong>
+                              <br />
+                              {
+                                standing.played
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                W/D/L
+                              </strong>
+                              <br />
+                              {
+                                standing.wins
+                              }/
+                              {
+                                standing.draws
+                              }/
+                              {
+                                standing.losses
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                GF/GA
+                              </strong>
+                              <br />
+                              {
+                                standing.goalsFor
+                              }
+                              /
+                              {
+                                standing.goalsAgainst
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                GD
+                              </strong>
+                              <br />
+                              {
+                                standing.goalDifference
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                PTS
+                              </strong>
+                              <br />
+                              {
+                                standing.points
+                              }
+                            </div>
+
+                            <div>
+                              <strong>
+                                PPG
+                              </strong>
+                              <br />
+                              {round(
+                                standing.ppg
+                              )}
+                            </div>
+
+                            <div>
+                              <strong>
+                                GF/G
+                              </strong>
+                              <br />
+                              {round(
+                                standing.gfPerGame
+                              )}
+                            </div>
+
+                            <div>
+                              <strong>
+                                GA/G
+                              </strong>
+                              <br />
+                              {round(
+                                standing.gaPerGame
+                              )}
+                            </div>
+
+                            <div>
+                              <strong>
+                                Datum
+                              </strong>
+                              <br />
+                              {
+                                standing.standingsDate ||
+                                "—"
+                              }
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="s2-muted">
+                            Za ovaj tim
+                            nema
+                            dostupne
+                            odgovarajuće
+                            tabele.
+                          </div>
+                        )}
+                      </div>
+
+
+                      {/* FORM */}
+
+                      <div>
+                        <h3>
+                          Forma —
+                          poslednjih
+                          3 / 5 / 10
+                        </h3>
+
+                        <div
+                          style={{
+                            display:
+                              "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit,minmax(180px,1fr))",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            [
+                              "Last 3",
+                              stats.form3,
+                            ],
+                            [
+                              "Last 5",
+                              stats.form5,
+                            ],
+                            [
+                              "Last 10",
+                              stats.form10,
+                            ],
+                          ].map(
+                            ([
+                              label,
+                              value,
+                            ]) => (
+                              <div
+                                key={label}
+                                style={{
+                                  border:
+                                    "1px solid rgba(0,0,0,.12)",
+                                  borderRadius: 8,
+                                  padding: 12,
+                                }}
+                              >
+                                <strong>
+                                  {label}
+                                </strong>
+
+                                <div
+                                  style={{
+                                    marginTop: 8,
+                                    lineHeight:
+                                      1.7,
+                                  }}
+                                >
+                                  G:{" "}
+                                  {
+                                    value.played
+                                  }
+                                  <br />
+
+                                  W/D/L:{" "}
+                                  {
+                                    value.wins
+                                  }
+                                  /
+                                  {
+                                    value.draws
+                                  }
+                                  /
+                                  {
+                                    value.losses
+                                  }
+                                  <br />
+
+                                  GF/GA:{" "}
+                                  {
+                                    value.goalsFor
+                                  }
+                                  /
+                                  {
+                                    value.goalsAgainst
+                                  }
+                                  <br />
+
+                                  PPG:{" "}
+                                  {round(
+                                    value.ppg
+                                  )}
+                                  <br />
+
+                                  GG:{" "}
+                                  {percent(
+                                    value.ggRate
+                                  )}
+                                  <br />
+
+                                  2+:{" "}
+                                  {percent(
+                                    value.over2Rate
+                                  )}
+                                  <br />
+
+                                  3+:{" "}
+                                  {percent(
+                                    value.over3Rate
+                                  )}
+                                  <br />
+
+                                  CS:{" "}
+                                  {percent(
+                                    value.cleanSheetRate
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+
+                      {/* HOME / AWAY */}
+
+                      <div>
+                        <h3>
+                          Home / Away
+                        </h3>
+
+                        <div
+                          style={{
+                            display:
+                              "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit,minmax(220px,1fr))",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            [
+                              "HOME",
+                              stats.home,
+                            ],
+                            [
+                              "AWAY",
+                              stats.away,
+                            ],
+                          ].map(
+                            ([
+                              label,
+                              value,
+                            ]) => (
+                              <div
+                                key={label}
+                                style={{
+                                  border:
+                                    "1px solid rgba(0,0,0,.12)",
+                                  borderRadius: 8,
+                                  padding: 12,
+                                }}
+                              >
+                                <strong>
+                                  {label}
+                                </strong>
+
+                                <div
+                                  style={{
+                                    marginTop: 8,
+                                    lineHeight:
+                                      1.7,
+                                  }}
+                                >
+                                  G:{" "}
+                                  {
+                                    value.played
+                                  }
+                                  <br />
+
+                                  W/D/L:{" "}
+                                  {
+                                    value.wins
+                                  }
+                                  /
+                                  {
+                                    value.draws
+                                  }
+                                  /
+                                  {
+                                    value.losses
+                                  }
+                                  <br />
+
+                                  GF/G:{" "}
+                                  {round(
+                                    value.gfPerGame
+                                  )}
+                                  <br />
+
+                                  GA/G:{" "}
+                                  {round(
+                                    value.gaPerGame
+                                  )}
+                                  <br />
+
+                                  PPG:{" "}
+                                  {round(
+                                    value.ppg
+                                  )}
+                                  <br />
+
+                                  GG:{" "}
+                                  {percent(
+                                    value.ggRate
+                                  )}
+                                  <br />
+
+                                  2+:{" "}
+                                  {percent(
+                                    value.over2Rate
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+
+                      {/* LAST 10 */}
+
+                      <div>
+                        <h3>
+                          Poslednjih
+                          10
+                          utakmica
+                        </h3>
+
+                        <div
+                          style={{
+                            overflowX:
+                              "auto",
+                          }}
+                        >
+                          <table className="screen2-table">
+                            <thead>
+                              <tr>
+                                <th>
+                                  Datum
+                                </th>
+                                <th>
+                                  Liga
+                                </th>
+                                <th>
+                                  Venue
+                                </th>
+                                <th>
+                                  Protivnik
+                                </th>
+                                <th>
+                                  Rezultat
+                                </th>
+                                <th>
+                                  Ishod
+                                </th>
+                              </tr>
+                            </thead>
+
+                            <tbody>
+                              {stats.last10.map(
+                                (
+                                  game,
+                                  i
+                                ) => (
+                                  <tr
+                                    key={`${game.id}-${i}`}
+                                  >
+                                    <td>
+                                      {
+                                        game.date
+                                      }
+                                    </td>
+
+                                    <td>
+                                      {getLeagueName(
+                                        game.leagueId
+                                      )}
+                                    </td>
+
+                                    <td>
+                                      {
+                                        game.venue
+                                      }
+                                    </td>
+
+                                    <td>
+                                      {
+                                        game.opponent
+                                      }
+                                    </td>
+
+                                    <td>
+                                      {
+                                        game.gf
+                                      }
+                                      :
+                                      {
+                                        game.ga
+                                      }
+                                    </td>
+
+                                    <td>
+                                      {
+                                        game.result
+                                      }
+                                    </td>
+                                  </tr>
+                                )
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+
+                      {/* BY LEAGUE */}
+
+                      <div>
+                        <h3>
+                          Statistika po
+                          takmičenju
+                        </h3>
+
+                        <div
+                          style={{
+                            overflowX:
+                              "auto",
+                          }}
+                        >
+                          <table className="screen2-table">
+                            <thead>
+                              <tr>
+                                <th>
+                                  Liga
+                                </th>
+                                <th>
+                                  League ID
+                                </th>
+                                <th>
+                                  G
+                                </th>
+                                <th>
+                                  W
+                                </th>
+                                <th>
+                                  D
+                                </th>
+                                <th>
+                                  L
+                                </th>
+                                <th>
+                                  GF
+                                </th>
+                                <th>
+                                  GA
+                                </th>
+                                <th>
+                                  PTS
+                                </th>
+                                <th>
+                                  PPG
+                                </th>
+                                <th>
+                                  GG %
+                                </th>
+                                <th>
+                                  2+ %
+                                </th>
+                              </tr>
+                            </thead>
+
+                            <tbody>
+                              {Object.entries(
+                                stats.byLeague
+                              ).map(
+                                ([
+                                  leagueId,
+                                  games,
+                                ]) => {
+                                  const value =
+                                    calculateWindow(
+                                      games
+                                    );
+
+                                  return (
+                                    <tr
+                                      key={
+                                        leagueId
+                                      }
+                                    >
+                                      <td>
+                                        {getLeagueName(
+                                          leagueId
+                                        )}
+                                      </td>
+
+                                      <td>
+                                        {
+                                          leagueId
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.played
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.wins
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.draws
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.losses
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.goalsFor
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.goalsAgainst
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {
+                                          value.points
+                                        }
+                                      </td>
+
+                                      <td>
+                                        {round(
+                                          value.ppg
+                                        )}
+                                      </td>
+
+                                      <td>
+                                        {percent(
+                                          value.ggRate
+                                        )}
+                                      </td>
+
+                                      <td>
+                                        {percent(
+                                          value.over2Rate
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+
+      {/* ===================================================
+          ALIAS POPUP
+      =================================================== */}
+
+      {selectedTeamId && (
+        <div
+          onClick={() =>
+            setSelectedTeamId(
+              null
+            )
+          }
+          style={{
+            position: "fixed",
+            inset: 0,
+            background:
+              "rgba(0,0,0,.45)",
+            display: "flex",
+            alignItems:
+              "center",
+            justifyContent:
+              "center",
+            zIndex: 9999,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+            style={{
+              width:
+                "min(700px, 100%)",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background:
+                "var(--background, #fff)",
+              borderRadius: 12,
+              padding: 20,
+              boxShadow:
+                "0 20px 60px rgba(0,0,0,.25)",
+            }}
+          >
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                gap: 10,
+                marginBottom: 15,
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    margin: 0,
+                  }}
+                >
+                  {getMainTeamName(
+                    selectedTeamId,
+                    primaryLeagueByTeam,
+                    aliasesByTeam,
+                    sofaTeamById,
+                    matches
+                  )}
+                </h2>
+
+                <div
+                  style={{
+                    opacity: 0.7,
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
+                  Team ID:{" "}
+                  {selectedTeamId}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTeamId(
+                    null
+                  )
+                }
+              >
+                ✕
+              </button>
+            </div>
+
+
+            <h3>
+              Mozzart / Team aliases
+            </h3>
+
+            {(
+              aliasesByTeam[
+                selectedTeamId
+              ] || []
+            ).length === 0 ? (
+              <div className="s2-muted">
+                Nema sačuvanih
+                aliasa.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                {(
+                  aliasesByTeam[
+                    selectedTeamId
+                  ] || []
+                ).map((alias) => (
+                  <div
+                    key={alias.id}
+                    style={{
+                      border:
+                        "1px solid rgba(0,0,0,.12)",
+                      borderRadius: 8,
+                      padding: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 700,
+                      }}
+                    >
+                      {alias.alias}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        opacity: 0.7,
+                        marginTop: 4,
+                      }}
+                    >
+                      League ID:{" "}
+                      {alias.league_id ??
+                        "—"}
+                      {" • "}
+                      Country ID:{" "}
+                      {alias.country_id ??
+                        "—"}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        opacity: 0.7,
+                        marginTop: 3,
+                      }}
+                    >
+                      Liga:{" "}
+                      {getLeagueName(
+                        alias.league_id
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 18,
+                display: "flex",
+                justifyContent:
+                  "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTeamId(
+                    null
+                  )
+                }
+              >
+                Zatvori
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

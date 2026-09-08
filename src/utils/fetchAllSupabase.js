@@ -65,7 +65,15 @@ export async function fetchAllSupabase(
       query = query.order(orderBy, { ascending });
     }
 
-    const { data, error } = await query;
+const requestStart = performance.now();
+
+const { data, error } = await query;
+
+console.log(
+  `[Supabase REQUEST] ${table} | from=${from} | trajanje=${(
+    performance.now() - requestStart
+  ).toFixed(0)}ms | redova=${data?.length ?? 0}`
+);
 
     if (error) {
       throw error;
