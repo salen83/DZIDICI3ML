@@ -269,21 +269,8 @@ for (const row of matches) {
       // LOG MAPIRANJA
       // =======================================
 
-console.log("MATCH -> SCREEN1:", {
-  id: row.id,
-
-  league_id: leagueId,
-  raw_league: row.raw_league,
-  mappedLeague: finalLeague,
-
-  home_team_id: homeTeamId,
-  raw_home: row.raw_home,
-  mappedHome: finalHome,
-
-  away_team_id: awayTeamId,
-  raw_away: row.raw_away,
-  mappedAway: finalAway
-});
+// Namerno bez detaljnog loga za svaki mec.
+// Veliki broj console.log poziva moze preopteretiti DevTools.
 
       // =======================================
       // EVIDENCIJA NEMAPIRANIH
@@ -347,7 +334,7 @@ country:
     }
 
     console.log(
-      "📦 PAYLOAD:",
+      "📦 PAYLOAD COUNT:",
       payload.length
     );
 
@@ -379,35 +366,78 @@ country:
         payload.length
       );
 
-      const {
-        data: screen1Sync,
-        error: screen1SyncError
-      } = await supabase.rpc(
-        "sync_screen1_matches_bulk",
+      const BATCH_SIZE = 5;
+
+      let inserted = 0;
+      let updated = 0;
+
+      const totalBatches =
+        Math.ceil(payload.length / BATCH_SIZE);
+
+      console.log(
+        "📦 SCREEN1 RPC BATCH SYNC:",
         {
-          p_matches: payload
+          total: payload.length,
+          batchSize: BATCH_SIZE,
+          batches: totalBatches
         }
       );
 
-      if (screen1SyncError) {
-        console.error(
-          "❌ SCREEN1 BULK RPC ERROR:",
-          screen1SyncError
+      for (
+        let batchStart = 0;
+        batchStart < payload.length;
+        batchStart += BATCH_SIZE
+      ) {
+        const batch = payload.slice(
+          batchStart,
+          batchStart + BATCH_SIZE
         );
 
-        return {
-          inserted: 0,
-          updated: 0,
-          failedMappings,
-          error: screen1SyncError
-        };
+        const batchNumber =
+          Math.floor(batchStart / BATCH_SIZE) + 1;
+
+        console.log(
+          `⚡ SCREEN1 RPC BATCH ${batchNumber}/${totalBatches}:`,
+          batch.length
+        );
+
+        const MAX_RETRIES = 3;
+
+        let screen1Sync = null;
+        let screen1SyncError = null;
+
+        if (screen1SyncError) {
+
+          console.error(
+            `❌ SCREEN1 RPC BATCH ${batchNumber}/${totalBatches} ERROR AFTER ${MAX_RETRIES} ATTEMPTS:`,
+            screen1SyncError
+          );
+
+          return {
+            inserted,
+            updated,
+            failedMappings,
+            error: screen1SyncError
+          };
+        }
+
+        const batchInserted =
+          Number(screen1Sync?.inserted || 0);
+
+        const batchUpdated =
+          Number(screen1Sync?.updated || 0);
+
+        inserted += batchInserted;
+        updated += batchUpdated;
+
+        console.log(
+          `✅ SCREEN1 RPC BATCH ${batchNumber}/${totalBatches} OK:`,
+          {
+            inserted: batchInserted,
+            updated: batchUpdated
+          }
+        );
       }
-
-      const inserted =
-        Number(screen1Sync?.inserted || 0);
-
-      const updated =
-        Number(screen1Sync?.updated || 0);
 
       console.log(
         "✅ SCREEN1 BULK SYNC ZAVRŠEN:",
@@ -416,6 +446,7 @@ country:
           updated
         }
       );
+
       // =========================================
       // AUTOMATSKO AŽURIRANJE TABELE PREKO RPC
       // =========================================
