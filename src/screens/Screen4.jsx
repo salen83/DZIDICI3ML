@@ -81,6 +81,9 @@ function buildPredictionHistoryRows(predictions) {
             ? String(p.id)
             : null,
 
+        home_team_id: p.homeId ?? null,
+        away_team_id: p.awayId ?? null,
+
         model_version: MODEL_VERSION,
 
         match_date: date,

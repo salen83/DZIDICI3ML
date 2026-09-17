@@ -91,6 +91,7 @@ async function loadMatches() {
   };
 
 // ===== SUPABASE SYNC (LEAGUES + TEAMS) =====
+// ===== SUPABASE SYNC + ALIAS MAPPING =====
 const syncLeaguesAndTeams = async (rows) => {
   const leagueSet = new Set();
   const teamSet = new Set();
@@ -100,59 +101,755 @@ const syncLeaguesAndTeams = async (rows) => {
 
   rows.forEach(r => {
     // LEAGUES
-    if (r.liga && !leagueSet.has(r.liga)) {
-      leagueSet.add(r.liga);
+    const leagueName = String(r.liga || "").trim();
+
+    if (leagueName && !leagueSet.has(leagueName)) {
+      leagueSet.add(leagueName);
       leagues.push({
-        name: r.liga,
+        name: leagueName,
         country_id: null,
         country: null
       });
     }
 
     // TEAMS (HOME)
-    const homeKey = `${r.home}|screen3`;
-    if (r.home && !teamSet.has(homeKey)) {
+    const homeName = String(r.home || "").trim();
+    const homeKey = `${homeName}|screen3`;
+
+    if (homeName && !teamSet.has(homeKey)) {
       teamSet.add(homeKey);
       teams.push({
-        name: r.home,
+        name: homeName,
         country_id: null,
         source: "screen3"
       });
     }
 
     // TEAMS (AWAY)
-    const awayKey = `${r.away}|screen3`;
-    if (r.away && !teamSet.has(awayKey)) {
+    const awayName = String(r.away || "").trim();
+    const awayKey = `${awayName}|screen3`;
+
+    if (awayName && !teamSet.has(awayKey)) {
       teamSet.add(awayKey);
       teams.push({
-        name: r.away,
+        name: awayName,
         country_id: null,
         source: "screen3"
       });
     }
   });
 
-  // UPSERT LEAGUES
-  if (leagues.length) {
-    const { error } = await supabase
-      .from("leagues")
-      .upsert(leagues, { onConflict: "name" });
+  // Zadržavamo postojeći sync Mozzart naziva u lokalne tabele.
+  // =========================================================
+  // ALIAS MAPPING
+  // Originalni Mozzart home/away/liga se NE MENJAJU.
+  // Dodajemo samo SofaScore ID-jeve.
+  // =========================================================
 
-    if (error) {
-      console.error("Leagues sync error:", error);
+  const { data: leagueAliases, error: leagueAliasError } = await supabase
+    .from("league_aliases")
+    .select("alias, league_id, source")
+    .eq("source", "mozzart");
+
+  if (leagueAliasError) {
+    throw leagueAliasError;
+  }
+
+  // team_aliases može imati više od 1000 redova, pa ih učitavamo stranicu po stranicu.
+  const teamPageSize = 1000;
+  let teamFrom = 0;
+  let teamAliases = [];
+
+  while (true) {
+    const { data: teamPage, error: teamAliasError } = await supabase
+      .from("team_aliases")
+      .select("alias, team_id, league_id")
+      .range(teamFrom, teamFrom + teamPageSize - 1);
+
+    if (teamAliasError) {
+      throw teamAliasError;
+    }
+
+    teamAliases = [...teamAliases, ...(teamPage || [])];
+        console.log("SYNC: team aliases učitani:", teamAliases.length);
+
+    if (!teamPage || teamPage.length < teamPageSize) {
+      break;
+    }
+
+    teamFrom += teamPageSize;
+  }
+
+  console.log("Učitano team_aliases:", teamAliases.length);
+
+  console.log("===== RAW TEAM ALIASES TEST =====");
+  console.log(
+    (teamAliases || []).filter(row =>
+      String(row.alias || "").toLowerCase().includes("widzew") ||
+      String(row.alias || "").toLowerCase().includes("polonia bytom") ||
+      String(row.alias || "").toLowerCase().includes("south melbourne") ||
+      String(row.alias || "").toLowerCase() === "lions"
+    )
+  );
+
+  const normalizeAlias = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ");
+
+  // ---------------------------------------------------------
+  // LEAGUE MAP
+  // ---------------------------------------------------------
+  const leagueMap = new Map();
+
+  for (const row of leagueAliases || []) {
+    const key = normalizeAlias(row.alias);
+
+    if (!key || row.league_id == null) continue;
+
+    if (!leagueMap.has(key)) {
+      leagueMap.set(key, new Set());
+    }
+
+    leagueMap.get(key).add(Number(row.league_id));
+  }
+
+  // ---------------------------------------------------------
+  // TEAM MAP
+  // key = normalized alias + league_id
+  // ---------------------------------------------------------
+  const teamMap = new Map();
+
+  for (const row of teamAliases || []) {
+    if (row.team_id == null) continue;
+
+    const aliasKey = normalizeAlias(row.alias);
+    if (!aliasKey) continue;
+
+    const leagueId =
+      row.league_id != null ? Number(row.league_id) : null;
+
+    const key = `${aliasKey}|${leagueId ?? "NULL"}`;
+
+    if (!teamMap.has(key)) {
+      teamMap.set(key, new Set());
+    }
+
+    teamMap.get(key).add(Number(row.team_id));
+  }
+
+  console.log("===== TEAM MAP TEST =====");
+  console.log("widzew lodz ii|281:", teamMap.get("widzew lodz ii|281"));
+  console.log("polonia bytom|281:", teamMap.get("polonia bytom|281"));
+  console.log("south melbourne|1786:", teamMap.get("south melbourne|1786"));
+  console.log("lions|1786:", teamMap.get("lions|1786"));
+
+  const resolveLeagueIds = (leagueName) => {
+    const key = normalizeAlias(leagueName);
+    const ids = leagueMap.get(key);
+
+    if (!ids) {
+      return [];
+    }
+
+    return [...ids];
+  };
+
+  // Određuje konkretnu SofaScore ligu kada jedan Mozzart naziv
+  // obuhvata više SofaScore liga.
+  const resolveLeagueId = (leagueName, homeTeamId = null, awayTeamId = null) => {
+    const candidateLeagueIds = resolveLeagueIds(leagueName);
+
+    // Normalan slučaj: jedan Mozzart naziv -> jedna Sofa liga.
+    if (candidateLeagueIds.length === 1) {
+      return candidateLeagueIds[0];
+    }
+
+    // Ako nema jednoznačne lige, pokušavamo preko oba team ID-ja.
+    if (
+      candidateLeagueIds.length > 1 &&
+      homeTeamId != null &&
+      awayTeamId != null
+    ) {
+      const matchingLeagueIds = candidateLeagueIds.filter((leagueId) => {
+        let homeMatches = false;
+        let awayMatches = false;
+
+        for (const [key, ids] of teamMap.entries()) {
+          if (key.endsWith(`|${Number(leagueId)}`)) {
+            if (ids.has(Number(homeTeamId))) {
+              homeMatches = true;
+            }
+
+            if (ids.has(Number(awayTeamId))) {
+              awayMatches = true;
+            }
+          }
+
+          if (homeMatches && awayMatches) {
+            break;
+          }
+        }
+
+        return homeMatches && awayMatches;
+      });
+
+      if (matchingLeagueIds.length === 1) {
+        return matchingLeagueIds[0];
+      }
+    }
+
+    return null;
+  };
+
+  const resolveTeamId = (teamName, leagueId) => {
+    const nameKey = normalizeAlias(teamName);
+
+    if (!nameKey) {
+      return null;
+    }
+
+    // Prvo pokušavamo striktno po ligi.
+    if (leagueId != null) {
+      const leagueKey = `${nameKey}|${Number(leagueId)}`;
+      const leagueIds = teamMap.get(leagueKey);
+
+      if (leagueIds && leagueIds.size === 1) {
+        return [...leagueIds][0];
+      }
+    }
+
+    // Ako nema league-specific aliasa, dozvoljavamo samo
+    // potpuno jednoznačan alias kroz sve lige.
+    const matches = [];
+
+    for (const [key, ids] of teamMap.entries()) {
+      if (!key.startsWith(`${nameKey}|`)) continue;
+
+      for (const id of ids) {
+        matches.push(id);
+      }
+    }
+
+    const uniqueIds = [...new Set(matches)];
+
+    return uniqueIds.length === 1 ? uniqueIds[0] : null;
+  };
+
+  // =========================================================
+  // SOFASCORE EVENT OVERRIDE
+  //
+  // team_aliases nije uvek dovoljan:
+  // npr. Mozzart "Vitebsk" -> 3351,
+  // dok stvarni event može biti "ML Vitebsk" -> 381792.
+  //
+  // Zato, kada znamo ligu + datum, proveravamo
+  // sofa_league_events i stvarni event ima prednost.
+  // =========================================================
+
+  const parseFutureDate = (value) => {
+    const str = String(value || "").trim();
+
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) {
+      const [d, m, y] = str.split(".");
+      return `${y}-${m}-${d}`;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return str;
+    }
+
+    return null;
+  };
+
+  // Prvo napravimo osnovno alias mapiranje.
+  // Ovo koristimo kao "sidro" za pronalaženje pravog SofaScore eventa.
+  console.log("SYNC: kreće baseRows");
+
+  let baseRows;
+  try {
+    baseRows = rows.map(row => {
+    let homeTeamId = resolveTeamId(row.home, null);
+    let awayTeamId = resolveTeamId(row.away, null);
+
+    let leagueId = resolveLeagueId(
+      row.liga,
+      homeTeamId,
+      awayTeamId
+    );
+
+    if (leagueId != null) {
+      const strictHomeTeamId = resolveTeamId(row.home, leagueId);
+      const strictAwayTeamId = resolveTeamId(row.away, leagueId);
+
+      if (strictHomeTeamId != null) {
+        homeTeamId = strictHomeTeamId;
+      }
+
+      if (strictAwayTeamId != null) {
+        awayTeamId = strictAwayTeamId;
+      }
+    }
+
+    return {
+      ...row,
+      league_id: leagueId,
+      home_team_id: homeTeamId,
+      away_team_id: awayTeamId
+    };
+  });
+
+  } catch (err) {
+    console.error("SYNC: BASE ROWS ERROR:", err);
+    console.error("SYNC: BASE ROWS ERROR message:", err?.message);
+    console.error("SYNC: BASE ROWS ERROR stack:", err?.stack);
+    throw err;
+  }
+
+  console.log("SYNC: baseRows OK:", baseRows.length);
+
+  // =========================================================
+  // Učitavamo samo potrebne SofaScore evente:
+  // league_id + datumi koji postoje u ovom importu.
+  // =========================================================
+
+  // =========================================================
+  // SofaScore eventi - OPTIMIZOVANO
+  // =========================================================
+  // Umesto league x datum (do 1140 requestova),
+  // učitavamo sve potrebne lige za jedan datum u jednom
+  // batch-u. Za ovaj import to je oko 10-20 requestova.
+  // =========================================================
+
+  const requiredLeagueIds = [
+    ...new Set(
+      baseRows
+        .map(r => Number(r.league_id))
+        .filter(Number.isFinite)
+    )
+  ];
+
+  const requiredDates = [
+    ...new Set(
+      baseRows
+        .map(r => {
+          const fromDatum = parseFutureDate(r.datum);
+          if (fromDatum) return fromDatum;
+
+          const vreme = String(r.vreme || "").trim();
+          const m = vreme.match(
+            /^(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})/
+          );
+
+          if (m) {
+            const [, d, mo, y] = m;
+            return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          }
+
+          return null;
+        })
+        .filter(Boolean)
+    )
+  ];
+
+  console.log(
+    "SOFA OPT: potrebne lige:",
+    requiredLeagueIds.length
+  );
+  console.log(
+    "SOFA OPT: potrebni datumi:",
+    requiredDates
+  );
+
+  let sofaEvents = [];
+
+  // Držimo batch ispod uobičajenih URL/PostgREST ograničenja.
+  const leagueChunkSize = 50;
+  const eventPageSize = 1000;
+
+  for (const matchDate of requiredDates) {
+    for (
+      let i = 0;
+      i < requiredLeagueIds.length;
+      i += leagueChunkSize
+    ) {
+      const leagueChunk = requiredLeagueIds.slice(
+        i,
+        i + leagueChunkSize
+      );
+
+      let from = 0;
+
+      while (true) {
+        console.log(
+          `SOFA OPT: datum=${matchDate}, ` +
+          `lige=${i + 1}-${Math.min(
+            i + leagueChunk.length,
+            requiredLeagueIds.length
+          )}, from=${from}`
+        );
+
+        const { data, error } = await supabase
+          .from("sofa_league_events")
+          .select(`
+            league_id,
+            season_id,
+            round,
+            event_id,
+            start_timestamp,
+            match_date,
+            match_time,
+            home_team_id,
+            home_team,
+            home_short_name,
+            away_team_id,
+            away_team,
+            away_short_name,
+            home_score,
+            away_score,
+            status,
+            status_description
+          `)
+          .in("league_id", leagueChunk)
+          .eq("match_date", matchDate)
+          .range(from, from + eventPageSize - 1);
+
+        if (error) {
+          console.error(
+            "Sofa league events load error:",
+            error
+          );
+          break;
+        }
+
+        sofaEvents.push(...(data || []));
+
+        if (!data || data.length < eventPageSize) {
+          break;
+        }
+
+        from += eventPageSize;
+      }
     }
   }
 
-  // UPSERT TEAMS
-  if (teams.length) {
-    const { error } = await supabase
-      .from("teams")
-      .upsert(teams, { onConflict: "name,source" });
+  console.log("===== SOFASCORE EVENT MATCHING =====");
+  console.log(
+    "Potrebne lige:",
+    requiredLeagueIds.length
+  );
+  console.log(
+    "Potrebni datumi:",
+    requiredDates
+  );
+  console.log(
+    "Učitano SofaScore eventa:",
+    sofaEvents.length
+  );
 
-    if (error) {
-      console.error("Teams sync error:", error);
+  const normalizeTeamForMatch = (value) =>
+    normalizeAlias(value)
+      .replace(/\b(fc|fk|sc|ac|cf|cd|ca|club|deportivo)\b/g, "")
+      .replace(/\b(football|futbol|futbolski|women|w|u19|u20|u21|u23)\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const teamNameSimilar = (a, b) => {
+    const aa = normalizeTeamForMatch(a);
+    const bb = normalizeTeamForMatch(b);
+
+    if (!aa || !bb) return false;
+
+    if (aa === bb) return true;
+
+    // Jedan naziv može sadržati dodatak koji drugi nema:
+    // "ML Vitebsk" vs "Vitebsk"
+    if (aa.includes(bb) || bb.includes(aa)) {
+      return true;
     }
+
+    const aWords = new Set(aa.split(" ").filter(Boolean));
+    const bWords = new Set(bb.split(" ").filter(Boolean));
+
+    const common = [...aWords].filter(word => bWords.has(word));
+
+    return common.length >= 1 &&
+      Math.min(aWords.size, bWords.size) <= common.length + 1;
+  };
+
+  const getEventDate = (row) => {
+    const fromDatum = parseFutureDate(row.datum);
+    if (fromDatum) return fromDatum;
+
+    const vreme = String(row.vreme || "").trim();
+    const m = vreme.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
+
+    if (m) {
+      const [, d, mo, y] = m;
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+
+    return null;
+  };
+
+  const findSofaEvent = (row) => {
+    const leagueId = Number(row.league_id);
+    const matchDate = getEventDate(row);
+
+    if (!Number.isFinite(leagueId) || !matchDate) {
+      return null;
+    }
+
+    const candidates = sofaEvents.filter(event =>
+      Number(event.league_id) === leagueId &&
+      String(event.match_date || "") === matchDate
+    );
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    const homeId =
+      row.home_team_id != null ? Number(row.home_team_id) : null;
+
+    const awayId =
+      row.away_team_id != null ? Number(row.away_team_id) : null;
+
+    // =========================================================
+    // 1. NAJJAČI SIGNAL:
+    // oba postojeća ID-ja moraju da odgovaraju ISTOM eventu.
+    // =========================================================
+    if (homeId != null && awayId != null) {
+      const exact = candidates.filter(event =>
+        Number(event.home_team_id) === homeId &&
+        Number(event.away_team_id) === awayId
+      );
+
+      if (exact.length === 1) {
+        return exact[0];
+      }
+    }
+
+    // =========================================================
+    // 2. Jedan ID + naziv drugog tima.
+    //
+    // VAŽNO:
+    // jedan ID SAM više nije dovoljan.
+    // =========================================================
+    if (homeId != null) {
+      const homeAnchored = candidates.filter(event =>
+        Number(event.home_team_id) === homeId &&
+        teamNameSimilar(row.away, event.away_team)
+      );
+
+      if (homeAnchored.length === 1) {
+        return homeAnchored[0];
+      }
+    }
+
+    if (awayId != null) {
+      const awayAnchored = candidates.filter(event =>
+        Number(event.away_team_id) === awayId &&
+        teamNameSimilar(row.home, event.home_team)
+      );
+
+      if (awayAnchored.length === 1) {
+        return awayAnchored[0];
+      }
+    }
+
+    // =========================================================
+    // 3. Oba naziva moraju odgovarati ISTOM eventu.
+    // =========================================================
+    const direct = candidates.filter(event =>
+      teamNameSimilar(row.home, event.home_team) &&
+      teamNameSimilar(row.away, event.away_team)
+    );
+
+    if (direct.length === 1) {
+      return direct[0];
+    }
+
+    // Ako je Mozzart uneo obrnut redosled.
+    const reversed = candidates.filter(event =>
+      teamNameSimilar(row.home, event.away_team) &&
+      teamNameSimilar(row.away, event.home_team)
+    );
+
+    if (reversed.length === 1) {
+      return reversed[0];
+    }
+
+    // =========================================================
+    // 4. Nema dovoljno dokaza -> NE diramo postojeće ID-jeve.
+    // =========================================================
+    return null;
+  };
+
+  let mappedLeagues = 0;
+  let mappedHomeTeams = 0;
+  let mappedAwayTeams = 0;
+  let sofaEventOverrides = 0;
+
+  const enrichedRows = baseRows.map(row => {
+    const event = findSofaEvent(row);
+
+    let finalHomeTeamId = row.home_team_id;
+    let finalAwayTeamId = row.away_team_id;
+
+    if (event) {
+      const eventHomeId = event.home_team_id != null
+        ? Number(event.home_team_id)
+        : null;
+
+      const eventAwayId = event.away_team_id != null
+        ? Number(event.away_team_id)
+        : null;
+
+      const existingHomeId = row.home_team_id != null
+        ? Number(row.home_team_id)
+        : null;
+
+      const existingAwayId = row.away_team_id != null
+        ? Number(row.away_team_id)
+        : null;
+
+      // Direktno poklapanje domaćina.
+      if (
+        existingHomeId != null &&
+        existingHomeId === eventHomeId
+      ) {
+        finalHomeTeamId = eventHomeId;
+        finalAwayTeamId = eventAwayId;
+      }
+
+      // Direktno poklapanje gosta.
+      else if (
+        existingAwayId != null &&
+        existingAwayId === eventAwayId
+      ) {
+        finalHomeTeamId = eventHomeId;
+        finalAwayTeamId = eventAwayId;
+      }
+
+      // Obrnuto poklapanje - event ima timove u suprotnom smeru.
+      else if (
+        existingHomeId != null &&
+        existingHomeId === eventAwayId
+      ) {
+        finalHomeTeamId = eventAwayId;
+        finalAwayTeamId = eventHomeId;
+      }
+
+      else if (
+        existingAwayId != null &&
+        existingAwayId === eventHomeId
+      ) {
+        finalHomeTeamId = eventAwayId;
+        finalAwayTeamId = eventHomeId;
+      }
+
+      // Ako nema postojećeg ID-ja, koristimo nazive
+      // samo kada je event pronađen jednoznačno.
+      else {
+        const direct =
+          teamNameSimilar(row.home, event.home_team) &&
+          teamNameSimilar(row.away, event.away_team);
+
+        const reversed =
+          teamNameSimilar(row.home, event.away_team) &&
+          teamNameSimilar(row.away, event.home_team);
+
+        if (direct) {
+          finalHomeTeamId = eventHomeId;
+          finalAwayTeamId = eventAwayId;
+        } else if (reversed) {
+          finalHomeTeamId = eventAwayId;
+          finalAwayTeamId = eventHomeId;
+        }
+      }
+
+      if (
+        finalHomeTeamId !== row.home_team_id ||
+        finalAwayTeamId !== row.away_team_id
+      ) {
+        sofaEventOverrides++;
+
+        console.log(
+          "[SofaScore override]",
+          {
+            datum: row.datum,
+            liga: row.liga,
+            home: row.home,
+            away: row.away,
+            oldHomeId: row.home_team_id,
+            oldAwayId: row.away_team_id,
+            newHomeId: finalHomeTeamId,
+            newAwayId: finalAwayTeamId,
+            sofaHome: event.home_team,
+            sofaAway: event.away_team,
+            sofaHomeId: event.home_team_id,
+            sofaAwayId: event.away_team_id,
+            round: event.round,
+            eventId: event.event_id
+          }
+        );
+      }
+    }
+
+    if (row.league_id != null) mappedLeagues++;
+    if (finalHomeTeamId != null) mappedHomeTeams++;
+    if (finalAwayTeamId != null) mappedAwayTeams++;
+
+    return {
+      ...row,
+      // Originalni Mozzart naziv ostaje netaknut.
+      league_id: row.league_id,
+      home_team_id: finalHomeTeamId,
+      away_team_id: finalAwayTeamId
+    };
+  });
+
+  console.log("===== FUTURE MATCH ALIAS MAPPING =====");
+  console.log("Ukupno novih mečeva:", enrichedRows.length);
+  console.log("Mapirane lige:", mappedLeagues);
+  console.log("Mapirani domaćini:", mappedHomeTeams);
+  console.log("Mapirani gosti:", mappedAwayTeams);
+  console.log(
+    "SofaScore event override:",
+    sofaEventOverrides
+  );
+
+  const unresolved = enrichedRows.filter(
+    row =>
+      row.league_id == null ||
+      row.home_team_id == null ||
+      row.away_team_id == null
+  );
+
+  console.log(
+    "Mečevi sa nepotpunim mapiranjem:",
+    unresolved.length
+  );
+
+  if (unresolved.length) {
+    console.table(
+      unresolved.slice(0, 100).map(row => ({
+        datum: row.datum,
+        liga: row.liga,
+        home: row.home,
+        away: row.away,
+        league_id: row.league_id,
+        home_team_id: row.home_team_id,
+        away_team_id: row.away_team_id
+      }))
+    );
   }
+
+  return enrichedRows;
 };
 
   const sortRowsByDateDesc = (rowsToSort) => [...rowsToSort].sort((a,b)=>{
@@ -165,13 +862,17 @@ const syncLeaguesAndTeams = async (rows) => {
 const importExcel = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    console.log("=== SCREEN3 IMPORT START ===");
+    console.log("Fajl:", file.name, "veličina:", file.size);
+
     const reader = new FileReader();
 reader.onload = async (e) => {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
-const newRows = data.map((r) => ({
+let newRows = data.map((r) => ({
   rb: 0,
   datum: normalizeDate(r['Datum'] ?? r['datum'] ?? ''),
   vreme: String(r['Time'] ?? r['Vreme'] ?? ''),
@@ -190,12 +891,16 @@ const newRows = data.map((r) => ({
   _new:true
 }));
 
-// ===== SUPABASE SYNC ON IMPORT =====
+console.log("IMPORT: newRows napravljeni:", newRows.length);
+
+    // ===== SUPABASE SYNC ON IMPORT =====
 try {
-  await syncLeaguesAndTeams(newRows);
+  newRows = await syncLeaguesAndTeams(newRows);
 } catch (err) {
   console.error("Supabase sync failed:", err);
 }
+
+console.log("IMPORT: syncLeaguesAndTeams završen, redova:", newRows.length);
 
 const allRows = sortRowsByDateDesc([...(futureMatches || []), ...newRows]);
 allRows.forEach((r,i)=>r.rb=i+1);

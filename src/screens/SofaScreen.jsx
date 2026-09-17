@@ -29,6 +29,8 @@ export default function SofaScreen({ onClose }) {
   const { sofaRows, setSofaRows } = useSofa();
 
   const [logs, setLogs] = useState([]);
+  const [lastImportFile, setLastImportFile] = useState("");
+  const [lastImportCount, setLastImportCount] = useState(0);
   const tableRef = useRef(null);
   const fileInputRef = useRef(null);
 const [scrollTop, setScrollTop] = useState(0);
@@ -69,6 +71,8 @@ const handleImport = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
+  setLastImportFile(file.name);
+  setLastImportCount(0);
   try {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
@@ -801,6 +805,8 @@ success = true;
   }
 }
 
+setLastImportCount(rowsToUpsert.length);
+
 log(
   `DONE: ${rowsToUpsert.length} matches imported`
 );
@@ -940,7 +946,21 @@ setSofaRows(copy);
   style={{ display: "none" }}
   onChange={handleImport}
 />
-     <div
+     {lastImportFile && (
+  <div style={{
+    margin: "10px 0 14px",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    background: "#f3f4f6",
+    fontSize: "14px",
+    lineHeight: "1.6"
+  }}>
+    <div>📄 <strong>Fajl:</strong> {lastImportFile}</div>
+    <div>⚽ <strong>Importovano mečeva:</strong> {lastImportCount}</div>
+  </div>
+)}
+
+<div
   className="sofa-table-wrapper"
   style={{ height: containerHeight, overflowY: "auto" }}
   ref={tableRef}

@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 
 const HISTORY_TABLE = "prediction_history";
 const RESULTS_TABLE = "screen1_matches";
+const VOID_AFTER_DAYS = 5;
 
 function normalizeText(value) {
   return String(value ?? "")
@@ -72,6 +73,31 @@ function parseFT(value) {
     home: Number(m[1]),
     away: Number(m[2]),
     text: `${m[1]}:${m[2]}`
+  };
+}
+
+function isPastVoidDeadline(matchDate) {
+  if (!matchDate) return false;
+
+  const baseDate = parseDate(matchDate);
+  if (!baseDate) return false;
+
+  const deadline = new Date(baseDate);
+  deadline.setDate(deadline.getDate() + VOID_AFTER_DAYS);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return today > deadline;
+}
+
+function reverseFT(ft) {
+  if (!ft) return null;
+
+  return {
+    home: ft.away,
+    away: ft.home,
+    text: `${ft.away}:${ft.home}`
   };
 }
 
@@ -166,14 +192,48 @@ function formatNumber(value, digits = 2) {
 }
 
 function statusLabel(row) {
+  const ft = parseFT(
+    row.actualFt ||
+    row.actual_ft
+  );
+
+  if (ft) {
+    const correct = settleMarket(
+      row.predicted_market,
+      ft.home,
+      ft.away
+    );
+
+    if (correct === true) return "POGODAK";
+    if (correct === false) return "PROMAŠAJ";
+  }
+
   if (row.is_correct === true) return "POGODAK";
   if (row.is_correct === false) return "PROMAŠAJ";
+
   return "ČEKA";
 }
 
 function statusClass(row) {
+  const ft = parseFT(
+    row.actualFt ||
+    row.actual_ft
+  );
+
+  if (ft) {
+    const correct = settleMarket(
+      row.predicted_market,
+      ft.home,
+      ft.away
+    );
+
+    if (correct === true) return "hit";
+    if (correct === false) return "miss";
+  }
+
   if (row.is_correct === true) return "hit";
   if (row.is_correct === false) return "miss";
+
   return "pending";
 }
 
@@ -190,54 +250,104 @@ export default function Screen5() {
     setLoading(true);
     setError("");
 
-    const [
-      predictionResponse,
-      resultResponse
-    ] = await Promise.all([
-      supabase
-        .from(HISTORY_TABLE)
-        .select("*")
-        .order("match_date", { ascending: false })
-        .order("match_time", { ascending: false }),
+    const predictionPageSize = 1000;
+    let predictionFrom = 0;
+    let allPredictions = [];
 
-      supabase
+    while (true) {
+      const { data: predictionPage, error: predictionPageError } =
+        await supabase
+          .from(HISTORY_TABLE)
+          .select("*")
+          .order("match_date", { ascending: false })
+          .order("match_time", { ascending: false })
+          .range(
+            predictionFrom,
+            predictionFrom + predictionPageSize - 1
+          );
+
+      if (predictionPageError) {
+        console.error(
+          "[Screen5] prediction_history:",
+          predictionPageError
+        );
+
+        setError(
+          predictionPageError.message ||
+          "Greška pri učitavanju istorije."
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      allPredictions = [
+        ...allPredictions,
+        ...(predictionPage || [])
+      ];
+
+      if (
+        !predictionPage ||
+        predictionPage.length < predictionPageSize
+      ) {
+        break;
+      }
+
+      predictionFrom += predictionPageSize;
+    }
+
+    console.log(
+      "[Screen5] prediction_history ukupno:",
+      allPredictions.length
+    );
+
+    const resultPageSize = 1000;
+    let resultFrom = 0;
+    let allResults = [];
+
+    while (true) {
+      const { data: resultPage, error: resultError } = await supabase
         .from(RESULTS_TABLE)
         .select("*")
         .order("match_date", { ascending: false })
-    ]);
+        .range(resultFrom, resultFrom + resultPageSize - 1);
 
-    if (predictionResponse.error) {
-      console.error(
-        "[Screen5] prediction_history:",
-        predictionResponse.error
-      );
+      if (resultError) {
+        console.error(
+          "[Screen5] screen1_matches:",
+          resultError
+        );
 
-      setError(
-        predictionResponse.error.message ||
-        "Greška pri učitavanju istorije."
-      );
+        setError(
+          resultError.message ||
+          "Greška pri učitavanju rezultata."
+        );
 
-      setLoading(false);
-      return;
+        setLoading(false);
+        return;
+      }
+
+      allResults = [
+        ...allResults,
+        ...(resultPage || [])
+      ];
+
+      if (!resultPage || resultPage.length < resultPageSize) {
+        break;
+      }
+
+      resultFrom += resultPageSize;
     }
 
-    if (resultResponse.error) {
-      console.error(
-        "[Screen5] screen1_matches:",
-        resultResponse.error
-      );
+    const predictionsData = allPredictions;
 
-      setError(
-        resultResponse.error.message ||
-        "Greška pri učitavanju rezultata."
-      );
+    console.log(
+      "[Screen5] Učitano screen1_matches:",
+      allResults.length
+    );
 
-      setLoading(false);
-      return;
-    }
-
-    setPredictions(predictionResponse.data || []);
-    setResults(resultResponse.data || []);
+    setPredictions(predictionsData || []);
+    setResults(allResults);
     setLoading(false);
   }, []);
 
@@ -254,6 +364,32 @@ export default function Screen5() {
       if (!key || key === "||") continue;
 
       map.set(key, row);
+
+      if (
+        row.home_team_id !== null &&
+        row.home_team_id !== undefined &&
+        row.away_team_id !== null &&
+        row.away_team_id !== undefined
+      ) {
+        const teamKey = [
+          dateKey(row.match_date || row.date || row.datum),
+          String(row.home_team_id),
+          String(row.away_team_id)
+        ].join("|");
+
+        const fullKey = `TEAM|${teamKey}`;
+        const existing = map.get(fullKey);
+
+        if (existing) {
+          if (Array.isArray(existing)) {
+            existing.push(row);
+          } else {
+            map.set(fullKey, [existing, row]);
+          }
+        } else {
+          map.set(fullKey, [row]);
+        }
+      }
     }
 
     return map;
@@ -261,8 +397,115 @@ export default function Screen5() {
 
   const evaluated = useMemo(() => {
     return predictions.map(prediction => {
-      const key = buildPredictionKey(prediction);
-      const result = resultMap.get(key);
+      let result = null;
+      let reversed = false;
+      let dateShiftDays = 0;
+
+      const hasFT = row => {
+        if (!row) return false;
+
+        return Boolean(
+          parseFT(
+            row.ft ||
+            row.score ||
+            row.result
+          )
+        );
+      };
+
+      const getCandidates = key => {
+        const value = resultMap.get(key);
+
+        if (!value) return [];
+
+        return Array.isArray(value) ? value : [value];
+      };
+
+      if (
+        prediction.home_team_id !== null &&
+        prediction.home_team_id !== undefined &&
+        prediction.away_team_id !== null &&
+        prediction.away_team_id !== undefined
+      ) {
+        const predictionDate = parseDate(prediction.match_date);
+
+        // Prvo tražimo isti datum, zatim -1 i +1 dan.
+        const dateOffsets = [0, -1, 1];
+
+        for (const offset of dateOffsets) {
+          if (!predictionDate || result) break;
+
+          const candidateDate = new Date(predictionDate);
+          candidateDate.setDate(candidateDate.getDate() + offset);
+
+          const candidateDateKey = dateKey(candidateDate);
+
+          // Direktan smer.
+          const teamKey = [
+            candidateDateKey,
+            String(prediction.home_team_id),
+            String(prediction.away_team_id)
+          ].join("|");
+
+          const directCandidates = getCandidates(`TEAM|${teamKey}`);
+
+          // Obrnut smer.
+          const reverseTeamKey = [
+            candidateDateKey,
+            String(prediction.away_team_id),
+            String(prediction.home_team_id)
+          ].join("|");
+
+          const reverseCandidates = getCandidates(
+            `TEAM|${reverseTeamKey}`
+          );
+
+          // Prvo tražimo bilo koji zapis sa stvarnim FT.
+          // Ako direktni zapis postoji ali je prazan, a obrnuti ima FT,
+          // obrnuti zapis mora imati prioritet.
+          const directWithFT =
+            directCandidates.find(hasFT) || null;
+
+          const reverseWithFT =
+            reverseCandidates.find(hasFT) || null;
+
+          if (directWithFT) {
+            result = directWithFT;
+            reversed = false;
+            dateShiftDays = offset;
+            break;
+          }
+
+          if (reverseWithFT) {
+            result = reverseWithFT;
+            reversed = true;
+            dateShiftDays = offset;
+            break;
+          }
+
+          // Ako nijedan zapis nema FT, zadržavamo direktni pa obrnuti.
+          if (directCandidates.length) {
+            result = directCandidates[0];
+            reversed = false;
+            dateShiftDays = offset;
+            break;
+          }
+
+          if (reverseCandidates.length) {
+            result = reverseCandidates[0];
+            reversed = true;
+            dateShiftDays = offset;
+            break;
+          }
+        }
+      }
+
+      // Ako nema team-ID poklapanja, ostaje postojeći fallback
+      // preko naziva utakmice.
+      if (!result) {
+        const key = buildPredictionKey(prediction);
+        result = resultMap.get(key) || null;
+      }
 
       if (!result) {
         return {
@@ -270,15 +513,20 @@ export default function Screen5() {
           result: null,
           actualFt: null,
           actualOutcome: null,
-          is_correct: null
+          is_correct: null,
+          dateShiftDays: 0
         };
       }
 
-      const ft = parseFT(
+      let ft = parseFT(
         result.ft ||
         result.score ||
         result.result
       );
+
+      if (reversed) {
+        ft = reverseFT(ft);
+      }
 
       if (!ft) {
         return {
@@ -286,7 +534,9 @@ export default function Screen5() {
           result,
           actualFt: null,
           actualOutcome: null,
-          is_correct: null
+          is_correct: null,
+          resultReversed: reversed,
+          dateShiftDays
         };
       }
 
@@ -303,13 +553,72 @@ export default function Screen5() {
         actualHomeGoals: ft.home,
         actualAwayGoals: ft.away,
         actualOutcome: actualOutcome(ft.home, ft.away),
-        is_correct: correct
+        is_correct: correct,
+        resultReversed: reversed,
+        dateShiftDays
       };
     });
   }, [predictions, resultMap]);
 
+  useEffect(() => {
+    const candidates = evaluated.filter(row => {
+      if (row.status === "VOID") return false;
+      if (row.is_correct !== null) return false;
+
+      // Ako postoji FT, utakmica je rešena i ne sme u VOID.
+      const ft = parseFT(
+        row.result?.ft ||
+        row.result?.score ||
+        row.result?.result
+      );
+
+      if (ft) return false;
+
+      return isPastVoidDeadline(row.match_date);
+    });
+
+    if (!candidates.length) return;
+
+    const ids = candidates
+      .map(row => row.id)
+      .filter(id => id !== null && id !== undefined);
+
+    if (!ids.length) return;
+
+    const markAsVoid = async () => {
+      const { error } = await supabase
+        .from(HISTORY_TABLE)
+        .update({ status: "VOID" })
+        .in("id", ids);
+
+      if (error) {
+        console.error("[Screen5] Greška pri VOID predikcijama:", error);
+        return;
+      }
+
+      console.log(
+        "[Screen5] VOID predikcije nakon 5 dana:",
+        ids
+      );
+
+      setPredictions(prev =>
+        prev.map(row =>
+          ids.includes(row.id)
+            ? { ...row, status: "VOID" }
+            : row
+        )
+      );
+    };
+
+    markAsVoid();
+  }, [evaluated]);
+
+  const activeEvaluated = useMemo(() => {
+    return evaluated.filter(row => row.status !== "VOID");
+  }, [evaluated]);
+
   const stats = useMemo(() => {
-    const settled = evaluated.filter(
+    const settled = activeEvaluated.filter(
       row => row.is_correct !== null
     );
 
@@ -321,7 +630,7 @@ export default function Screen5() {
       row => row.is_correct === false
     ).length;
 
-    const pending = evaluated.length - settled.length;
+    const pending = activeEvaluated.length - settled.length;
 
     const accuracy =
       settled.length > 0
@@ -344,7 +653,7 @@ export default function Screen5() {
         : null;
 
     return {
-      total: evaluated.length,
+      total: activeEvaluated.length,
       settled: settled.length,
       hits,
       misses,
@@ -353,7 +662,7 @@ export default function Screen5() {
       avgProbability,
       calibrationGap
     };
-  }, [evaluated]);
+  }, [activeEvaluated]);
 
   const marketStats = useMemo(() => {
     const map = new Map();
@@ -449,7 +758,12 @@ export default function Screen5() {
       }
 
       if (filter === "pending") {
-        return row.is_correct === null;
+        const ft = parseFT(
+          row.actualFt ||
+          row.actual_ft
+        );
+
+        return !ft;
       }
 
       return true;

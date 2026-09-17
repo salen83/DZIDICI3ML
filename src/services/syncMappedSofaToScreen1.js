@@ -61,6 +61,25 @@ const matches = await fetchAll(
 
 console.log("📦 MATCHES ZA SCREEN1:", matches.length);
 
+console.log(
+  "📅 MATCHES DATUMI:",
+  {
+    "2026-09-13": matches.filter(x => x.match_date === "2026-09-13").length,
+    "2026-09-14": matches.filter(x => x.match_date === "2026-09-14").length,
+    min: matches.map(x => x.match_date).filter(Boolean).sort()[0],
+    max: matches.map(x => x.match_date).filter(Boolean).sort().slice(-1)[0],
+    latest: matches
+      .map(x => ({
+        id: x.id,
+        date: x.match_date,
+        home: x.raw_home,
+        away: x.raw_away
+      }))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 10)
+  }
+);
+
 if (!matches || matches.length === 0) {
   console.log("❌ Nema Sofa mečeva u matches tabeli.");
 
@@ -339,6 +358,19 @@ country:
     );
 
     console.log(
+      "📅 PAYLOAD DATUMI:",
+      {
+        "2026-09-13": payload.filter(x => x.match_date === "2026-09-13").length,
+        "2026-09-14": payload.filter(x => x.match_date === "2026-09-14").length,
+        latest: payload
+          .map(x => x.match_date)
+          .filter(Boolean)
+          .sort()
+          .slice(-5)
+      }
+    );
+
+    console.log(
       "⚠️ FAILED MAPPINGS:",
       failedMappings.length
     );
@@ -405,6 +437,43 @@ country:
 
         let screen1Sync = null;
         let screen1SyncError = null;
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          console.log(
+            `🔄 SCREEN1 RPC BATCH ${batchNumber}/${totalBatches} ATTEMPT ${attempt}/${MAX_RETRIES}`
+          );
+
+          const result = await supabase.rpc(
+            "sync_screen1_matches_bulk",
+            {
+              p_matches: batch
+            }
+          );
+
+          screen1Sync = result.data;
+          screen1SyncError = result.error;
+
+          if (!screen1SyncError) {
+            break;
+          }
+
+          console.warn(
+            `⚠️ SCREEN1 RPC BATCH ${batchNumber}/${totalBatches} ATTEMPT ${attempt} FAILED:`,
+            screen1SyncError
+          );
+
+          if (attempt < MAX_RETRIES) {
+            const delayMs = attempt * 2000;
+
+            console.log(
+              `⏳ SCREEN1 RPC RETRY ZA ${delayMs}ms...`
+            );
+
+            await new Promise(resolve =>
+              setTimeout(resolve, delayMs)
+            );
+          }
+        }
 
         if (screen1SyncError) {
 
