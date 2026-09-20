@@ -1437,7 +1437,7 @@ function resolveFutureRows(data) {
     "alias"
   );
 
-  const teamStats = indexByTeam(
+  const teamStats = indexByTeamLeague(
     data.teamStats
   );
 
@@ -1509,12 +1509,6 @@ function resolveFutureRows(data) {
         row.countryId ??
         null;
 
-      const league = resolveLeague(
-        leagueName,
-        leagueMap,
-        countryId
-      );
-
       const homeName =
         row.home ??
         row.home_team ??
@@ -1527,23 +1521,106 @@ function resolveFutureRows(data) {
         row.gost ??
         "";
 
-      const homeAlias =
-        resolveTeam(
-          teamMap.get(
-            norm(homeName)
-          ) || [],
-          league.id,
+      /*
+       * IMPORTANT:
+       * future_matches already contains authoritative SofaScore IDs.
+       * Prefer those IDs over resolving the league/team again by name.
+       *
+       * This prevents cases such as:
+       *   "Češka 3" -> ambiguous (9386 / 9387)
+       * even though the row already says league_id=9386 or 9387.
+       */
+
+      const explicitLeagueId =
+        row.league_id ??
+        row.leagueId ??
+        null;
+
+      let league = null;
+
+      if (
+        explicitLeagueId !== null &&
+        explicitLeagueId !== undefined &&
+        explicitLeagueId !== ""
+      ) {
+        const leagueIdString =
+          String(explicitLeagueId);
+
+        const leagueRows =
+          Array.from(
+            leagueMap.values()
+          ).flat().filter(
+            r =>
+              String(r.league_id) ===
+              leagueIdString
+          );
+
+        const leagueRow =
+          leagueRows.length
+            ? leagueRows
+                .sort(
+                  (a, b) =>
+                    num(b.confidence) -
+                    num(a.confidence)
+                )[0]
+            : null;
+
+        league = {
+          id: explicitLeagueId,
+          row: leagueRow,
+          reason: null
+        };
+      } else {
+        league = resolveLeague(
+          leagueName,
+          leagueMap,
           countryId
         );
+      }
+
+      const explicitHomeId =
+        row.home_team_id ??
+        row.homeTeamId ??
+        null;
+
+      const explicitAwayId =
+        row.away_team_id ??
+        row.awayTeamId ??
+        null;
+
+      const homeAlias =
+        explicitHomeId !== null &&
+        explicitHomeId !== undefined &&
+        explicitHomeId !== ""
+          ? {
+              team_id: explicitHomeId,
+              league_id: league.id,
+              alias: homeName
+            }
+          : resolveTeam(
+              teamMap.get(
+                norm(homeName)
+              ) || [],
+              league.id,
+              countryId
+            );
 
       const awayAlias =
-        resolveTeam(
-          teamMap.get(
-            norm(awayName)
-          ) || [],
-          league.id,
-          countryId
-        );
+        explicitAwayId !== null &&
+        explicitAwayId !== undefined &&
+        explicitAwayId !== ""
+          ? {
+              team_id: explicitAwayId,
+              league_id: league.id,
+              alias: awayName
+            }
+          : resolveTeam(
+              teamMap.get(
+                norm(awayName)
+              ) || [],
+              league.id,
+              countryId
+            );
 
       const issues = [];
 
@@ -1572,18 +1649,92 @@ function resolveFutureRows(data) {
         awayAlias?.team_id ?? null;
 
       const hs =
-        homeId
+        homeId && league.id
           ? teamStats.get(
-              String(homeId)
+              key2(
+                homeId,
+                league.id
+              )
             )
           : null;
 
       const as =
-        awayId
+        awayId && league.id
           ? teamStats.get(
-              String(awayId)
+              key2(
+                awayId,
+                league.id
+              )
             )
           : null;
+
+
+      if (
+        [
+          "Vasco Da Gama",
+          "Sao Paulo",
+          "Deportivo Saprissa",
+          "Gangwon",
+          "Jeonbuk Hyundai Motors",
+          "Gamba Osaka",
+          "Machida Zelvia"
+        ].some(
+          name =>
+            norm(homeName) === norm(name) ||
+            norm(awayName) === norm(name)
+        )
+      ) {
+        console.log("[Screen4 DEBUG TEAM STATS]", {
+          homeName,
+          awayName,
+          leagueName,
+          leagueId: league.id,
+          explicitHomeId,
+          explicitAwayId,
+          homeId,
+          awayId,
+          homeKey: homeId && league.id
+            ? key2(homeId, league.id)
+            : null,
+          awayKey: awayId && league.id
+            ? key2(awayId, league.id)
+            : null,
+          hs,
+          as,
+          matchingTeamStats: (data.teamStats || [])
+            .filter(
+              r =>
+                String(r.team_id) === String(homeId) ||
+                String(r.team_id) === String(awayId)
+            )
+            .map(r => ({
+              team_id: r.team_id,
+              league_id: r.league_id,
+              season_id: r.season_id,
+              team: r.team,
+              league: r.league,
+              played: r.played
+            })),
+          matchingTeamStatsJSON: JSON.stringify(
+            (data.teamStats || [])
+              .filter(
+                r =>
+                  String(r.team_id) === String(homeId) ||
+                  String(r.team_id) === String(awayId)
+              )
+              .map(r => ({
+                team_id: r.team_id,
+                league_id: r.league_id,
+                season_id: r.season_id,
+                team: r.team,
+                league: r.league,
+                played: r.played
+              })),
+            null,
+            2
+          )
+        });
+      }
 
       if (
         homeId &&
