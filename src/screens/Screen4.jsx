@@ -1441,12 +1441,12 @@ function resolveFutureRows(data) {
     data.teamStats
   );
 
-  const formStats = indexByTeam(
+  const formStats = indexByTeamLeague(
     data.formStats
   );
 
   const homeAwayStats =
-    indexByTeam(
+    indexByTeamLeague(
       data.homeAwayStats
     );
 
@@ -1820,30 +1820,42 @@ function resolveFutureRows(data) {
           away: as,
 
           homeForm:
-            homeId
+            homeId && league.id
               ? formStats.get(
-                  String(homeId)
+                  key2(
+                    homeId,
+                    league.id
+                  )
                 )
               : null,
 
           awayForm:
-            awayId
+            awayId && league.id
               ? formStats.get(
-                  String(awayId)
+                  key2(
+                    awayId,
+                    league.id
+                  )
                 )
               : null,
 
           homeAwayHome:
-            homeId
+            homeId && league.id
               ? homeAwayStats.get(
-                  String(homeId)
+                  key2(
+                    homeId,
+                    league.id
+                  )
                 )
               : null,
 
           homeAwayAway:
-            awayId
+            awayId && league.id
               ? homeAwayStats.get(
-                  String(awayId)
+                  key2(
+                    awayId,
+                    league.id
+                  )
                 )
               : null,
 
@@ -1983,31 +1995,73 @@ function expectedGoals(match) {
       )
     );
 
+  /*
+   * Home/away split ima prioritet samo kada zaista postoji
+   * dovoljan split sample. Ako ga nema, koristimo team-wide
+   * league statistiku umesto nula.
+   */
+
+  const homeSplitMatches =
+    num(home.home_matches);
+
+  const awaySplitMatches =
+    num(away.away_matches);
+
+  const homeMatches =
+    homeSplitMatches > 0
+      ? homeSplitMatches
+      : num(home.matches_played);
+
+  const awayMatches =
+    awaySplitMatches > 0
+      ? awaySplitMatches
+      : num(away.matches_played);
+
+  const homeGFSource =
+    homeSplitMatches > 0
+      ? home.home_goals_for
+      : home.goals_for;
+
+  const homeGASource =
+    homeSplitMatches > 0
+      ? home.home_goals_against
+      : home.goals_against;
+
+  const awayGFSource =
+    awaySplitMatches > 0
+      ? away.away_goals_for
+      : away.goals_for;
+
+  const awayGASource =
+    awaySplitMatches > 0
+      ? away.away_goals_against
+      : away.goals_against;
+
   const homeGF =
     shrinkRate(
-      home.home_goals_for,
-      home.home_matches,
+      homeGFSource,
+      homeMatches,
       leagueHome
     );
 
   const homeGA =
     shrinkRate(
-      home.home_goals_against,
-      home.home_matches,
+      homeGASource,
+      homeMatches,
       leagueAway
     );
 
   const awayGF =
     shrinkRate(
-      away.away_goals_for,
-      away.away_matches,
+      awayGFSource,
+      awayMatches,
       leagueAway
     );
 
   const awayGA =
     shrinkRate(
-      away.away_goals_against,
-      away.away_matches,
+      awayGASource,
+      awayMatches,
       leagueHome
     );
 
@@ -2271,6 +2325,62 @@ function makePrediction(match) {
 
   const rates =
     expectedGoals(match);
+  if (
+    String(match.homeId) === "2952" ||
+    String(match.awayId) === "2952"
+  ) {
+    console.log("[MODEL DEBUG PSV]", {
+      leagueId:
+        match.league?.id ??
+        match.stats?.league?.league_id ??
+        match.stats?.league?.id,
+      homeId: match.homeId,
+      awayId: match.awayId,
+      homeGF: match.stats?.home?.home_goals_for,
+      homeGA: match.stats?.home?.home_goals_against,
+      homeMatches: match.stats?.home?.home_matches,
+      awayGF: match.stats?.away?.away_goals_for,
+      awayGA: match.stats?.away?.away_goals_against,
+      awayMatches: match.stats?.away?.away_matches,
+      homeFormMatches: match.stats?.homeForm?.last10_matches,
+      awayFormMatches: match.stats?.awayForm?.last10_matches,
+      homeAwayHomeMatches:
+        match.stats?.homeAwayHome?.home10_matches,
+      awayAwayAwayMatches:
+        match.stats?.awayAwayAway?.away10_matches,
+      homePPG:
+        match.stats?.homeAwayHome?.home10_ppg,
+      awayPPG:
+        match.stats?.awayAwayAway?.away10_ppg,
+
+      effectiveTeamStats: {
+        home: {
+          splitMatches:
+            match.stats?.home?.home_matches,
+          totalMatches:
+            match.stats?.home?.matches_played,
+          totalGF:
+            match.stats?.home?.goals_for,
+          totalGA:
+            match.stats?.home?.goals_against,
+        },
+        away: {
+          splitMatches:
+            match.stats?.away?.away_matches,
+          totalMatches:
+            match.stats?.away?.matches_played,
+          totalGF:
+            match.stats?.away?.goals_for,
+          totalGA:
+            match.stats?.away?.goals_against,
+        }
+      },
+
+      rates
+    });
+
+  }
+
 
   if (!rates) {
     return null;
@@ -2639,15 +2749,22 @@ function makePrediction(match) {
         1
       );
 
-    const edgeScore =
+    const rawEdge =
       edge === null
-        ? .45
-        : clamp(
-            (edge + .04) /
-              .18,
-            0,
-            1
-          );
+        ? 0
+        : Math.max(0, edge);
+
+    /*
+     * Edge saturation:
+     * umeren edge dobija bonus, ali ekstremni
+     * edge više ne dominira selekcijom.
+     */
+    const edgeBonus =
+      clamp(
+        rawEdge / .15,
+        0,
+        1
+      );
 
     const probScore =
       clamp(
@@ -2661,18 +2778,29 @@ function makePrediction(match) {
       Math.round(
         100 *
         clamp(
-          .68 * probScore +
-          .17 * edgeScore +
+          .72 * probScore +
+          .13 * edgeBonus +
           .15 * sample,
           0,
           1
         )
       );
 
+    /*
+     * EV je ograničen da ekstremne kvote
+     * ne preuzmu selekciju.
+     */
+    const evBonus =
+      clamp(
+        ev ?? 0,
+        -.25,
+        .50
+      );
+
     const qualityScore =
       m.probability * 100 +
-      (edge ?? 0) * 45 +
-      (ev ?? 0) * 20 +
+      edgeBonus * 8 +
+      evBonus * 8 +
       confidence * .10;
 
     return {
