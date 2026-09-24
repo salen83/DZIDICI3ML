@@ -1,28 +1,34 @@
-import { neon } from "@neondatabase/serverless";
+import { Client } from "pg";
 
 export default {
   async fetch(request, env) {
-    try {
-      const sql = neon(env.NEON_DATABASE_URL);
+    const client = new Client({
+      connectionString: env.HYPERDRIVE.connectionString
+    });
 
-      const result = await sql`
+    try {
+      await client.connect();
+
+      const result = await client.query(`
         SELECT player_id, name
         FROM players
         LIMIT 1
-      `;
+      `);
 
       return Response.json({
         ok: true,
-        data: result
+        data: result.rows
       });
     } catch (error) {
       return Response.json(
         {
           ok: false,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         },
         { status: 500 }
       );
+    } finally {
+      await client.end().catch(() => {});
     }
   }
 };

@@ -2,6 +2,8 @@ name = "dzidici-player-api"
 main = "worker.js"
 compatibility_date = "2026-09-24"
 
+compatibility_flags = ["nodejs_compat"]
+
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "fdcb866ec5fa4d5aa2a9ebbd850f6e81"
