@@ -53,6 +53,23 @@ export default {
         });
       }
 
+      // GET /players/ids
+      if (
+        request.method === "GET" &&
+        url.pathname === "/players/ids"
+      ) {
+        const result = await client.query(`
+          SELECT player_id
+          FROM players
+          ORDER BY player_id
+        `);
+
+        return jsonResponse({
+          ok: true,
+          player_ids: result.rows.map(row => String(row.player_id))
+        });
+      }
+
       // POST /players
       if (
         request.method === "POST" &&
