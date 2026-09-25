@@ -1,7 +1,33 @@
 import { Client } from "pg";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400"
+};
+
+function jsonResponse(data, options = {}) {
+  const response = Response.json(data, options);
+
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+
+  return response;
+}
+
 export default {
   async fetch(request, env) {
+
+    // CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: CORS_HEADERS
+      });
+    }
+
     const client = new Client({
       connectionString: env.HYPERDRIVE.connectionString
     });
@@ -12,8 +38,8 @@ export default {
       const url = new URL(request.url);
 
       // GET /
-      // Provera veze i prikaz prvih igrača
       if (request.method === "GET" && url.pathname === "/") {
+
         const result = await client.query(`
           SELECT player_id, name
           FROM players
@@ -21,19 +47,22 @@ export default {
           LIMIT 10
         `);
 
-        return Response.json({
+        return jsonResponse({
           ok: true,
           data: result.rows
         });
       }
 
       // POST /players
-      // Upis / izmena osnovnih podataka igrača
-      if (request.method === "POST" && url.pathname === "/players") {
+      if (
+        request.method === "POST" &&
+        url.pathname === "/players"
+      ) {
+
         const body = await request.json();
 
         if (!body.player_id || !body.name) {
-          return Response.json(
+          return jsonResponse(
             {
               ok: false,
               error: "player_id and name are required"
@@ -91,19 +120,22 @@ export default {
           ]
         );
 
-        return Response.json({
+        return jsonResponse({
           ok: true,
           player: result.rows[0]
         });
       }
 
       // POST /sync/player
-      // Glavni endpoint za sinhronizaciju jednog igrača
-      if (request.method === "POST" && url.pathname === "/sync/player") {
+      if (
+        request.method === "POST" &&
+        url.pathname === "/sync/player"
+      ) {
+
         const body = await request.json();
 
         if (!body.player_id) {
-          return Response.json(
+          return jsonResponse(
             {
               ok: false,
               error: "player_id is required"
@@ -112,20 +144,22 @@ export default {
           );
         }
 
-        const playerId = String(body.player_id);
+        const playerId =
+          String(body.player_id);
 
-        const playerResult = await client.query(
-          `
-          SELECT *
-          FROM players
-          WHERE player_id = $1
-          LIMIT 1
-          `,
-          [playerId]
-        );
+        const playerResult =
+          await client.query(
+            `
+            SELECT *
+            FROM players
+            WHERE player_id = $1
+            LIMIT 1
+            `,
+            [playerId]
+          );
 
         if (playerResult.rows.length === 0) {
-          return Response.json(
+          return jsonResponse(
             {
               ok: false,
               error: "Player not found",
@@ -135,7 +169,7 @@ export default {
           );
         }
 
-        return Response.json({
+        return jsonResponse({
           ok: true,
           player: playerResult.rows[0],
           season_stats: [],
@@ -145,7 +179,7 @@ export default {
         });
       }
 
-      return Response.json(
+      return jsonResponse(
         {
           ok: false,
           error: "Not found"
@@ -154,17 +188,20 @@ export default {
       );
 
     } catch (error) {
-      return Response.json(
+
+      return jsonResponse(
         {
           ok: false,
-          error: error instanceof Error
-            ? error.message
-            : String(error)
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error)
         },
         { status: 500 }
       );
 
     } finally {
+
       await client.end().catch(() => {});
     }
   }
