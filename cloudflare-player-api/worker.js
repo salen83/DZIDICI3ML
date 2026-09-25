@@ -28,7 +28,7 @@ export default {
       }
 
       // POST /players
-      // Ručni upis/izmena igrača
+      // Upis / izmena osnovnih podataka igrača
       if (request.method === "POST" && url.pathname === "/players") {
         const body = await request.json();
 
@@ -44,13 +44,51 @@ export default {
 
         const result = await client.query(
           `
-          INSERT INTO players (player_id, name)
-          VALUES ($1, $2)
+          INSERT INTO players (
+            player_id,
+            name,
+            slug,
+            position,
+            nationality,
+            date_of_birth,
+            height_cm,
+            preferred_foot
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+
           ON CONFLICT (player_id)
-          DO UPDATE SET name = EXCLUDED.name
-          RETURNING player_id, name
+          DO UPDATE SET
+            name = EXCLUDED.name,
+            slug = EXCLUDED.slug,
+            position = EXCLUDED.position,
+            nationality = EXCLUDED.nationality,
+            date_of_birth = EXCLUDED.date_of_birth,
+            height_cm = EXCLUDED.height_cm,
+            preferred_foot = EXCLUDED.preferred_foot,
+            updated_at = NOW()
+
+          RETURNING
+            player_id,
+            name,
+            slug,
+            position,
+            nationality,
+            date_of_birth,
+            height_cm,
+            preferred_foot,
+            created_at,
+            updated_at
           `,
-          [body.player_id, body.name]
+          [
+            body.player_id,
+            body.name,
+            body.slug ?? null,
+            body.position ?? null,
+            body.nationality ?? null,
+            body.date_of_birth ?? null,
+            body.height_cm ?? null,
+            body.preferred_foot ?? null
+          ]
         );
 
         return Response.json({
@@ -114,14 +152,18 @@ export default {
         },
         { status: 404 }
       );
+
     } catch (error) {
       return Response.json(
         {
           ok: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error
+            ? error.message
+            : String(error)
         },
         { status: 500 }
       );
+
     } finally {
       await client.end().catch(() => {});
     }
