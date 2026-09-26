@@ -19,8 +19,6 @@ function jsonResponse(data, options = {}) {
 
 export default {
   async fetch(request, env) {
-
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -37,9 +35,13 @@ export default {
 
       const url = new URL(request.url);
 
+      // =========================================================
       // GET /
-      if (request.method === "GET" && url.pathname === "/") {
-
+      // =========================================================
+      if (
+        request.method === "GET" &&
+        url.pathname === "/"
+      ) {
         const result = await client.query(`
           SELECT player_id, name
           FROM players
@@ -53,7 +55,9 @@ export default {
         });
       }
 
+      // =========================================================
       // GET /players/ids
+      // =========================================================
       if (
         request.method === "GET" &&
         url.pathname === "/players/ids"
@@ -70,12 +74,13 @@ export default {
         });
       }
 
+      // =========================================================
       // POST /players
+      // =========================================================
       if (
         request.method === "POST" &&
         url.pathname === "/players"
       ) {
-
         const body = await request.json();
 
         if (!body.player_id || !body.name) {
@@ -143,12 +148,130 @@ export default {
         });
       }
 
+      // =========================================================
+      // POST /players/batch
+      // =========================================================
+      if (
+        request.method === "POST" &&
+        url.pathname === "/players/batch"
+      ) {
+        const body = await request.json();
+
+        if (!Array.isArray(body.players)) {
+          return jsonResponse(
+            {
+              ok: false,
+              error: "players must be an array"
+            },
+            { status: 400 }
+          );
+        }
+
+        if (body.players.length === 0) {
+          return jsonResponse({
+            ok: true,
+            inserted: 0,
+            updated: 0,
+            total: 0
+          });
+        }
+
+        if (body.players.length > 100) {
+          return jsonResponse(
+            {
+              ok: false,
+              error: "Maximum 100 players per batch"
+            },
+            { status: 400 }
+          );
+        }
+
+        let inserted = 0;
+        let updated = 0;
+        const errors = [];
+
+        for (const player of body.players) {
+          try {
+            if (!player.player_id || !player.name) {
+              errors.push({
+                player_id: player.player_id ?? null,
+                error: "player_id and name are required"
+              });
+              continue;
+            }
+
+            const result = await client.query(
+              `
+              INSERT INTO players (
+                player_id,
+                name,
+                slug,
+                position,
+                nationality,
+                date_of_birth,
+                height_cm,
+                preferred_foot
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+
+              ON CONFLICT (player_id)
+              DO UPDATE SET
+                name = EXCLUDED.name,
+                slug = EXCLUDED.slug,
+                position = EXCLUDED.position,
+                nationality = EXCLUDED.nationality,
+                date_of_birth = EXCLUDED.date_of_birth,
+                height_cm = EXCLUDED.height_cm,
+                preferred_foot = EXCLUDED.preferred_foot,
+                updated_at = NOW()
+
+              RETURNING
+                (xmax = 0) AS was_inserted
+              `,
+              [
+                player.player_id,
+                player.name,
+                player.slug ?? null,
+                player.position ?? null,
+                player.nationality ?? null,
+                player.date_of_birth ?? null,
+                player.height_cm ?? null,
+                player.preferred_foot ?? null
+              ]
+            );
+
+            if (result.rows[0]?.was_inserted) {
+              inserted++;
+            } else {
+              updated++;
+            }
+          } catch (error) {
+            errors.push({
+              player_id: player.player_id ?? null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+            });
+          }
+        }
+
+        return jsonResponse({
+          ok: errors.length === 0,
+          inserted,
+          updated,
+          total: body.players.length,
+          errors
+        });
+      }
+
+      // =========================================================
       // POST /sync/player
+      // =========================================================
       if (
         request.method === "POST" &&
         url.pathname === "/sync/player"
       ) {
-
         const body = await request.json();
 
         if (!body.player_id) {
@@ -161,19 +284,17 @@ export default {
           );
         }
 
-        const playerId =
-          String(body.player_id);
+        const playerId = String(body.player_id);
 
-        const playerResult =
-          await client.query(
-            `
-            SELECT *
-            FROM players
-            WHERE player_id = $1
-            LIMIT 1
-            `,
-            [playerId]
-          );
+        const playerResult = await client.query(
+          `
+          SELECT *
+          FROM players
+          WHERE player_id = $1
+          LIMIT 1
+          `,
+          [playerId]
+        );
 
         if (playerResult.rows.length === 0) {
           return jsonResponse(
@@ -203,9 +324,7 @@ export default {
         },
         { status: 404 }
       );
-
     } catch (error) {
-
       return jsonResponse(
         {
           ok: false,
@@ -216,9 +335,7 @@ export default {
         },
         { status: 500 }
       );
-
     } finally {
-
       await client.end().catch(() => {});
     }
   }
