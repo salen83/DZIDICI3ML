@@ -7,8 +7,8 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400"
 };
 
-const PROFILE_BATCH_MAX = 1000;
-const ID_BATCH_MAX = 2000;
+const PROFILE_BATCH_MAX = 10000;
+const ID_BATCH_MAX = 10000;
 
 function jsonResponse(data, options = {}) {
   const response = Response.json(data, options);
