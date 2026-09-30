@@ -43,6 +43,7 @@ function normalizeProfile(player) {
 
   return {
     player_id: playerId,
+
     name:
       player.name === undefined ||
       player.name === null ||
@@ -92,6 +93,107 @@ function normalizeProfile(player) {
         ? null
         : String(player.preferred_foot)
   };
+}
+
+function isCompleteProfile(player) {
+  if (!player) {
+    return false;
+  }
+
+  return (
+    player.name !== null &&
+    player.name !== "" &&
+
+    player.slug !== null &&
+    player.slug !== "" &&
+
+    player.position !== null &&
+    player.position !== "" &&
+
+    player.nationality !== null &&
+    player.nationality !== "" &&
+
+    player.date_of_birth !== null &&
+    player.date_of_birth !== "" &&
+
+    player.height_cm !== null &&
+    player.height_cm !== undefined &&
+
+    player.preferred_foot !== null &&
+    player.preferred_foot !== ""
+  );
+}
+
+function profileScore(player) {
+  if (!player) {
+    return 0;
+  }
+
+  let score = 0;
+
+  if (player.name !== null && player.name !== "") {
+    score++;
+  }
+
+  if (player.slug !== null && player.slug !== "") {
+    score++;
+  }
+
+  if (player.position !== null && player.position !== "") {
+    score++;
+  }
+
+  if (player.nationality !== null && player.nationality !== "") {
+    score++;
+  }
+
+  if (
+    player.date_of_birth !== null &&
+    player.date_of_birth !== ""
+  ) {
+    score++;
+  }
+
+  if (
+    player.height_cm !== null &&
+    player.height_cm !== undefined
+  ) {
+    score++;
+  }
+
+  if (
+    player.preferred_foot !== null &&
+    player.preferred_foot !== ""
+  ) {
+    score++;
+  }
+
+  return score;
+}
+
+function dedupeProfiles(players) {
+  const map = new Map();
+
+  for (const player of players) {
+    if (!player || player.player_id == null) {
+      continue;
+    }
+
+    const id = String(player.player_id);
+
+    const previous = map.get(id);
+
+    if (!previous) {
+      map.set(id, player);
+      continue;
+    }
+
+    if (profileScore(player) >= profileScore(previous)) {
+      map.set(id, player);
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 export default {
@@ -156,10 +258,6 @@ export default {
 
       // =========================================================
       // GET /players/ids
-      //
-      // PAGINIRANO
-      //
-      // /players/ids?limit=1000&offset=0
       // =========================================================
 
       if (
@@ -207,11 +305,134 @@ export default {
       }
 
       // =========================================================
+      // POST /players/profile-status
+      //
+      // Proverava stvarno stanje profila u Neon-u.
+      //
+      // BODY:
+      // {
+      //   "player_ids": ["123", "456"]
+      // }
+      // =========================================================
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/players/profile-status"
+      ) {
+        const body = await request.json();
+
+        if (!Array.isArray(body.player_ids)) {
+          return jsonResponse(
+            {
+              ok: false,
+              error: "player_ids must be an array"
+            },
+            { status: 400 }
+          );
+        }
+
+        if (body.player_ids.length === 0) {
+          return jsonResponse({
+            ok: true,
+            players: []
+          });
+        }
+
+        if (body.player_ids.length > ID_BATCH_MAX) {
+          return jsonResponse(
+            {
+              ok: false,
+              error:
+                `Maximum ${ID_BATCH_MAX} player_ids per batch`
+            },
+            { status: 400 }
+          );
+        }
+
+        const ids = [];
+        const invalid = [];
+
+        for (const rawId of body.player_ids) {
+          const id = normalizePlayerId(rawId);
+
+          if (!id) {
+            invalid.push(rawId);
+            continue;
+          }
+
+          ids.push(id);
+        }
+
+        const uniqueIds = [
+          ...new Set(ids)
+        ];
+
+        if (uniqueIds.length === 0) {
+          return jsonResponse(
+            {
+              ok: false,
+              error: "No valid player_ids",
+              invalid
+            },
+            { status: 400 }
+          );
+        }
+
+        const result = await client.query(
+          `
+          SELECT
+            player_id,
+            name,
+            slug,
+            position,
+            nationality,
+            date_of_birth,
+            height_cm,
+            preferred_foot
+          FROM players
+          WHERE player_id = ANY($1::bigint[])
+          `,
+          [uniqueIds]
+        );
+
+        const existing = new Map();
+
+        for (const row of result.rows) {
+          existing.set(
+            String(row.player_id),
+            row
+          );
+        }
+
+        const players = uniqueIds.map(id => {
+          const row = existing.get(id);
+
+          if (!row) {
+            return {
+              player_id: id,
+              exists: false,
+              complete: false,
+              score: 0
+            };
+          }
+
+          return {
+            player_id: id,
+            exists: true,
+            complete: isCompleteProfile(row),
+            score: profileScore(row)
+          };
+        });
+
+        return jsonResponse({
+          ok: true,
+          players,
+          invalid
+        });
+      }
+
+      // =========================================================
       // POST /players/ids/batch
-      //
-      // UBACUJE SAMO PLAYER_ID
-      //
-      // Jedan SQL upit za ceo batch.
       // =========================================================
 
       if (
@@ -264,7 +485,11 @@ export default {
           ids.push(playerId);
         }
 
-        if (ids.length === 0) {
+        const uniqueIds = [
+          ...new Set(ids)
+        ];
+
+        if (uniqueIds.length === 0) {
           return jsonResponse(
             {
               ok: false,
@@ -275,23 +500,17 @@ export default {
           );
         }
 
-        /*
-         * PostgreSQL jednom upitu ubacuje ceo batch.
-         *
-         * name ostaje NULL dok ne dobijemo SofaScore profil.
-         */
-
         const values = [];
         const placeholders = [];
 
-        for (let i = 0; i < ids.length; i++) {
+        for (let i = 0; i < uniqueIds.length; i++) {
           const param = i + 1;
 
           placeholders.push(
             `($${param}, NULL)`
           );
 
-          values.push(ids[i]);
+          values.push(uniqueIds[i]);
         }
 
         const result = await client.query(
@@ -312,8 +531,12 @@ export default {
         return jsonResponse({
           ok: true,
           inserted: result.rowCount,
-          existing: ids.length - result.rowCount,
-          total: ids.length,
+          existing:
+            uniqueIds.length - result.rowCount,
+          total: uniqueIds.length,
+          received: ids.length,
+          duplicatesRemoved:
+            ids.length - uniqueIds.length,
           invalid
         });
       }
@@ -340,12 +563,6 @@ export default {
           );
         }
 
-        /*
-         * Za pojedinačni profil:
-         *
-         * Ako je name NULL, ne menjamo postojeći name.
-         */
-
         const result = await client.query(
           `
           INSERT INTO players (
@@ -371,6 +588,7 @@ export default {
 
           ON CONFLICT (player_id)
           DO UPDATE SET
+
             name =
               COALESCE(
                 EXCLUDED.name,
@@ -441,15 +659,18 @@ export default {
 
         return jsonResponse({
           ok: true,
-          player: result.rows[0]
+          player: result.rows[0],
+          complete:
+            isCompleteProfile(result.rows[0]),
+          score:
+            profileScore(result.rows[0])
         });
       }
 
       // =========================================================
       // POST /players/batch
       //
-      // OPTIMIZOVAN:
-      // JEDAN SQL QUERY ZA CEO BATCH
+      // DEDUP + UPSERT
       // =========================================================
 
       if (
@@ -474,6 +695,8 @@ export default {
             inserted: 0,
             updated: 0,
             total: 0,
+            processed: 0,
+            duplicatesRemoved: 0,
             errors: []
           });
         }
@@ -489,7 +712,7 @@ export default {
           );
         }
 
-        const players = [];
+        const normalized = [];
         const errors = [];
 
         for (const rawPlayer of body.players) {
@@ -505,8 +728,13 @@ export default {
             continue;
           }
 
-          players.push(player);
+          normalized.push(player);
         }
+
+        const players = dedupeProfiles(normalized);
+
+        const duplicatesRemoved =
+          normalized.length - players.length;
 
         if (players.length === 0) {
           return jsonResponse(
@@ -515,18 +743,13 @@ export default {
               inserted: 0,
               updated: 0,
               total: body.players.length,
+              processed: 0,
+              duplicatesRemoved,
               errors
             },
             { status: 400 }
           );
         }
-
-        /*
-         * 8 parametara po igraču.
-         *
-         * 1000 igrača = 8000 parametara,
-         * što je bezbedno ispod PostgreSQL limita.
-         */
 
         const values = [];
         const placeholders = [];
@@ -647,6 +870,7 @@ export default {
           updated,
           total: body.players.length,
           processed: players.length,
+          duplicatesRemoved,
           errors
         });
       }
