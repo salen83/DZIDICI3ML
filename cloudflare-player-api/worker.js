@@ -198,82 +198,7 @@ function dedupeProfiles(players) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-
-
-// =========================================================
-// =========================================================
-// GET /teams/:team_id/players
-// Trenutni igraci tima iz Neon-a
-// =========================================================
-
-if (
-  request.method === "GET" &&
-  url.pathname.startsWith("/teams/") &&
-  url.pathname.endsWith("/players")
-) {
-  const parts = url.pathname.split("/");
-  const teamId = parts[2];
-
-  if (!/^\d+$/.test(teamId || "")) {
-    return jsonResponse(
-      {
-        ok: false,
-        error: "Valid team_id is required"
-      },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const result = await client.query(
-      `
-        SELECT
-          p.player_id,
-          p.name,
-          p.slug,
-          p.position,
-          p.nationality,
-          p.date_of_birth,
-          p.height_cm,
-          p.preferred_foot,
-          p.created_at,
-          p.updated_at
-        FROM player_team_history h
-        INNER JOIN players p
-          ON p.player_id = h.player_id
-        WHERE h.team_id = $1
-          AND h.is_current = true
-        ORDER BY
-          CASE
-            WHEN p.name IS NULL OR p.name = '' THEN 1
-            ELSE 0
-          END,
-          p.name ASC,
-          p.player_id ASC
-      `,
-      [teamId]
-    );
-
-    return jsonResponse({
-      ok: true,
-      team_id: teamId,
-      count: result.rows.length,
-      players: result.rows
-    });
-  } catch (error) {
-    return jsonResponse(
-      {
-        ok: false,
-        error: "Database query failed",
-        message: error?.message || String(error)
-      },
-      { status: 500 }
-    );
-  }
-}
-
-if (request.method === "OPTIONS") {
+    if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
         headers: CORS_HEADERS
@@ -286,6 +211,66 @@ if (request.method === "OPTIONS") {
 
     try {
       await client.connect();
+
+      const url = new URL(request.url);
+
+      // =========================================================
+      // GET /teams/:team_id/players
+      // Trenutni igraci tima iz Neon-a
+      // =========================================================
+      if (
+        request.method === "GET" &&
+        url.pathname.startsWith("/teams/") &&
+        url.pathname.endsWith("/players")
+      ) {
+        const parts = url.pathname.split("/");
+        const teamId = parts[2];
+
+        if (!/^\d+$/.test(teamId || "")) {
+          return jsonResponse(
+            { ok: false, error: "Valid team_id is required" },
+            { status: 400 }
+          );
+        }
+
+        const result = await client.query(
+          `
+            SELECT
+              p.player_id,
+              p.name,
+              p.slug,
+              p.position,
+              p.nationality,
+              p.date_of_birth,
+              p.height_cm,
+              p.preferred_foot,
+              p.created_at,
+              p.updated_at
+            FROM player_team_history h
+            INNER JOIN players p
+              ON p.player_id = h.player_id
+            WHERE h.team_id = $1
+              AND h.is_current = true
+            ORDER BY
+              CASE
+                WHEN p.name IS NULL OR p.name = '' THEN 1
+                ELSE 0
+              END,
+              p.name ASC,
+              p.player_id ASC
+          `,
+          [teamId]
+        );
+
+        return jsonResponse({
+          ok: true,
+          team_id: teamId,
+          count: result.rows.length,
+          players: result.rows
+        });
+      }
+
+
 
 
       // =========================================================
