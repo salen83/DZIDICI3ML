@@ -198,6 +198,8 @@ function dedupeProfiles(players) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
 
 // =========================================================
 // GET /teams/:team_id/players
@@ -273,7 +275,6 @@ if (
     try {
       await client.connect();
 
-      const url = new URL(request.url);
 
       // =========================================================
       // GET /
