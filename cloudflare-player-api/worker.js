@@ -202,6 +202,7 @@ export default {
 
 
 // =========================================================
+// =========================================================
 // GET /teams/:team_id/players
 // Trenutni igraci tima iz Neon-a
 // =========================================================
@@ -224,44 +225,55 @@ if (
     );
   }
 
-  const result = await client.query(
-    `
-      SELECT
-        p.player_id,
-        p.name,
-        p.slug,
-        p.position,
-        p.nationality,
-        p.date_of_birth,
-        p.height_cm,
-        p.preferred_foot,
-        p.created_at,
-        p.updated_at
-      FROM player_team_history h
-      INNER JOIN players p
-        ON p.player_id = h.player_id
-      WHERE h.team_id = $1
-        AND h.is_current = true
-      ORDER BY
-        CASE
-          WHEN p.name IS NULL OR p.name = '' THEN 1
-          ELSE 0
-        END,
-        p.name ASC,
-        p.player_id ASC
-    `,
-    [teamId]
-  );
+  try {
+    const result = await client.query(
+      `
+        SELECT
+          p.player_id,
+          p.name,
+          p.slug,
+          p.position,
+          p.nationality,
+          p.date_of_birth,
+          p.height_cm,
+          p.preferred_foot,
+          p.created_at,
+          p.updated_at
+        FROM player_team_history h
+        INNER JOIN players p
+          ON p.player_id = h.player_id
+        WHERE h.team_id = $1
+          AND h.is_current = true
+        ORDER BY
+          CASE
+            WHEN p.name IS NULL OR p.name = '' THEN 1
+            ELSE 0
+          END,
+          p.name ASC,
+          p.player_id ASC
+      `,
+      [teamId]
+    );
 
-  return jsonResponse({
-    ok: true,
-    team_id: teamId,
-    count: result.rows.length,
-    players: result.rows
-  });
+    return jsonResponse({
+      ok: true,
+      team_id: teamId,
+      count: result.rows.length,
+      players: result.rows
+    });
+  } catch (error) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: "Database query failed",
+        message: error?.message || String(error)
+      },
+      { status: 500 }
+    );
+  }
 }
 
-    if (request.method === "OPTIONS") {
+if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
         headers: CORS_HEADERS
