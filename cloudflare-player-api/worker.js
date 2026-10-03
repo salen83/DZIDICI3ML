@@ -214,6 +214,116 @@ export default {
 
       const url = new URL(request.url);
 
+// =========================================================
+// POST /player-teams/batch
+// Upis trenutnih player -> team relacija u Neon
+// =========================================================
+if (
+  request.method === "POST" &&
+  url.pathname === "/player-teams/batch"
+) {
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(
+      { ok: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const relations = Array.isArray(body?.relations)
+    ? body.relations
+    : [];
+
+  if (!relations.length) {
+    return jsonResponse(
+      { ok: false, error: "relations array is required" },
+      { status: 400 }
+    );
+  }
+
+  const cleanRelations = relations
+    .map(row => ({
+      player_id: String(row?.player_id ?? ""),
+      team_id: String(row?.team_id ?? ""),
+      start_date:
+        row?.start_date ||
+        new Date().toISOString().slice(0, 10),
+      is_current:
+        row?.is_current !== false
+    }))
+    .filter(row =>
+      /^\d+$/.test(row.player_id) &&
+      /^\d+$/.test(row.team_id) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(row.start_date)
+    );
+
+  if (!cleanRelations.length) {
+    return jsonResponse(
+      { ok: false, error: "No valid relations supplied" },
+      { status: 400 }
+    );
+  }
+
+  let inserted = 0;
+  let updated = 0;
+
+  for (const row of cleanRelations) {
+    const result = await client.query(
+      `
+        INSERT INTO player_team_history (
+          player_id,
+          team_id,
+          start_date,
+          end_date,
+          is_current,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          NULL,
+          $4,
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (player_id, team_id, start_date)
+        DO UPDATE SET
+          end_date = NULL,
+          is_current = EXCLUDED.is_current,
+          updated_at = NOW()
+        RETURNING (xmax = 0) AS inserted
+      `,
+      [
+        row.player_id,
+        row.team_id,
+        row.start_date,
+        row.is_current
+      ]
+    );
+
+    if (result.rows[0]?.inserted) {
+      inserted++;
+    } else {
+      updated++;
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    received: relations.length,
+    valid: cleanRelations.length,
+    inserted,
+    updated
+  });
+}
+
+
+
       // =========================================================
       // GET /teams/:team_id/players
       // Trenutni igraci tima iz Neon-a
